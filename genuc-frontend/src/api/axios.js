@@ -11,9 +11,10 @@ import {
   estMutualisable,
 } from './requestCache';
 import { estAnnulation } from './annulation';
+import { API_BASE_URL } from '../config/apiBaseUrl';
 
 const api = axios.create({
-  baseURL: process.env.REACT_APP_API_BASE_URL || 'http://localhost:8082',
+  baseURL: API_BASE_URL,
   timeout: 10000,
   withCredentials: true,
 });

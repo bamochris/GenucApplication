@@ -13,6 +13,16 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY genuc-frontend/ ./
 # CI=false : warnings ne font pas échouer le build
 # GENERATE_SOURCEMAP=false : réduit taille du bundle de 30-40%
+# Origine du backend, figée dans le bundle au build (Create React App inline les
+# REACT_APP_* ; rien n'est lisible à l'exécution). Vide = MÊME ORIGINE : le
+# navigateur appelle /api/… et Nginx relaie. Sans cette valeur, le bundle
+# embarquait http://localhost:8082 et l'interface affichait « Hors ligne »
+# une fois déployée, alors que l'API répondait normalement.
+# Surchargeable si le backend est servi depuis une autre origine :
+#   docker build --build-arg REACT_APP_API_BASE_URL=https://api.exemple.cd .
+ARG REACT_APP_API_BASE_URL=""
+ENV REACT_APP_API_BASE_URL=$REACT_APP_API_BASE_URL
+
 ENV CI=false \
     GENERATE_SOURCEMAP=false \
     NODE_ENV=production

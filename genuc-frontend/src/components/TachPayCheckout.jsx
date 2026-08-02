@@ -8,9 +8,10 @@ import { logoBanque } from '../constants/banquesRdc';
 import PaiementStatutPoller from './PaiementStatutPoller';
 import { safeRedirect } from '../utils/urlValidator';
 import './TachPayCheckout.css';
+import { API_BASE_URL } from '../config/apiBaseUrl';
 
 // Base URL du backend
-const API_BASE = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8082';
+const API_BASE = API_BASE_URL;
 
 // ─── Données statiques ─────────────────────────────────────────────
 const PAYS = [

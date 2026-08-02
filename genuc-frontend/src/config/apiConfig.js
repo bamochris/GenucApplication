@@ -1,3 +1,4 @@
+import { API_BASE_URL } from './apiBaseUrl';
 /**
  * Configuration API GENUC Frontend
  * ✅ ÉTAPE 1 : URLs centralisées du backend
@@ -6,7 +7,7 @@
 
 const API_CONFIG = {
   // Base URL du backend Spring Boot
-  BASE_URL: process.env.REACT_APP_API_BASE_URL || 'http://localhost:8082',
+  BASE_URL: API_BASE_URL,
   
   // Timeout des requêtes (ms)
   TIMEOUT: parseInt(process.env.REACT_APP_API_TIMEOUT || '10000', 10),

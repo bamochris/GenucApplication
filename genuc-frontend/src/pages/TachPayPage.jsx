@@ -4,8 +4,9 @@ import TachPayCheckout from '../components/TachPayCheckout';
 import TachPayLoadingDialog from '../components/TachPayLoadingDialog';
 import { useAuth } from '../context/AuthContext';
 import './TachPayPage.css';
+import { API_BASE_URL } from '../config/apiBaseUrl';
 
-const API_BASE = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8082';
+const API_BASE = API_BASE_URL;
 
 export default function TachPayPage() {
   const navigate = useNavigate();
