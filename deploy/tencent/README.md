@@ -3,6 +3,39 @@
 Procédure de mise en ligne sur une machine virtuelle CVM, avec la pile Docker
 Compose de `docker-compose.prod.yml`.
 
+---
+
+## Voie rapide — deux scripts
+
+Si vous ne voulez pas passer par la console, tout est automatisé.
+
+```bash
+pip install tccli
+tccli configure        # SecretId, SecretKey, region eu-frankfurt
+```
+
+Les clés API se créent dans **Console → Gestion des accès → Clés API**. Elles ne
+transitent jamais par les scripts : `tccli` les stocke dans `~/.tccli/`.
+
+```bash
+bash deploy/tencent/provision-cvm.sh      # cle SSH, groupe de securite, instance
+bash deploy/tencent/deploy-cvm.sh <IP>    # docker, code, secrets, build, verification
+```
+
+`provision-cvm.sh` demande une confirmation explicite avant de créer l'instance
+facturée, et affiche le détail de ce qui sera facturé. Les deux scripts sont
+**idempotents** : relancés, ils réutilisent la clé, le groupe et l'instance
+existants plutôt que d'en créer de nouveaux — et `deploy-cvm.sh` ne régénère
+jamais un `.env` déjà présent, ce qui invaliderait la base.
+
+Les secrets de la pile (mot de passe base, Redis, `JWT_SECRET`) sont générés
+**sur le CVM** par `deploy-cvm.sh` : ils ne passent ni par votre terminal ni par
+votre historique shell.
+
+Le reste de ce document décrit la même chose manuellement, étape par étape.
+
+---
+
 **Région : Francfort (`eu-frankfurt`).** C'est la région Tencent la plus proche
 de Kinshasa, et surtout la seule décision qui évite l'enregistrement ICP (备案) :
 toute région de Chine continentale exige ce dépôt administratif — entité
