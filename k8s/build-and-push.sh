@@ -1,4 +1,3 @@
-cat > build-and-push.sh << 'EOF'
 #!/bin/bash
 set -euo pipefail
 
@@ -25,11 +24,14 @@ echo "  ✓ Backend buildé : ${REGISTRY}/genuc-backend:${TAG}"
 
 echo ""
 echo "▸ Build du frontend (React + Nginx)..."
+# Contexte = racine du dépôt : Dockerfile.frontend copie genuc-frontend/ ET
+# genuc-backend/nginx.conf. Avec genuc-backend/ comme contexte, le COPY des
+# sources React ne trouvait rien.
 docker build \
   -t "${REGISTRY}/genuc-frontend:${TAG}" \
   -f "${REPO_DIR}/genuc-backend/Dockerfile.frontend" \
   --platform "${PLATFORM}" \
-  "${REPO_DIR}/genuc-backend"
+  "${REPO_DIR}"
 echo "  ✓ Frontend buildé : ${REGISTRY}/genuc-frontend:${TAG}"
 
 echo ""
@@ -45,4 +47,3 @@ echo "  Build et push terminés avec succès !"
 echo "  Backend  : ${REGISTRY}/genuc-backend:${TAG}"
 echo "  Frontend : ${REGISTRY}/genuc-frontend:${TAG}"
 echo "═══════════════════════════════════════════════════════════════"
-EOF

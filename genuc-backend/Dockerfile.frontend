@@ -1,7 +1,9 @@
 # ─── Étape 1 : Installation des dépendances (cache si package-lock.json inchangé) ─
 FROM node:20-alpine AS deps
 WORKDIR /app
-COPY genuc-frontend/package.json genuc-frontend/package-lock.json ./
+# .npmrc porte legacy-peer-deps=true : sans lui, npm ci s'arrête en ERESOLVE sur
+# le pair react de @react-pdf/renderer. Il doit être copié AVANT npm ci.
+COPY genuc-frontend/package.json genuc-frontend/package-lock.json genuc-frontend/.npmrc ./
 RUN npm ci --omit=dev --prefer-offline
 
 # ─── Étape 2 : Build React ───────────────────────────────────────────────────
@@ -24,7 +26,9 @@ RUN rm /etc/nginx/conf.d/default.conf && \
     rm -rf /usr/share/nginx/html/*
 
 COPY --from=builder /app/build /usr/share/nginx/html
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+# Ce Dockerfile se construit depuis la RACINE du dépôt (il copie genuc-frontend/),
+# donc nginx.conf doit être désigné par son chemin complet depuis cette racine.
+COPY genuc-backend/nginx.conf /etc/nginx/conf.d/default.conf
 
 # Nginx tourne déjà en tant que www-data/nginx
 EXPOSE 80

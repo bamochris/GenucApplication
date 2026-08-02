@@ -1,4 +1,3 @@
-cat > deploy.sh << 'EOF'
 #!/bin/bash
 set -euo pipefail
 
@@ -21,6 +20,16 @@ kubectl apply -f "${SCRIPT_DIR}/00-namespace.yaml"
 echo ""
 echo "▸ 2/6 ConfigMaps et Secrets..."
 kubectl apply -f "${SCRIPT_DIR}/01-configmap.yaml"
+
+# 02-secrets.yaml n'est PAS versionné (il porte des valeurs réelles) : il se
+# fabrique à partir de 02-secrets.example.yaml. Échouer ici est volontaire —
+# mieux vaut interrompre le déploiement que d'appliquer un Secret incomplet.
+if [ ! -f "${SCRIPT_DIR}/02-secrets.yaml" ]; then
+  echo "  ✗ ${SCRIPT_DIR}/02-secrets.yaml est absent." >&2
+  echo "    cp ${SCRIPT_DIR}/02-secrets.example.yaml ${SCRIPT_DIR}/02-secrets.yaml" >&2
+  echo "    puis renseigner les valeurs avant de relancer." >&2
+  exit 1
+fi
 kubectl apply -f "${SCRIPT_DIR}/02-secrets.yaml"
 
 echo ""
@@ -64,4 +73,3 @@ kubectl get ingress -n "${NAMESPACE}"
 echo ""
 echo "▸ HPA :"
 kubectl get hpa -n "${NAMESPACE}"
-EOF

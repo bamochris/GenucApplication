@@ -124,6 +124,27 @@
             <scope>runtime</scope>
         </dependency>
 
+        <!--
+          Flyway. Les migrations existaient dans src/main/resources/db/migration/
+          et application-prod.properties positionne spring.flyway.enabled=true,
+          mais la dépendance n'était pas déclarée : l'auto-configuration Spring
+          n'avait rien à activer, aucune migration ne s'exécutait, et le profil
+          prod (ddl-auto=validate) échouait au démarrage sur une base vide
+          — « Schema-validation: missing table [affectations_frais] ».
+
+          Depuis Flyway 10, le support d'un SGBD donné vit dans un artefact
+          séparé : flyway-core seul ne sait pas parler à PostgreSQL.
+          Les versions viennent du BOM Spring Boot, ne pas les figer ici.
+        -->
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-database-postgresql</artifactId>
+        </dependency>
+
         <dependency>
             <groupId>io.jsonwebtoken</groupId>
             <artifactId>jjwt-api</artifactId>

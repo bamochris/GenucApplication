@@ -247,8 +247,11 @@ services:
   # ─── Frontend React ────────────────────────────────────────────────────
   frontend:
     build:
-      context: .
-      dockerfile: Dockerfile.frontend
+      # Contexte = racine du dépôt. Avec « context: . » (donc genuc-backend/),
+      # le COPY genuc-frontend/package.json du Dockerfile ne trouvait rien :
+      # les sources du frontend sont un cran au-dessus.
+      context: ..
+      dockerfile: genuc-backend/Dockerfile.frontend
     container_name: genuc_frontend
     ports:
       - "80:80"

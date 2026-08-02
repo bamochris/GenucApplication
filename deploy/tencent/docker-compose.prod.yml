@@ -1,0 +1,144 @@
+# Pile de production GENUC — CVM Tencent Cloud (région Francfort).
+#
+# Volontairement plus légère que genuc-backend/docker-compose.yml, qui embarque
+# en plus un réplica PostgreSQL, deux PgBouncer, Kafka + Zookeeper et Tempo :
+# une dizaine de conteneurs qu'un CVM d'entrée de gamme ne tient pas. Kafka est
+# désactivé par défaut côté application (genuc.kafka.enabled absent, et
+# KafkaConfig est un @ConditionalOnProperty havingValue="true") : la pile
+# ci-dessous suffit à faire tourner GENUC.
+#
+# Lancement :  docker compose -f deploy/tencent/docker-compose.prod.yml up -d --build
+# Les contextes de build sont relatifs à la RACINE du dépôt.
+
+name: genuc
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: genuc_postgres
+    environment:
+      POSTGRES_DB: ${DB_NAME:-genuc_db}
+      POSTGRES_USER: ${DB_USERNAME:-genuc_user}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD est obligatoire}
+      # Sans cette variable, l'image initialise le cluster en "trust" :
+      # toute connexion locale serait acceptée sans mot de passe.
+      POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256 --auth-local=scram-sha-256"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-genuc_user} -d ${DB_NAME:-genuc_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    restart: unless-stopped
+    # Aucun port publié : la base n'est jamais joignable depuis l'extérieur du CVM.
+    networks: [genuc_net]
+
+  redis:
+    image: redis:7-alpine
+    container_name: genuc_redis
+    # requirepass n'est appliqué que si REDIS_PASSWORD est renseigné.
+    command: >
+      sh -c 'if [ -n "$$REDIS_PASSWORD" ];
+             then exec redis-server --appendonly yes --requirepass "$$REDIS_PASSWORD";
+             else exec redis-server --appendonly yes; fi'
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli ${REDIS_PASSWORD:+-a \"$$REDIS_PASSWORD\"} ping | grep -q PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+    networks: [genuc_net]
+
+  backend:
+    build:
+      context: ../../genuc-backend
+      dockerfile: Dockerfile.backend
+    container_name: genuc_backend
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+
+      # ─── Obligatoires : application-prod.properties les déclare SANS valeur
+      # par défaut, le conteneur refuse donc de démarrer si l'une manque.
+      # C'est voulu : mieux vaut un échec au démarrage qu'une prod qui tourne
+      # sur des identifiants de développement.
+      DB_URL: jdbc:postgresql://postgres:5432/${DB_NAME:-genuc_db}
+      DB_USERNAME: ${DB_USERNAME:-genuc_user}
+      DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD est obligatoire}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET est obligatoire (64 caracteres minimum)}
+      REDIS_HOST: redis
+
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+
+      # En prod : ddl-auto=validate + Flyway actif. Le schéma est produit par les
+      # migrations, jamais par Hibernate ; une entité non couverte fait échouer
+      # le démarrage plutôt que de dériver silencieusement.
+      FLYWAY_ENABLED: "true"
+
+      # Construit tous les liens envoyés par mail et les QR de vérification :
+      # doit pointer vers l'origine publique du frontend, pas vers le backend.
+      APP_BASE_URL: ${APP_BASE_URL:?APP_BASE_URL est obligatoire}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:?CORS_ALLOWED_ORIGINS est obligatoire}
+
+      # Cookies : le site est servi en HTTPS derrière le Nginx du frontend.
+      GENUC_COOKIE_SECURE: "true"
+
+      MAIL_USERNAME: ${MAIL_USERNAME:-}
+      MAIL_PASSWORD: ${MAIL_PASSWORD:-}
+
+      WEBHOOK_SECRET: ${WEBHOOK_SECRET:-}
+      WEBHOOK_VODACOM_SECRET: ${WEBHOOK_VODACOM_SECRET:-}
+      WEBHOOK_AIRTEL_SECRET: ${WEBHOOK_AIRTEL_SECRET:-}
+      WEBHOOK_ORANGE_SECRET: ${WEBHOOK_ORANGE_SECRET:-}
+      WEBHOOK_AFRIMONEY_SECRET: ${WEBHOOK_AFRIMONEY_SECRET:-}
+
+      # Dimensionnement adapté à un CVM 2 vCPU / 4 Go. À relever avec l'instance.
+      TOMCAT_MAX_THREADS: ${TOMCAT_MAX_THREADS:-25}
+      DB_POOL_SIZE: ${DB_POOL_SIZE:-8}
+    volumes:
+      # Pièces de dossier, TFC, photos : à sauvegarder au même titre que la base.
+      - uploads_data:/app/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8082/actuator/health | grep -q '\"status\":\"UP\"'"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 120s
+    restart: unless-stopped
+    networks: [genuc_net]
+
+  frontend:
+    build:
+      # Contexte = racine du dépôt : le Dockerfile copie genuc-frontend/ ET
+      # genuc-backend/nginx.conf, qui ne sont pas dans un répertoire commun plus bas.
+      context: ../..
+      dockerfile: genuc-backend/Dockerfile.frontend
+    container_name: genuc_frontend
+    ports:
+      - "80:80"
+    depends_on:
+      backend:
+        condition: service_started
+    restart: unless-stopped
+    networks: [genuc_net]
+
+volumes:
+  postgres_data:
+  redis_data:
+  uploads_data:
+
+networks:
+  genuc_net:
+    driver: bridge
