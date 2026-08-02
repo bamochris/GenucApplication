@@ -28,7 +28,12 @@ bleu()  { printf "\033[1;34m▸ %s\033[0m\n" "$*"; }
 vert()  { printf "\033[1;32m  ✓ %s\033[0m\n" "$*"; }
 rouge() { printf "\033[1;31m  ✗ %s\033[0m\n" "$*" >&2; }
 
-tc() { tccli "$@" --region "$REGION" --output json; }
+# tccli s'invoque normalement par son lanceur. Mais « pip install --user » ne
+# le crée pas toujours (constaté avec Python 3.14 sous Windows : le paquet est
+# installé, le .exe absent). On retombe alors sur le module, qui fait le même
+# travail. TCCLI est fixé plus bas, une fois l'interpréteur connu.
+TCCLI=""
+tc() { $TCCLI "$@" --region "$REGION" --output json; }
 
 # Le script tourne aussi bien sous Git Bash (Windows) que sous Linux. Windows
 # n'expose que « python » — et y invoquer « python3 » ne renvoie pas une erreur
@@ -57,12 +62,40 @@ print("" if d is None else d)
 }
 
 # ─── 0. Vérifications ────────────────────────────────────────────────
-command -v tccli   >/dev/null || { rouge "tccli absent : pip install tccli"; exit 1; }
 [ -n "$PY" ] || { rouge "Aucun interpreteur Python 3 trouve (python3, python ou py)"; exit 1; }
 
+if command -v tccli >/dev/null 2>&1; then
+  TCCLI="tccli"
+elif "$PY" -c 'import tccli.main' 2>/dev/null; then
+  # Lanceur de secours : reconstitue argv[0] pour que tccli s'analyse lui-même
+  # correctement, puis appelle son point d'entrée.
+  LANCEUR="$(mktemp)"
+  cat > "${LANCEUR}" <<'PYEOF'
+import sys
+sys.argv[0] = "tccli"
+import tccli.main
+tccli.main.main()
+PYEOF
+  trap 'rm -f "${LANCEUR}"' EXIT
+  TCCLI="$PY ${LANCEUR}"
+  vert "tccli utilise via son module (lanceur non cree par pip)"
+else
+  rouge "tccli absent : pip install --user tccli"
+  exit 1
+fi
+
 bleu "Vérification des identifiants Tencent…"
-if ! tc cvm DescribeRegions >/dev/null 2>&1; then
-  rouge "Identifiants invalides ou non configurés. Lancer : tccli configure"
+# tccli sort en code 0 même quand l'appel échoue (« secretId is invalid » est
+# écrit sur stdout avec un statut 0). Se fier au code de retour laisserait le
+# script continuer jusqu'à la création d'instance avec des identifiants morts :
+# on valide donc sur le contenu de la réponse.
+SONDE="$(tc cvm DescribeRegions 2>&1 || true)"
+if ! printf '%s' "${SONDE}" | grep -q '"RegionSet"'; then
+  rouge "Identifiants Tencent invalides ou absents."
+  rouge "Detail : $(printf '%s' "${SONDE}" | grep -viE '^usage|^ *tccli|^to tccli|^$' | head -1)"
+  echo "" >&2
+  echo "  Creer une cle API : Console Tencent > Gestion des acces > Cles API" >&2
+  echo "  Puis la configurer : tccli configure" >&2
   exit 1
 fi
 vert "Identifiants valides (région ${REGION})"
