@@ -1,0 +1,95 @@
+/* src/pages/Forbidden.css */
+.forbidden-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #0B1F4A 0%, #185FA5 100%);
+  padding: 20px;
+}
+
+.forbidden-card {
+  background: white;
+  border-radius: 20px;
+  padding: 60px 48px;
+  text-align: center;
+  max-width: 480px;
+  width: 100%;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.2);
+}
+
+.forbidden-code {
+  font-size: 96px;
+  font-weight: 800;
+  color: #f44336;
+  line-height: 1;
+  margin-bottom: 16px;
+  letter-spacing: -4px;
+}
+
+.forbidden-title {
+  font-size: 28px;
+  font-weight: 700;
+  color: #0B1F4A;
+  margin: 0 0 12px;
+}
+
+.forbidden-msg {
+  font-size: 16px;
+  color: #666;
+  line-height: 1.6;
+  margin: 0 0 20px;
+}
+
+.forbidden-role {
+  display: inline-block;
+  background: #f0f4ff;
+  color: #185FA5;
+  font-size: 13px;
+  padding: 6px 16px;
+  border-radius: 20px;
+  margin-bottom: 32px;
+}
+
+.forbidden-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+}
+
+.btn-back {
+  padding: 12px 24px;
+  background: none;
+  border: 2px solid #ddd;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #555;
+  cursor: pointer;
+  transition: 0.2s;
+  text-decoration: none;
+}
+
+.btn-back:hover {
+  border-color: #0B1F4A;
+  color: #0B1F4A;
+}
+
+.btn-home {
+  padding: 12px 24px;
+  background: #0B1F4A;
+  border: 2px solid #0B1F4A;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  color: white;
+  cursor: pointer;
+  text-decoration: none;
+  transition: 0.2s;
+  display: inline-block;
+}
+
+.btn-home:hover {
+  background: #185FA5;
+  border-color: #185FA5;
+}

@@ -1,0 +1,141 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: genuc-config
+  namespace: genuc
+  labels:
+    app.kubernetes.io/name: genuc
+    app.kubernetes.io/part-of: genuc-platform
+data:
+  SPRING_PROFILES_ACTIVE: "prod"
+  DB_URL: "jdbc:postgresql://genuc-pgbouncer:5432/genuc_db"
+  DB_USERNAME: "genuc_user"
+  REPLICA_URL: "jdbc:postgresql://genuc-pgbouncer-replica:5432/genuc_db"
+  REPLICA_USERNAME: "genuc_user"
+  REDIS_HOST: "genuc-redis"
+  REDIS_PORT: "6379"
+  KAFKA_BOOTSTRAP_SERVERS: "genuc-kafka:29092"
+  FLYWAY_ENABLED: "true"
+  APP_BASE_URL: "https://genuc.cd"
+  CORS_ALLOWED_ORIGINS: "https://genuc.cd"
+  UPLOADS_ROOT: "/data/uploads"
+  UPLOADS_MAX_MO: "25"
+  SMS_ENABLED: "false"
+  AWS_REGION: "eu-west-3"
+  AWS_S3_ENABLED: "false"
+  AWS_S3_BUCKET: "genuc-documents"
+  OTEL_EXPORTER_OTLP_ENDPOINT: "http://genuc-tempo:4318/v1/traces"
+  OTEL_SAMPLING_PROBABILITY: "1.0"
+  REACT_APP_API_BASE_URL: "/api"
+  REACT_APP_API_TIMEOUT: "30000"
+  REACT_APP_ENV: "production"
+  REACT_APP_DEFAULT_PAGE_SIZE: "20"
+  REACT_APP_MAX_PAGE_SIZE: "100"
+  REACT_APP_TOAST_POSITION: "top-right"
+  REACT_APP_TOAST_DURATION: "4000"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nginx-config
+  namespace: genuc
+  labels:
+    app.kubernetes.io/name: genuc
+    app.kubernetes.io/part-of: genuc-platform
+data:
+  default.conf: |
+    server {
+        listen 80;
+        server_name _;
+        root /usr/share/nginx/html;
+        index index.html;
+        gzip on;
+        gzip_vary on;
+        gzip_min_length 1024;
+        gzip_proxied any;
+        gzip_comp_level 6;
+        gzip_types text/plain text/css text/javascript application/javascript application/json application/xml image/svg+xml;
+        add_header X-Frame-Options "SAMEORIGIN" always;
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header X-XSS-Protection "1; mode=block" always;
+        add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+        add_header Permissions-Policy "camera=(), microphone=(), geolocation=()" always;
+        server_tokens off;
+        location \~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
+            expires 1y;
+            add_header Cache-Control "public, immutable";
+            access_log off;
+        }
+        location / {
+            try_files $uri $uri/ /index.html;
+            add_header Cache-Control "no-cache, no-store, must-revalidate";
+        }
+        location /api/ {
+            proxy_pass http://genuc-backend:8082/api/;
+            proxy_http_version 1.1;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            proxy_set_header Connection "";
+            proxy_connect_timeout 10s;
+            proxy_send_timeout    60s;
+            proxy_read_timeout    60s;
+            proxy_buffering on;
+            proxy_buffer_size 8k;
+            proxy_buffers 16 8k;
+        }
+        location /health {
+            access_log off;
+            return 200 "OK\n";
+            add_header Content-Type text/plain;
+        }
+        location \~ /\. {
+            deny all;
+            access_log off;
+        }
+    }
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-config
+  namespace: genuc
+  labels:
+    app.kubernetes.io/name: genuc
+    app.kubernetes.io/part-of: genuc-platform
+data:
+  postgresql.conf: |
+    wal_level = replica
+    max_wal_senders = 3
+    wal_keep_size = 64
+    max_connections = 200
+    shared_buffers = 256MB
+    effective_cache_size = 1GB
+    work_mem = 4MB
+    maintenance_work_mem = 64MB
+  init-replica.sh: |
+    #!/bin/bash
+    set -e
+    psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-EOSQL
+        CREATE USER replicator WITH REPLICATION ENCRYPTED PASSWORD '${REPLICATOR_PASSWORD:-replicator_password}';
+        SELECT pg_create_physical_replication_slot('genuc_replica_slot');
+    EOSQL
+    echo "host replication replicator all md5" >> "$PGDATA/pg_hba.conf"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: redis-config
+  namespace: genuc
+  labels:
+    app.kubernetes.io/name: genuc
+    app.kubernetes.io/part-of: genuc-platform
+data:
+  redis.conf: |
+    maxmemory 512mb
+    maxmemory-policy allkeys-lru
+    save ""
+    appendonly no
+    tcp-backlog 511
+    hz 20

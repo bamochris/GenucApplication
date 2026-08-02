@@ -1,0 +1,239 @@
+================================================================================
+GENUC — PARTIE 9 : DÉPLOIEMENT ET INFRASTRUCTURE (VERSION APPROFONDIE)
+================================================================================
+Trois modes d'exécution : dev local à la carte (§1), stack complète
+Docker Compose (§2-3), et déploiement mono-serveur same-origin (§4).
+Le chemin de déploiement ACTIF du projet est Docker Compose + Nginx —
+les anciens manifestes Kubernetes ont été retirés (§7).
+
+
+1. DÉVELOPPEMENT LOCAL (sans Docker, ou Docker partiel)
+--------------------------------------------------------------------------------
+  Backend  : mvn spring-boot:run → http://localhost:8082. PAS de context
+             path (le préfixe /api vient des contrôleurs — partie 10
+             §1.1). Nécessite PostgreSQL sur localhost:5432 et Redis sur
+             localhost:6379, DÉMARRÉS AVANT le backend (Redis manquant =
+             échec au démarrage). Profil actif par défaut : dev
+             (application-dev.properties).
+             Alternative hors IDE : mvn -o spring-boot:run
+             -Dspring-boot.run.profiles=dev
+  Frontend : npm start → http://localhost:3000 (écoute 0.0.0.0 —
+             accessible depuis un téléphone du réseau local, utile pour
+             le scan QR). Copier .env.example en .env AVANT le premier
+             lancement. Le front appelle DIRECTEMENT le backend :8082
+             (REACT_APP_API_BASE_URL) — pas de proxy en dev, le backend
+             ouvre CORS sur localhost:3000.
+  Base     : schéma géré par Hibernate (ddl-auto=update) ; Flyway
+             DÉSACTIVÉ en dev (mécanique complète et pièges : parties 04
+             §1 et 12 §5b).
+  Swagger  : http://localhost:8082/swagger-ui.html
+  POSTE ACTUEL : PostgreSQL 18 natif (PAS le conteneur), Redis Docker,
+             backend lancé depuis Eclipse — particularités et conflits de
+             ports détaillés en partie 12 §3.
+
+
+2. STACK COMPLÈTE (Docker Compose) — SERVICE PAR SERVICE
+--------------------------------------------------------------------------------
+Fichier : genuc-backend/docker-compose.yml (PAS à la racine du dépôt !) —
+avec Dockerfile.backend, Dockerfile.frontend et nginx.conf au même
+endroit. Malgré son emplacement, ce compose orchestre les DEUX
+sous-projets. Noms de conteneurs en underscores (genuc_postgres,
+genuc_redis...).
+
+Commandes :
+  docker-compose up -d          # tous les services
+  docker-compose up -d redis    # un service ciblé (usage dev courant)
+  docker-compose down           # arrêt (les volumes persistent)
+
+Services et leur raison d'être :
+
+  postgres (postgres:15, conteneur genuc_postgres, 5432)
+      Base PRIMAIRE (écritures). Configurée pour la réplication en
+      streaming (wal_level=replica, max_wal_senders=3), 200 connexions
+      max, tuning mémoire (shared_buffers 256MB, effective_cache_size
+      1GB). Volume persistant postgres_data.
+      ⚠️ Sur le poste de dev actuel, NE PAS le démarrer : conflit de
+      port avec le PostgreSQL 18 natif (partie 12 §3a).
+
+  postgres-replica (postgres:15)
+      RÉPLIQUE lecture seule, initialisée par pg_basebackup depuis le
+      primaire au démarrage (attend que le primaire soit prêt). C'est la
+      cible du RoutingDataSource pour les lectures (partie 02 §2).
+      Volume postgres_replica_data.
+
+  pgbouncer / pgbouncer-replica (ports 6432/6433)
+      POOL DE CONNEXIONS devant chaque base (mode transaction ; jusqu'à
+      5000 clients / 100 connexions serveur côté primaire, 3000/50 côté
+      réplique). En production le backend se connecte à PgBouncer, PAS à
+      Postgres directement : des milliers de requêtes applicatives se
+      partagent une centaine de connexions réelles — indispensable dès
+      que le backend est répliqué.
+
+  redis (redis:7-alpine, genuc_redis, 6379)
+      Cache applicatif + rate limiting. 512MB max, éviction allkeys-lru,
+      PERSISTANCE DÉSACTIVÉE (--save "" --appendonly no) : Redis est ici
+      un cache PUR — tout est reconstructible, rien de critique dedans
+      (cohérent avec la partie 04 §5).
+
+  zookeeper + kafka (Confluent 7.5.0, kafka sur 9092)
+      Bus asynchrone (emails, notifications, webhooks de paiement,
+      génération PDF — partie 02 §2). 6 partitions, rétention 7 jours.
+      Inutile en dev quotidien (KAFKA_ENABLED=false → exécution directe).
+
+  tempo (Grafana Tempo, OTLP 4318, requêtes 3200)
+      Backend de tracing distribué : reçoit les traces OpenTelemetry du
+      backend. En production, n'importe quel backend OTLP compatible
+      peut le remplacer.
+
+  backend (Dockerfile.backend, 8082)
+      Spring Boot en profil PROD forcé : connecté via PgBouncer (primaire
+      ET réplique), Redis, Kafka ; FLYWAY_ENABLED=true (contrairement au
+      dev local — c'est ICI que les migrations s'appliquent réellement) ;
+      ddl-auto=validate. S3/CloudFront optionnels (AWS_S3_ENABLED,
+      désactivé par défaut).
+
+  frontend (Dockerfile.frontend, port 80)
+      Build React de production servi par Nginx (nginx.conf, §3).
+
+SECRETS : toutes les variables sensibles (DB_PASSWORD, JWT_SECRET,
+MAIL_*, clés AWS/opérateurs...) sont lues depuis un fichier .env local —
+JAMAIS codées en dur dans docker-compose.yml (le .env n'est pas commité).
+
+
+3. CONFIGURATION NGINX (nginx.conf) — DIRECTIVE PAR DIRECTIVE
+--------------------------------------------------------------------------------
+  - COMPRESSION gzip (JS/CSS/JSON/SVG...) : divise typiquement le poids
+    du bundle par 3-4 — important sur les connexions mobiles congolaises.
+  - EN-TÊTES DE SÉCURITÉ : X-Frame-Options SAMEORIGIN (anti-clickjacking),
+    X-Content-Type-Options nosniff, X-XSS-Protection, Referrer-Policy
+    strict-origin-when-cross-origin, Permissions-Policy (caméra/micro/
+    géoloc refusés par défaut — la caméra du scanner QR est demandée par
+    la PAGE, pas accordée globalement), server_tokens off (version Nginx
+    masquée).
+  - ASSETS STATIQUES (js/css/images/fonts) : cache 1 AN + immutable —
+    possible car les noms de fichiers du build React sont HASHÉS (un
+    nouveau build = de nouveaux noms, jamais de cache périmé).
+  - ROUTE SPA : try_files → index.html pour toutes les routes React
+    Router ; index.html lui-même JAMAIS mis en cache (no-cache/no-store/
+    must-revalidate) — c'est lui qui référence les nouveaux hashes après
+    un déploiement.
+  - PROXY /api/ → http://backend:8082/api/ avec X-Real-IP/X-Forwarded-*
+    (le rate limiting par IP du backend dépend de ces en-têtes !) et
+    timeouts élargis à 60 s pour les endpoints longs (génération PDF,
+    paiements).
+  - /health : point de contrôle simple pour un load balancer.
+  - FICHIERS CACHÉS (.xxx) : accès refusé (protège .env, .git si jamais
+    présents dans l'arborescence servie).
+
+C'est ce proxy qui met frontend et backend sous la MÊME origine en
+production — les liens /api/... fonctionnent alors sans CORS, et la
+convention « les QR pointent vers des routes frontend » (partie 01 §2)
+prend tout son sens.
+
+
+4. ALTERNATIVE SAME-ORIGIN (sans Nginx)
+--------------------------------------------------------------------------------
+Le backend peut servir directement le build React compilé depuis
+src/main/resources/static/ (un build pré-compilé y est présent), le
+ForwardController assurant le fallback SPA (toute URL sans point →
+index.html — partie 10 §1.5). Déploiement mono-serveur le plus simple :
+un seul JAR contient tout. On perd en revanche le cache immutable fin,
+la compression optimisée et les en-têtes de sécurité de Nginx — adapté à
+une démo/petite instance, pas au déploiement national.
+
+
+5. VARIABLES D'ENVIRONNEMENT BACKEND (.env.example) — ET LEUR IMPACT
+--------------------------------------------------------------------------------
+  Base de données : DB_URL, DB_USERNAME, DB_PASSWORD (obligatoires).
+  JWT             : JWT_SECRET (obligatoire, min. 32 caractères — le
+                    JwtService REFUSE de démarrer avec un secret court,
+                    partie 05 §1 ; idéalement 64+), JWT_EXPIRATION
+                    (défaut 900000 ms = 15 min pour l'access token —
+                    courte durée compensée par le refresh automatique),
+                    REFRESH_TOKEN_EXPIRATION_DAYS (défaut 7 jours).
+  Email SMTP      : MAIL_HOST/PORT/USERNAME/PASSWORD — sans SMTP valide,
+                    les activations de compte ne partent pas (piège
+                    partie 12 §5a).
+  Redis           : REDIS_HOST/PORT/PASSWORD.
+  Liens frontend  : APP_BASE_URL — construit TOUS les liens de
+                    vérification/activation envoyés par email/QR. Une
+                    valeur erronée = des QR codes imprimés qui pointent
+                    au mauvais endroit (partie 01 §2).
+  CORS            : CORS_ALLOWED_ORIGINS (origines séparées par virgule).
+  SMS/Twilio      : SMS_ENABLED (false par défaut), TWILIO_*.
+  Africa's Talking: AFRICASTALKING_API_KEY/USERNAME/SHORTCODE.
+  TachPay         : WEBHOOK_PUBLIC_BASE_URL, WEBHOOK_VODACOM_SECRET,
+                    WEBHOOK_AIRTEL_SECRET, WEBHOOK_ORANGE_SECRET,
+                    WEBHOOK_AFRIMONEY_SECRET, VODACOM_/MPESA_*,
+                    ORANGE_*, AIRTEL_*, AFRIMONEY_*, STRIPE_API_KEY,
+                    STRIPE_WEBHOOK_SECRET. En profil prod,
+                    TachPayProductionReadinessCheck REFUSE le démarrage
+                    si une clé/URL/secret manque ou si les simulations
+                    MOBILE_MONEY_SIMULATION_ENABLED / CARD_PAYMENT_
+                    SIMULATION_ENABLED sont actives.
+  Comptes de test : TEST_ADMIN_GENUC, TEST_ETUDIANT (remplacent les mots
+                    de passe par défaut du DataInitializer — à définir
+                    absolument en production si les seeds restent actifs).
+  Bascules        : FLYWAY_ENABLED, KAFKA_ENABLED, AWS_S3_ENABLED,
+                    firebase.enabled — chaque intégration lourde a son
+                    interrupteur, l'application démarre sans elles.
+
+
+6. VARIABLES D'ENVIRONNEMENT FRONTEND (.env.example)
+--------------------------------------------------------------------------------
+  REACT_APP_API_BASE_URL        URL du backend (défaut
+                                http://localhost:8082) — la seule liaison
+                                front→back.
+  REACT_APP_API_TIMEOUT         timeout Axios global.
+  REACT_APP_AUTH_ENDPOINT / _PAIEMENT_ENDPOINT / _INSCRIPTION_ENDPOINT
+                                surcharges d'endpoints par domaine.
+  REACT_APP_ENV / _LOG_LEVEL    comportement du logger maison.
+  REACT_APP_JWT_TOKEN_KEY / _REFRESH_TOKEN_KEY
+                                noms des clés localStorage — les changer
+                                invalide les sessions en cours.
+  REACT_APP_RECAPTCHA_SITE_KEY  reCAPTCHA v2 des formulaires publics.
+  REACT_APP_DEFAULT_PAGE_SIZE / _MAX_PAGE_SIZE   pagination par défaut.
+  REACT_APP_TOAST_POSITION / _DURATION           react-hot-toast.
+  REACT_APP_FIREBASE_* (API_KEY, AUTH_DOMAIN, PROJECT_ID, STORAGE_BUCKET,
+  MESSAGING_SENDER_ID, APP_ID, VAPID_KEY)
+                                laissés VIDES pour désactiver proprement
+                                les notifications push (aucune erreur —
+                                l'initialisation est simplement sautée).
+  Rappel CRA : ces variables sont FIGÉES AU BUILD (npm run build) — un
+  changement de .env en production exige un rebuild, pas un simple
+  redémarrage.
+
+
+7. NOTE SUR D'ANCIENS MANIFESTES CLOUD (k8s/, infra/)
+--------------------------------------------------------------------------------
+Le dépôt a contenu des manifestes Kubernetes (k8s/base/*.yaml,
+k8s/monitoring/*.yaml pour Prometheus/Grafana/Loki) et des scripts
+d'infrastructure cloud (infra/*.sh, eks-cluster.yaml,
+cloudfront-config.json...). Ces dossiers ONT ÉTÉ SUPPRIMÉS du répertoire
+de travail (changement non commité au moment de la rédaction) — le
+chemin de déploiement actif et documenté est Docker Compose + Nginx
+(§2-3), PAS Kubernetes. Vérifier auprès de l'équipe si un retour à
+Kubernetes est prévu avant de se fier à d'anciennes références ; et
+attention lors des checkouts/merges à ne pas les restaurer par accident
+(partie 12 §8). Si Kubernetes revient un jour : les health groups
+liveness/readiness d'Actuator (§8) et le /health Nginx sont déjà prêts,
+mais les @Scheduled devront être verrouillés (partie 02 §6, note
+multi-instances).
+
+
+8. OBSERVABILITÉ EN PRODUCTION
+--------------------------------------------------------------------------------
+  Métriques   : Micrometer + Prometheus (endpoint Actuator) — inclut les
+                métriques métier rafraîchies par MetricsScheduler
+                (partie 02 §6).
+  Tracing     : OpenTelemetry → export OTLP → Tempo (local) ou tout
+                backend OTLP compatible en production. Chaque requête
+                porte un trace ID de bout en bout.
+  Santé       : Spring Actuator, health groups liveness/readiness
+                (consommables par un load balancer — ou Kubernetes s'il
+                est réintroduit), endpoint Nginx /health.
+  Logs        : format structuré avec trace ID / span ID — on passe d'une
+                ligne de log à la trace complète de la requête (et
+                inversement), indispensable pour déboguer les flux
+                asynchrones paiement/webhook.
+================================================================================

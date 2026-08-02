@@ -1,0 +1,104 @@
+# ==========================================================================
+#  Blueprint Render — Backend GENUC
+# --------------------------------------------------------------------------
+#  PostgreSQL et Redis sont fournis à l'extérieur de ce Blueprint (instances
+#  déjà provisionnées) : leurs coordonnées sont saisies dans le tableau de
+#  bord Render, d'où `sync: false` sur les variables correspondantes.
+#  Render ne les écrase jamais lors d'un redéploiement.
+# ==========================================================================
+
+services:
+  - type: web
+    name: genuc-backend
+    runtime: docker
+    # Doit rester la région de genuc-redis : le réseau privé Render ne relie que des
+    # services d'une même région, et un Redis joint par Internet ajoute une latence
+    # rédhibitoire sur un cache sollicité à chaque requête.
+    region: virginia
+    # ⚠️ Le plan « free » (0,1 vCPU) ne suffit pas : le démarrage de Spring dépasse le
+    # délai d'ouverture de port de Render (~5 min) et l'instance est tuée avant que
+    # Tomcat n'écoute. Mesuré le 2026-07-29 : 6 min sans avoir fini le contexte.
+    plan: starter
+    branch: GenucPlatformApplication
+
+    # Chemins relatifs à la RACINE DU DÉPÔT (et non à rootDir : Render résout
+    # dockerfilePath/dockerContext depuis la racine). `rootDir` est volontairement
+    # omis pour éviter que les deux chemins ne se concatènent.
+    dockerfilePath: ./genuc-backend/Dockerfile.backend
+    dockerContext: ./genuc-backend
+
+    # /actuator/health est explicitement en permitAll dans SecurityConfig
+    # (les autres endpoints Actuator, eux, exigent une authentification).
+    healthCheckPath: /actuator/health
+
+    envVars:
+      # ─── Profil ───────────────────────────────────────────────────────
+      # Deux clés nécessaires : application.yml lit ACTIVE_PROFILE, et
+      # SPRING_PROFILES_ACTIVE reste la variable standard de Spring Boot.
+      - key: SPRING_PROFILES_ACTIVE
+        value: prod
+      - key: ACTIVE_PROFILE
+        value: prod
+
+      # ─── Schéma de base ───────────────────────────────────────────────
+      # Flyway pilote le schéma en production, Hibernate se contente de valider.
+      - key: FLYWAY_ENABLED
+        value: "true"
+      - key: JPA_DDL_AUTO
+        value: validate
+
+      # ─── PostgreSQL (instance existante) ──────────────────────────────
+      # DB_URL au format JDBC : jdbc:postgresql://HOTE:5432/BASE?sslmode=require
+      # (l'URL « postgres://... » fournie par les hébergeurs n'est PAS acceptée
+      # telle quelle par le driver JDBC — convertir l'hôte, le port, la base, et
+      # déplacer identifiant/mot de passe dans DB_USERNAME / DB_PASSWORD).
+      - key: DB_URL
+        sync: false
+      - key: DB_USERNAME
+        sync: false
+      - key: DB_PASSWORD
+        sync: false
+
+      # ─── Redis (instance existante) ───────────────────────────────────
+      # Obligatoire : cache L2, limitation de débit et refresh tokens en dépendent.
+      - key: REDIS_HOST
+        sync: false
+      - key: REDIS_PORT
+        sync: false
+      - key: REDIS_PASSWORD
+        sync: false
+
+      # ─── Sécurité ─────────────────────────────────────────────────────
+      # Généré une seule fois par Render puis conservé (32+ caractères, exigence
+      # de JwtService). Le régénérer invalide toutes les sessions en cours.
+      - key: JWT_SECRET
+        generateValue: true
+
+      # Le routeur Render est en frontal : la connexion TCP provient du réseau
+      # privé, donc X-Forwarded-For n'est honoré que pour ces plages.
+      - key: TRUSTED_PROXIES
+        value: 127.0.0.1/32,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16
+
+      # ─── Liens vers le frontend ───────────────────────────────────────
+      # APP_BASE_URL construit tous les liens envoyés par e-mail et les QR de
+      # vérification : il doit pointer sur l'ORIGINE DU FRONTEND, pas sur l'API.
+      # CORS_ALLOWED_ORIGINS : liste séparée par des virgules, sans slash final.
+      - key: APP_BASE_URL
+        sync: false
+      - key: CORS_ALLOWED_ORIGINS
+        sync: false
+
+      # ─── Intégrations optionnelles ────────────────────────────────────
+      # Laissées désactivées : le stockage des fichiers se fait alors sur le
+      # disque du conteneur (éphémère sur Render — monter un Disk pour le
+      # rendre persistant, cf. genuc.uploads.racine).
+      - key: AWS_S3_ENABLED
+        value: "false"
+      - key: KAFKA_ENABLED
+        value: "false"
+      - key: SMS_ENABLED
+        value: "false"
+      - key: WHATSAPP_ENABLED
+        value: "false"
+      - key: FIREBASE_ENABLED
+        value: "false"

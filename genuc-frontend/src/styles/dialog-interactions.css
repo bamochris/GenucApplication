@@ -1,0 +1,18 @@
+/* src/styles/dialog-interactions.css
+   Utilitaires partagés pour rendre les boîtes de dialogue et formulaires
+   déplaçables (poignée sur l'en-tête) et redimensionnables (agrandir/réduire). */
+
+.dialog-resizable {
+  resize: both;
+  overflow: auto;
+}
+
+.dialog-draggable-handle {
+  cursor: grab;
+  user-select: none;
+  touch-action: none;
+}
+
+.dialog-draggable-handle:active {
+  cursor: grabbing;
+}

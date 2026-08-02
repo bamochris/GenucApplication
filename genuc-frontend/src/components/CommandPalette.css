@@ -1,0 +1,155 @@
+/* src/components/CommandPalette.css — palette de commandes (Ctrl/⌘ + K) */
+
+.cmdk-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 4000;
+  background: rgba(15, 23, 42, 0.55);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 12vh 16px 16px;
+  animation: cmdk-fade 0.12s ease;
+}
+
+@keyframes cmdk-fade {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.cmdk-dialog {
+  width: 100%;
+  max-width: 560px;
+  background: var(--bg-card, #fff);
+  color: var(--text-primary, #0B1F4A);
+  border: 1px solid var(--border-color, #e0e0e0);
+  border-radius: 14px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.35);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  max-height: 70vh;
+  animation: cmdk-pop 0.14s ease;
+}
+
+@keyframes cmdk-pop {
+  from { opacity: 0; transform: translateY(-8px) scale(0.98); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* ─── Barre de recherche ─── */
+.cmdk-search {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border-color, #e0e0e0);
+}
+
+.cmdk-search-icon {
+  font-size: 15px;
+  opacity: 0.7;
+}
+
+.cmdk-input {
+  flex: 1;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: var(--text-primary, #0B1F4A);
+  font-size: 16px;
+  font-family: inherit;
+}
+
+.cmdk-input::placeholder {
+  color: var(--text-muted, #6b7280);
+}
+
+.cmdk-esc {
+  font-size: 11px;
+  padding: 2px 7px;
+  border-radius: 6px;
+  border: 1px solid var(--border-color, #e0e0e0);
+  color: var(--text-muted, #6b7280);
+  background: var(--bg-secondary, #f4f6fb);
+}
+
+/* ─── Liste des résultats ─── */
+.cmdk-liste {
+  list-style: none;
+  margin: 0;
+  padding: 6px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.cmdk-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 9px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.cmdk-item.actif {
+  background: var(--color-accent, #185FA5);
+  color: #fff;
+}
+
+.cmdk-item.actif .cmdk-item-sous {
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.cmdk-item-label {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.cmdk-item-sous {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--text-muted, #6b7280);
+  white-space: nowrap;
+}
+
+.cmdk-vide {
+  padding: 24px 12px;
+  text-align: center;
+  color: var(--text-muted, #6b7280);
+  font-size: 14px;
+}
+
+/* ─── Pied ─── */
+.cmdk-footer {
+  display: flex;
+  gap: 16px;
+  padding: 9px 16px;
+  border-top: 1px solid var(--border-color, #e0e0e0);
+  font-size: 11px;
+  color: var(--text-muted, #6b7280);
+  flex-wrap: wrap;
+}
+
+.cmdk-footer kbd,
+.cmdk-esc {
+  font-family: inherit;
+}
+
+.cmdk-footer kbd {
+  padding: 1px 5px;
+  border-radius: 5px;
+  border: 1px solid var(--border-color, #e0e0e0);
+  background: var(--bg-secondary, #f4f6fb);
+  margin: 0 1px;
+}
+
+@media (max-width: 560px) {
+  .cmdk-overlay { padding-top: 8vh; }
+  .cmdk-item-sous { display: none; }
+}

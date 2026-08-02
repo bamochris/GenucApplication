@@ -1,0 +1,57 @@
+{"properties": [
+  {
+    "name": "genuc.jwt.secret",
+    "type": "java.lang.String",
+    "description": "A description for 'genuc.jwt.secret'"
+  },
+  {
+    "name": "vodacom.mpesa.api.url",
+    "type": "java.lang.String",
+    "description": "URL d'initiation de paiement Vodacom M-Pesa. Obligatoire en production si Vodacom est proposé."
+  },
+  {
+    "name": "vodacom.mpesa.api.key",
+    "type": "java.lang.String",
+    "description": "Identifiant/API key Vodacom M-Pesa utilisé par MobileMoneyService."
+  },
+  {
+    "name": "vodacom.mpesa.api.secret",
+    "type": "java.lang.String",
+    "description": "Secret API Vodacom M-Pesa utilisé par MobileMoneyService."
+  },
+  {
+    "name": "airtel.money.api.url",
+    "type": "java.lang.String",
+    "description": "URL d'initiation de paiement Airtel Money. Obligatoire en production si Airtel est proposé."
+  },
+  {
+    "name": "orange.money.api.url",
+    "type": "java.lang.String",
+    "description": "URL d'initiation de paiement Orange Money. Obligatoire en production si Orange est proposé."
+  },
+  {
+    "name": "afrimoney.api.url",
+    "type": "java.lang.String",
+    "description": "URL d'initiation de paiement AfriMoney. Obligatoire en production si AfriMoney est proposé."
+  },
+  {
+    "name": "genuc.payment.mobile-money.simulation-enabled",
+    "type": "java.lang.Boolean",
+    "description": "Active uniquement en dev la génération de faux IDs opérateur. Doit rester false en production."
+  },
+  {
+    "name": "genuc.payment.card.simulation-enabled",
+    "type": "java.lang.Boolean",
+    "description": "Active uniquement en dev la génération de sessions Stripe fictives. Doit rester false en production."
+  },
+  {
+    "name": "stripe.webhook.require-signature",
+    "type": "java.lang.Boolean",
+    "description": "Exige un Stripe-Signature valide et un stripe.webhook-secret configuré. Doit rester true en production."
+  },
+  {
+    "name": "genuc.webhook.afrimoney.secret",
+    "type": "java.lang.String",
+    "description": "Secret HMAC partagé pour vérifier les webhooks AfriMoney."
+  }
+]}

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<suppressions xmlns="https://jeremylong.github.io/DependencyCheck/dependency-suppression.1.3.xsd">
+  <!--
+    Suppressions OWASP Dependency-Check pour GENUC Platform.
+    Ajouter ici uniquement les faux positifs confirmés, avec CVE et justification.
+  -->
+</suppressions>

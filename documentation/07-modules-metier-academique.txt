@@ -1,0 +1,214 @@
+================================================================================
+GENUC — PARTIE 7 : MODULES MÉTIER ACADÉMIQUES (VERSION APPROFONDIE)
+(Cours, notes, délibérations, palmarès, attestations, diplômes,
+équivalences, carte étudiant)
+================================================================================
+Fil conducteur du domaine : notes saisies → validées → publiées →
+délibérées en jury → documents officiels vérifiables (relevés, bulletins,
+diplômes, attestations, palmarès). Chaque flèche a ses rôles autorisés et
+ses invariants — dont plusieurs sont gravés en base (contraintes uniques,
+partie 04 §4) et/ou vérifiés par tests (partie 11 §2).
+
+
+1. STRUCTURE COURS / NOTES
+--------------------------------------------------------------------------------
+1.1 ENTITÉ COURS
+  Rattachée à une université + un département (OBLIGATOIRE — un cours
+  sans département est invalide), optionnellement une promotion et un
+  professeur. Porte des métadonnées façon LMS : titre, code, niveau,
+  crédits (le POIDS dans la moyenne pondérée, voir §2), statut
+  (BROUILLON/...), nombre de leçons, durée, vignette, champs prix/
+  notation hérités d'un paradigme de cours EN LIGNE — la plupart des
+  cours GENUC sont présentiels, ces champs sont souvent inutilisés mais
+  alimentent le sous-module e-learning (leçons, quiz, progression) quand
+  il sert.
+  CoursController expose : catalogue public par université/département/
+  niveau, cours d'un professeur (/professeur/{professeurId}), étudiants
+  inscrits (/{coursId}/etudiants), leçons, séances live, progression par
+  étudiant (table progressions_etudiants — unique par inscription+cours).
+
+1.2 ENTITÉ NOTE — LE GRAIN DE VÉRITÉ
+  Une ligne par (inscription, cours, annee_academique, session) —
+  contrainte UNIQUE en base : un étudiant ne peut pas avoir deux notes
+  pour le même cours/année/session ; le rattrapage est une AUTRE session,
+  jamais un écrasement de la première (traçabilité des deux tentatives).
+  Champs : note_tp, note_interrogation, note_examen, note_finale
+  (calculée), note_rattrapage, note_retenue (celle qui compte pour la
+  DÉLIBÉRATION — max des tentatives selon la règle), absences, statut.
+
+1.3 CYCLE DE VIE D'UNE NOTE (rôles vérifiés dans NoteController)
+  SAISIE (PROFESSEUR, CHEF_DEPARTEMENT, ADMIN_UNIVERSITE, SUPER_ADMIN) :
+    SaisieNotes.jsx charge les cours du professeur
+    (/api/cours/professeur/{id}) → les étudiants inscrits
+    (/api/cours/{coursId}/etudiants) → les notes existantes
+    (/api/notes/cours/{coursId}/{annee}), puis soumet EN LOT
+    (POST /api/notes/lot/{coursId}/{annee}). Import/export Excel supporté
+    (/api/notes/import-export/... avec modèle téléchargeable) — utile
+    pour les gros effectifs.
+  VALIDATION (CHEF_DEPARTEMENT, ADMIN_UNIVERSITE, SUPER_ADMIN) :
+    unitaire (PATCH /{id}/valider) ou par cours (/valider-tout). Files
+    d'attente : /api/notes/universite/{id}/a-valider et
+    /api/notes/departement/{id}/a-valider — le valideur voit ce qui
+    l'attend.
+  PUBLICATION (ADMIN_UNIVERSITE, SUPER_ADMIN uniquement) :
+    PATCH /{id}/publier ou /publier-tout — c'est la publication qui rend
+    la note VISIBLE au portail étudiant. Une note saisie mais non publiée
+    n'existe pas pour l'étudiant.
+  Ce séquencement fait que personne ne peut « faire apparaître » une note
+  seul : il faut au moins deux niveaux (saisie puis validation/
+  publication).
+
+1.4 CÔTÉ ÉTUDIANT
+  EtudiantNotes.jsx / MesResultats.jsx appellent
+  /api/deliberation/etudiant/resultats (PDF via /etudiant/pdf) — la vue
+  étudiant passe par le domaine DÉLIBÉRATION (résultats consolidés), pas
+  par les notes brutes ; il ne voit que le publié.
+
+
+2. DÉLIBÉRATIONS — LES « 3 PHASES » ET LE PIPELINE COMPLET
+--------------------------------------------------------------------------------
+2.1 LES RÈGLES DE CALCUL (DeliberationWorkflowService)
+  Moyenne PONDÉRÉE PAR LES CRÉDITS : Σ(note_retenue × crédits)/Σcrédits.
+  Un crédit n'est « validé » que si la note retenue du cours ≥ 10.
+  MENTIONS par seuils : ≥18 TRES_GRANDE_DISTINCTION, ≥16 GRANDE_
+  DISTINCTION, ≥14 DISTINCTION, ≥12 SATISFACTION, ≥10 REUSSITE, sinon
+  AJOURNE.
+  DÉCISIONS : DIPLOME si dernière année ET moyenne ≥ 10 ; ADMIS si
+  moyenne ≥ 10 ET ≥ 60 % des crédits validés (on peut avoir 10 de
+  moyenne et échouer par crédits insuffisants) ; ADMIS_RATTRAPAGE si
+  moyenne ≥ 8 ; sinon REDOUBLE/EXCLU.
+  Invariants vérifiés par tests (partie 11 §2) : impossible de préparer
+  une délibération SANS notes ; le diplôme n'est que PROPOSÉ par le
+  calcul — le jury tranche ; impossible de PUBLIER une délibération dont
+  la tenue n'a pas été enregistrée.
+
+2.2 LES 3 PHASES (écran pages/admin/DeliberationWorkflow.jsx)
+  1. PREMIÈRE SESSION (POST /api/deliberation/premiere) : pour une
+     promotion + année, applique le calcul ci-dessus et crée une ligne
+     Deliberation PAR ÉTUDIANT, phase=PREMIERE.
+  2. RATTRAPAGE (POST /api/deliberation/rattrapage) : relance le calcul
+     en intégrant les notes de rattrapage pour les non-admis d'office,
+     phase=RATTRAPAGE.
+  3. CLÔTURE (POST /api/deliberation/cloturer) : verrouille l'année
+     (phase=CLOTUREE) — les résultats deviennent définitifs ; le PV
+     global PDF peut être généré (POST /api/deliberation/pv-global).
+  Les seuils/règles sont PARAMÉTRABLES PAR UNIVERSITÉ
+  (GET/PUT /api/deliberation/parametres/{universiteId}) — le moteur est
+  national, les règles restent locales.
+
+2.3 LE PIPELINE AUTOUR DU JURY (pages/admin/deliberation/)
+  PreDeliberation.jsx    revue des statuts provisoires (PA/PD/PP/CJ)
+                         AVANT le jury — on repère les cas litigieux.
+  SalleJury.jsx          « salle de jury numérique » : participants et
+                         présences du jury, MODIFICATION des décisions
+                         par le jury (la décision humaine prime sur le
+                         calcul), signature électronique de la séance
+                         (composant SignatureWorkflow → partie 05 §7).
+  Consolidation.jsx      job ASYNCHRONE (POST /api/deliberations/
+                         consolider → jobId → polling /consolider/
+                         status/{jobId}) qui génère EN MASSE bulletins,
+                         relevés de cotes et palmarès — trop lourd pour
+                         une requête synchrone (partie 02 §2, @Async).
+  DeliberationAnnuelle.jsx  fusionne S1+S2 en décision annuelle finale
+                         (publierDepartement).
+  ProcesVerbaux.jsx      téléchargement des PV/listes PDF par session.
+  GestionRecours.jsx     triage des recours étudiants (table recours) :
+                         types ERREUR_NOTE / ERREUR_MATRICULE /
+                         COURS_MANQUANT, accepter/rejeter avec
+                         commentaire. Côté étudiant, le dépôt passe par
+                         RecoursController (routes éclatées — partie 10
+                         §1.4).
+  L'audit dédié (GET /api/deliberation/audit) trace qui a préparé/modifié/
+  publié quoi — indispensable sur un processus aussi sensible.
+
+2.4 DEUX GÉNÉRATIONS DE CODE
+  DeliberationWorkflowController (/api/deliberation) est la génération
+  ACTUELLE ; DeliberationController (/api/deliberations) l'ancienne —
+  les deux coexistent et partagent des routes de vérification publique
+  en doublon. Avant toute évolution : identifier lequel sert l'écran
+  concerné (partie 10 §9.6).
+
+
+3. PALMARÈS — DU CALCUL À LA PUBLICATION
+--------------------------------------------------------------------------------
+PalmaresService (521 lignes), paramétré PAR (université, année) via
+ParametrePalmares : topN (nombre de lauréats), seuilMoyenne minimum,
+mentions ciblées, autoGeneration avec dateGeneration planifiée (le cron
+de 02h00 — partie 02 §6 — ne régénère que si autoGeneration est actif).
+
+CHAÎNE COMPLÈTE :
+  1. genererPalmares() parcourt les Deliberation de l'année, filtre les
+     mentions DISTINCTION/GRANDE_DISTINCTION/TRES_GRANDE_DISTINCTION,
+     classe, et crée des MeilleurEtudiant en statut EN_ATTENTE (jusqu'à
+     topN par niveau).
+  2. VALIDATION HUMAINE OBLIGATOIRE : validerLaureat/rejeterLaureat (ou
+     validerLot) — rien ne devient officiel sans décision admin (même
+     philosophie que la proposition de diplôme : le calcul PROPOSE).
+  3. Un lauréat validé reçoit une courte biographie auto-générée et un
+     certificat PDF (genererCertificat → genererPdfCertificat ; rendu
+     front CertificatPalmaresPDF.jsx), peut être notifié par email
+     (notifierLaureat/notifierTousLesLaureats).
+  4. PUBLICATION : publie=true → visible sur la page PUBLIQUE du
+     palmarès (PalmaresPublic.jsx / getPalmaresPublic ; route
+     /api/palmares/public en permitAll) — vitrine d'excellence de
+     l'université.
+Déclenchement manuel : pages/admin/GenererPalmares.jsx →
+POST /api/palmares/generer.
+
+
+4. ATTESTATIONS, DIPLÔMES, ÉQUIVALENCES — TROIS MODÈLES DIFFÉRENTS
+--------------------------------------------------------------------------------
+4.1 ATTESTATIONS — le workflow de demande le plus complet
+  9 types (TypeAttestation) : INSCRIPTION, FREQUENTATION, REUSSITE,
+  SCOLARITE, BOURSE, CONDUITE, PHYSIQUE, DIPLOME, AUTRE.
+  Chaîne : l'étudiant DEMANDE (demanderAttestation) → le système vérifie
+  les FRAIS documentaires (verifierFraisDocumentaire — exemptée pour la
+  simple FREQUENTATION : le document de base reste gratuit) → un
+  SIGNATAIRE habilité valide ou rejette (validerAttestation, routage
+  automatique via SignatureElectroniqueService — partie 05 §7) → le PDF
+  n'est généré QU'APRÈS validation (genererAttestationPdf), envoyable par
+  email. Chaque attestation porte un uuid_verification public
+  (verifierAttestation(uuid) — motif anti-fraude global, partie 05 §8).
+  PERSONNALISATION PAR UNIVERSITÉ : documents_officiels_config (migration
+  V6) définit quels documents chaque université propose, leur template et
+  le code de frais requis — c'est ce catalogue que consomme le portail
+  étudiant (partie 10 §10).
+
+4.2 DIPLÔMES — pas un document séparé
+  Un diplôme EST une Deliberation avec decision=DIPLOME (dernière année
+  admise), diplomeGenere=true et son propre codeDiplome/uuidVerification.
+  Vérification : GET /api/verifier/{uuid} → verifierDiplome() — même
+  geste public que pour une attestation, mais résolu contre
+  l'enregistrement de DÉLIBÉRATION. Conséquence pratique : « regénérer
+  un diplôme » se traite côté délibération, pas côté attestations.
+
+4.3 ÉQUIVALENCES DE DIPLÔMES ÉTRANGERS — un workflow, pas un document
+  EquivalenceDiplomeService/Controller : reconnaissance d'un diplôme
+  étranger. L'étudiant soumet paysOrigine, diplomeObtenu, domaineEtude,
+  anneeObtention, niveauObtenu + pièces UPLOADÉES SUR S3 (S3Service).
+  Statuts : EN_ATTENTE → EN_EXAMEN → APPROUVEE / APPROUVEE_PARTIELLE /
+  REJETEE, instruit par une « commission » universitaire
+  (listerPourCommission ; traiter(...) fixe niveauAccorde +
+  decisionMotif). Page étudiant :
+  pages/etudiant/equivalences/EquivalencesDiplomes.jsx.
+  DIFFÉRENCE VOLONTAIRE avec 4.1/4.2 : PAS de PDF ni d'UUID de
+  vérification — le résultat est un STATUT + niveau accordé enregistré au
+  dossier (l'équivalence conditionne l'inscription, elle n'est pas un
+  document qu'on présente à un tiers).
+
+
+5. CARTE ÉTUDIANT
+--------------------------------------------------------------------------------
+CarteEtudiantService.genererCarteEtudiant(inscriptionId) construit la
+carte PDF (iText via le PdfGenerateur partagé) : photo, nom/prénom,
+matricule, promotion/filière, et QR code de vérification — la carte est
+elle aussi un document officiel vérifiable (même motif que partout :
+partie 05 §8). genererCartesPromotion produit les cartes EN LOT pour
+toute une promotion (rentrée académique) ; getCarteSauvegardee renvoie
+une carte déjà générée (pas de régénération à chaque consultation).
+Frontend : pages/etudiant/CarteEtudiant.jsx →
+GET /api/carte-etudiant/{inscriptionId}.
+Clé de lecture : la carte est indexée par INSCRIPTION (pas par étudiant) —
+une carte par année/promotion, cohérent avec le modèle inscriptions
+(partie 04 §3).
+================================================================================

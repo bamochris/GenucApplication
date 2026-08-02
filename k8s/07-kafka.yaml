@@ -1,0 +1,184 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: genuc-zookeeper
+  namespace: genuc
+  labels:
+    app.kubernetes.io/name: genuc
+    app.kubernetes.io/component: zookeeper
+    app.kubernetes.io/part-of: genuc-platform
+spec:
+  serviceName: genuc-zookeeper
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: zookeeper
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: zookeeper
+        app.kubernetes.io/name: genuc
+    spec:
+      containers:
+        - name: zookeeper
+          image: confluentinc/cp-zookeeper:7.5.0
+          ports:
+            - containerPort: 2181
+              name: client
+            - containerPort: 2888
+              name: peer
+            - containerPort: 3888
+              name: leader
+          env:
+            - name: ZOOKEEPER_CLIENT_PORT
+              value: "2181"
+            - name: ZOOKEEPER_TICK_TIME
+              value: "2000"
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/zookeeper/data
+            - name: logs
+              mountPath: /var/lib/zookeeper/log
+          resources:
+            requests:
+              cpu: "200m"
+              memory: "512Mi"
+            limits:
+              cpu: "500m"
+              memory: "1Gi"
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 10Gi
+        storageClassName: cbs-csi
+    - metadata:
+        name: logs
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 5Gi
+        storageClassName: cbs-csi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: genuc-zookeeper
+  namespace: genuc
+  labels:
+    app.kubernetes.io/name: genuc
+    app.kubernetes.io/component: zookeeper
+spec:
+  ports:
+    - port: 2181
+      targetPort: 2181
+      name: client
+    - port: 2888
+      targetPort: 2888
+      name: peer
+    - port: 3888
+      targetPort: 3888
+      name: leader
+  selector:
+    app.kubernetes.io/component: zookeeper
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: genuc-kafka
+  namespace: genuc
+  labels:
+    app.kubernetes.io/name: genuc
+    app.kubernetes.io/component: kafka
+    app.kubernetes.io/part-of: genuc-platform
+spec:
+  serviceName: genuc-kafka
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: kafka
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: kafka
+        app.kubernetes.io/name: genuc
+    spec:
+      containers:
+        - name: kafka
+          image: confluentinc/cp-kafka:7.5.0
+          ports:
+            - containerPort: 9092
+              name: kafka
+            - containerPort: 29092
+              name: internal
+          env:
+            - name: KAFKA_BROKER_ID
+              value: "1"
+            - name: KAFKA_ZOOKEEPER_CONNECT
+              value: "genuc-zookeeper:2181"
+            - name: KAFKA_LISTENER_SECURITY_PROTOCOL_MAP
+              value: "PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT"
+            - name: KAFKA_ADVERTISED_LISTENERS
+              value: "PLAINTEXT://genuc-kafka:29092,PLAINTEXT_HOST://localhost:9092"
+            - name: KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR
+              value: "1"
+            - name: KAFKA_AUTO_CREATE_TOPICS_ENABLE
+              value: "true"
+            - name: KAFKA_LOG_RETENTION_HOURS
+              value: "168"
+            - name: KAFKA_MESSAGE_MAX_BYTES
+              value: "10485760"
+            - name: KAFKA_NUM_PARTITIONS
+              value: "6"
+            - name: KAFKA_LOG_DIRS
+              value: "/var/lib/kafka/data"
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/kafka/data
+          livenessProbe:
+            exec:
+              command: ["kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
+            initialDelaySeconds: 30
+            periodSeconds: 20
+            timeoutSeconds: 10
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "1Gi"
+            limits:
+              cpu: "2000m"
+              memory: "2Gi"
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 30Gi
+        storageClassName: cbs-csi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: genuc-kafka
+  namespace: genuc
+  labels:
+    app.kubernetes.io/name: genuc
+    app.kubernetes.io/component: kafka
+spec:
+  ports:
+    - port: 9092
+      targetPort: 9092
+      name: kafka
+      protocol: TCP
+    - port: 29092
+      targetPort: 29092
+      name: internal
+      protocol: TCP
+  selector:
+    app.kubernetes.io/component: kafka

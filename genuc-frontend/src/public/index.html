@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="fr" class="notranslate" translate="no">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="google" content="notranslate" />
+    <link rel="icon" href="%PUBLIC_URL%/favicon.ico" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#185FA5" />
+    <meta name="description" content="GENUC — Portail de gestion des inscriptions universitaires en ligne." />
+    <link rel="apple-touch-icon" href="%PUBLIC_URL%/logo192.png" />
+    <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
+
+    <!-- Polices Google -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
+    <title>GENUC — Portail des Inscriptions</title>
+
+    <style>
+      *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+      html, body { height: 100%; }
+      body {
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        background: #f3f4f6;
+        color: #111827;
+        -webkit-font-smoothing: antialiased;
+      }
+      #root { min-height: 100vh; }
+
+      /* Écran de chargement initial */
+      #splash {
+        position: fixed; inset: 0;
+        background: #185FA5;
+        display: flex; flex-direction: column;
+        align-items: center; justify-content: center;
+        z-index: 9999;
+        transition: opacity .4s ease;
+      }
+      #splash.hidden { opacity: 0; pointer-events: none; }
+      #splash h1 { color: #fff; font-size: 28px; font-weight: 700; margin-bottom: 8px; }
+      #splash p  { color: rgba(255,255,255,.75); font-size: 14px; margin-bottom: 32px; }
+      #splash .spinner {
+        width: 40px; height: 40px;
+        border: 4px solid rgba(255,255,255,.3);
+        border-top-color: #fff;
+        border-radius: 50%;
+        animation: spin .8s linear infinite;
+      }
+      @keyframes spin { to { transform: rotate(360deg); } }
+    </style>
+  </head>
+  <body>
+    <noscript>Vous devez activer JavaScript pour utiliser cette application.</noscript>
+
+    <!-- Écran de chargement -->
+    <div id="splash">
+      <h1>🎓 GENUC</h1>
+      <p>Portail de gestion universitaire</p>
+      <div class="spinner"></div>
+    </div>
+
+    <div id="root"></div>
+
+    <!-- Masquer le splash dès que React est monté -->
+    <script>
+      window.addEventListener('load', function () {
+        var splash = document.getElementById('splash');
+        if (splash) {
+          setTimeout(function () {
+            splash.classList.add('hidden');
+            setTimeout(function () { splash.remove(); }, 400);
+          }, 600);
+        }
+      });
+    </script>
+  </body>
+</html>

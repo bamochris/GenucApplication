@@ -1,0 +1,107 @@
+# ======================================
+# OS / Editors
+# ======================================
+.DS_Store
+Thumbs.db
+Desktop.ini
+.AppleDouble
+.LSOverride
+
+# ======================================
+# Logs
+# ======================================
+*.log
+*.log.*
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ======================================
+# Java / Maven
+# ======================================
+genuc-backend/target/
+genuc-backend/*.log
+genuc-backend/mvn_output*.txt
+genuc-backend/backend-run.log
+genuc-backend/compile*.log
+genuc-backend/uploads/
+
+# ======================================
+# Node / Frontend
+# ======================================
+genuc-frontend/node_modules/
+genuc-frontend/build/
+genuc-frontend/backend-run.log
+
+# ======================================
+# UI Library
+# ======================================
+genuc-ui/node_modules/
+genuc-ui/dist/
+genuc-ui/dist-ssr/
+
+# ======================================
+# IDE / Local config
+# ======================================
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+*.sublime-project
+*.sublime-workspace
+.~*
+
+# ======================================
+# Eclipse / STS
+# ======================================
+louncher et bdd tables/.metadata/
+.metadata/
+.recommenders/
+
+# ======================================
+# Secrets / Environment
+# ======================================
+**/.env
+**/.env.local
+**/.env.*.local
+**/application-dev.properties
+**/application-local.properties
+**/secrets.yml
+**/secrets.properties
+ACTIVATION DE GMAIL.txt
+
+# ======================================
+# Docker
+# ======================================
+docker-compose.override.yml
+.docker/
+
+# ======================================
+# Database dumps (except Flyway migrations)
+# ======================================
+*.sql
+*.sql.gz
+dump.rdb
+# … mais les migrations Flyway DOIVENT être versionnées
+!genuc-backend/src/main/resources/db/migration/*.sql
+
+# ======================================
+# Build outputs / temporary files
+# ======================================
+*.tmp
+*.bak
+*.class
+*.jar
+*.war
+*.ear
+*.zip
+*.rar
+
+# ======================================
+# Security / Audits
+# ======================================
+# Les rapports d'audit peuvent être stockés dans /documentation
+.copilot-frontend-build.log
+.github/modernize/

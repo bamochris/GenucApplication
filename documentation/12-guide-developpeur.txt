@@ -1,0 +1,300 @@
+================================================================================
+GENUC — PARTIE 12 : GUIDE DÉVELOPPEUR (VERSION APPROFONDIE)
+================================================================================
+Guide pratique : installer, démarrer, ne pas tomber dans les pièges connus,
+et coder dans les conventions du projet. Complète les parties 01 (stack),
+09 (déploiement), 10 (API) et 11 (tests).
+
+
+1. PRÉREQUIS — QUOI ET POURQUOI
+--------------------------------------------------------------------------------
+  Java 21 (JDK)        Le pom cible Java 21 ; un JDK 17 ne compile pas le
+                       projet. Vérifier : java -version.
+  Maven 3.9+           Build backend. Le wrapper n'est pas fourni — Maven
+                       doit être installé et dans le PATH (ou intégré à
+                       l'IDE, cas du poste actuel sous Eclipse).
+  Node.js 18+ / npm    React 19 et react-scripts exigent un Node moderne.
+  PostgreSQL 15+       Base genuc_db. En dev c'est Hibernate (ddl-auto=
+                       update) qui crée les tables au premier démarrage —
+                       il suffit que la BASE VIDE existe et que les
+                       identifiants correspondent.
+  Redis                Cache applicatif niveau 2, canal d'invalidation du
+                       cache mémoire et compteurs du rate limiting. Le
+                       backend NE DÉMARRE PAS proprement sans Redis
+                       joignable — mais une coupure EN COURS de service est
+                       absorbée : le cache mémoire continue de servir les
+                       données de référence et les lectures retombent en
+                       base (fail-open).
+  Docker Desktop       Optionnel : stack complète, ou juste Redis (usage
+                       du poste actuel).
+
+
+2. DÉMARRAGE — LES TROIS FAÇONS DE LANCER GENUC
+--------------------------------------------------------------------------------
+2.1 BACKEND SEUL (genuc-backend/)
+  Ordre : PostgreSQL et Redis d'abord, puis :
+    mvn spring-boot:run          → http://localhost:8082
+  Vérifier que ça tourne : http://localhost:8082/swagger-ui.html (Swagger,
+  généré par springdoc) ou GET /actuator/health.
+  Les overrides de dev sont dans src/main/resources/
+  application-dev.properties ; la config de référence (avec valeurs par
+  défaut ${VAR:defaut}) est application.yml. Au premier démarrage sur base
+  vide : Hibernate crée le schéma (pas Flyway, voir §5b), puis les seeds
+  DataInitializer/DataLoader créent les comptes de test (§4).
+
+2.2 FRONTEND SEUL (genuc-frontend/)
+  cp .env.example .env     OBLIGATOIRE avant le premier run : sans .env,
+                           les appels API partent vers une URL indéfinie.
+  npm install && npm start → http://localhost:3000
+  Variables du .env :
+    REACT_APP_API_BASE_URL      URL du backend (défaut http://localhost:8082).
+                                C'est la SEULE liaison front→back en dev :
+                                pas de proxy CRA, les appels sont directs
+                                (CORS ouvert côté backend en dev).
+    REACT_APP_JWT_TOKEN_KEY     nom de la clé localStorage du token — si on
+                                la change, les sessions existantes tombent.
+    REACT_APP_RECAPTCHA_SITE_KEY  reCAPTCHA v2 des formulaires publics.
+    REACT_APP_ENV               development|production (active/désactive
+                                du logging côté front).
+  npm start écoute sur 0.0.0.0 (script CRA modifié) : l'app est accessible
+  depuis un téléphone du même réseau — utile pour tester le scan QR.
+
+2.3 STACK COMPLÈTE DOCKER
+  Le fichier est genuc-backend/docker-compose.yml (PAS à la racine du
+  dépôt — CLAUDE.md le laisse penser). Services définis :
+    postgres (postgres:15, conteneur genuc_postgres, 5432) +
+    postgres-replica (réplica lecture) ; pgbouncer + pgbouncer-replica
+    (pooling, 6432/6433) ; redis (redis:7-alpine, genuc_redis, 6379) ;
+    zookeeper + kafka (7.5.0, 9092) ; tempo (traces OTLP, 4318/3200) ;
+    backend (8082) ; frontend (Nginx, port 80).
+  docker-compose up -d lance TOUT — y compris Kafka/Tempo dont le dev
+  quotidien n'a pas besoin. On peut ne démarrer que des services ciblés :
+  docker-compose up -d redis. NOTE : les noms de conteneurs utilisent des
+  UNDERSCORES (genuc_redis, genuc_postgres).
+
+
+3. PARTICULARITÉS DU POSTE DE DÉVELOPPEMENT ACTUEL
+--------------------------------------------------------------------------------
+Configuration réelle de la machine de dev principale — à connaître avant
+de « corriger » quelque chose qui n'est pas cassé :
+
+  a) PostgreSQL 18 NATIF Windows détient le port 5432 et héberge genuc_db.
+     Le conteneur genuc_postgres du compose NE DOIT PAS être démarré : il
+     tenterait de publier 5432 déjà pris → soit il ne démarre pas, soit
+     (s'il démarre après un arrêt du natif) le backend parlerait à une
+     base VIDE et Hibernate y recréerait un schéma neuf — symptôme
+     déroutant : « toutes mes données ont disparu ». En cas de doute :
+       netstat -ano | findstr :5432        puis
+       tasklist /fi "PID eq <pid>"         → postgres.exe natif ou
+       com.docker.backend ?
+  b) Redis tourne via Docker (conteneur genuc-redis sur le poste ; le
+     compose, lui, nommerait le sien genuc_redis), port 6379 :
+       docker ps                            vérifier qu'il est up
+       docker start genuc-redis             le relancer après un reboot
+     Si Redis est down, le backend échoue au démarrage ou les endpoints
+     mis en cache/rate-limités tombent en erreur.
+  c) Le backend est lancé depuis ECLIPSE (Run As → Spring Boot App), pas
+     en ligne de commande. Même port 8082, mêmes propriétés ; les
+     variables d'environnement éventuelles se règlent dans la Run
+     Configuration d'Eclipse.
+  d) Le frontend se lance normalement (npm start).
+
+
+4. COMPTES DE TEST (SEEDS)
+--------------------------------------------------------------------------------
+Deux chargeurs dans config/ s'exécutent au démarrage : DataInitializer et
+DataLoader. Ils sont IDEMPOTENTS : chaque compte n'est créé que si
+existsByEmail est faux — un redémarrage n'écrase jamais une base existante
+(donc si vous avez changé le mot de passe d'un compte seed, il ne sera pas
+réinitialisé ; utiliser GET /api/auth/fix-admin pour réparer l'admin).
+
+  Super Admin   admin@genuc.cd        Genuc2024!
+  Professeur    professeur@unikin.cd  Prof123!
+  Étudiant      etudiant@unikin.cd    Etudiant123!
+  Sysadmin      sysadmin@genuc.cd     Sysadmin123!
+
+Les seeds créent aussi les données de démonstration associées (université
+UNIKIN, structures). PaiementDataInitializer alimente le domaine paiement.
+POST /api/auth/reinitialiser-tous (SUPER_ADMIN) remet les mots de passe
+des comptes de test déclarés dans GenucProperties.getTestAccounts().
+
+
+5. PIÈGES CONNUS — SYMPTÔME, CAUSE, DIAGNOSTIC, REMÈDE
+--------------------------------------------------------------------------------
+a) LOGIN REFUSÉ AVEC DE BONS IDENTIFIANTS (le classique n°1)
+   Symptôme : 400 « compte non activé » (ou message d'erreur générique au
+   front) alors que l'email/mot de passe sont corrects.
+   Cause : Utilisateur.actif = false. Le circuit d'inscription crée les
+   comptes INACTIFS ; l'activation passe par un email avec token
+   (ActivationController). AuthService refuse explicitement les comptes
+   non activés (comportement prouvé par test, partie 11 §2).
+   Diagnostic : GET /api/auth/diagnostiquer/{email} (connecté SUPER_ADMIN)
+   ou SELECT actif FROM utilisateur WHERE email='...'.
+   Remèdes : POST /api/public/admin/dossiers/{id}/renvoyer-activation
+   (circuit propre, recandidate l'email d'activation) ; ou l'utilisateur
+   suit le lien → POST /api/activation/creer-mot-de-passe ; ou en dev
+   brut : UPDATE utilisateur SET actif=true WHERE email='...'.
+
+b) MA MIGRATION FLYWAY NE S'EXÉCUTE PAS EN LOCAL
+   Cause : Flyway est DÉSACTIVÉ par défaut — application.yml :
+   spring.flyway.enabled=${FLYWAY_ENABLED:false} et ddl-auto=
+   ${JPA_DDL_AUTO:update}. En dev, c'est HIBERNATE qui fait évoluer le
+   schéma en comparant entités et tables (update = additif : il CRÉE
+   colonnes/tables mais ne SUPPRIME ni ne renomme jamais rien).
+   En prod (application-prod.properties) : flyway.enabled=true et
+   ddl-auto=validate — là, SEULES les migrations font foi et un écart
+   schéma/entités fait échouer le démarrage.
+   Conséquences pratiques : une migration écrite pour la prod doit être
+   testée EXPLICITEMENT (FLYWAY_ENABLED=true sur une base jetable), sinon
+   on la découvre au déploiement ; et comme ddl-auto=update ne supprime
+   rien, les colonnes renommées côté entité laissent des colonnes
+   orphelines en base de dev (ne pas s'en étonner).
+   Le commentaire dans application.yml documente aussi le baselining :
+   baseline-version 1 marque une base déjà peuplée comme « V1 appliquée »
+   pour que Flyway ne rejoue pas l'historique dessus.
+
+c) MON NOUVEAU CONTRÔLEUR RENVOIE 404 OU 401 INATTENDU
+   Cause : pas de server.servlet.context-path — le préfixe /api doit être
+   écrit dans le @RequestMapping du contrôleur (CLAUDE.md dit le
+   contraire). Une route hors /api échappe au proxy Nginx ET aux règles
+   SecurityConfig ; une route sous /api non listée dans SecurityConfig
+   tombe sur anyRequest().authenticated() (401 sans token) — c'est le
+   comportement « fermé par défaut » voulu. Check-list nouvel endpoint :
+   préfixe /api + règle SecurityConfig OU @PreAuthorize + exception typée
+   pour les erreurs (jamais de try/catch de présentation).
+
+d) LES ENDPOINTS « DEBUG » D'AUTHCONTROLLER
+   /diagnostiquer/{email}, /reinitialiser/{email}, /reinitialiser-tous,
+   /fix-admin, /test-admin : tous portent @PreAuthorize SUPER_ADMIN — ils
+   ne sont PAS ouverts au public, MAIS /api/auth/** étant permitAll au
+   niveau URL, cette annotation de méthode est leur SEULE protection.
+   Danger réel : une refactorisation qui déplace/supprime l'annotation les
+   ouvrirait à tous sans qu'aucun test n'échoue (aucun test ne couvre ces
+   routes). À traiter avec un soin particulier en revue de code ; idéal à
+   terme : les déplacer sous /api/super-admin/** (protégé par URL).
+
+e) LES TESTS @SpringBootTest — RÉSOLU (2026-07-16)
+   Historiquement, ces tests exigeaient le PostgreSQL local (profil test
+   jamais activé). Ils tournent désormais sur un PostgreSQL 15
+   Testcontainers via cd.genuc.IntegrationTestBase (skippés proprement si
+   Docker est absent). Pour écrire un NOUVEAU test d'intégration :
+   étendre IntegrationTestBase, ne pas réinventer la config. Détail :
+   partie 11 §3. Dépendance résiduelle : Redis local (rate limiting).
+
+f) L'ADMIN NE VOIT PAS LE DOSSIER QU'ON VIENT DE DÉPOSER
+   Cause : multi-tenancy. Le JWT embarque universiteId (prouvé par
+   JwtServiceTest) et GET /api/public/admin/dossiers filtre par
+   l'université de l'admin connecté. Si le dossier a été déposé pour
+   l'université B et que vous êtes admin de l'université A, la liste est
+   vide — ce n'est pas un bug. Pour tester le circuit complet : déposer le
+   dossier sur l'université du compte ADMIN_UNIVERSITE utilisé.
+
+g) DEUX RÉCEPTEURS DE WEBHOOKS PAIEMENT
+  TachPayController (/api/tachpay/webhook/vodacom|airtel|orange|afrimoney|stripe)
+   ET CallbackController (/api/payments/callback/...) reçoivent des
+   callbacks opérateur. Seule l'URL enregistrée dans la console de
+   CHAQUE opérateur fait foi. Avant de modifier l'un des deux : vérifier
+   la config opérateur, et tracer dans les logs lequel reçoit réellement
+   du trafic. Modifier « le mauvais » donne l'illusion d'un correctif.
+
+h) PORT 8082 DÉJÀ PRIS AU LANCEMENT ECLIPSE
+   Symptôme : « Port 8082 was already in use ». Cause fréquente sur ce
+   poste : une instance précédente du backend pas arrêtée (bouton rouge
+   d'Eclipse) ou un backend Docker résiduel.
+   netstat -ano | findstr :8082 → taskkill /pid <pid> /f, ou arrêter le
+   conteneur genuc_backend.
+
+
+6. CONVENTIONS BACKEND — COMMENT ÉCRIRE DU CODE QUI RESSEMBLE AU RESTE
+--------------------------------------------------------------------------------
+  ARCHITECTURE : Controller → Service → Repository, strictement. Le
+  contrôleur parse/valide l'entrée et délègue ; TOUTE la logique métier
+  vit dans le service ; le repository est une interface Spring Data JPA.
+
+  RÉPONSES : ResponseEntity<?> avec DTO ou Map.of(...) — il n'y a PAS de
+  wrapper ApiResponse<T> (contrairement à CLAUDE.md ; voir partie 10
+  §1.2). Pour les nouvelles API, préférer un DTO de réponse explicite à un
+  Map anonyme : Swagger le documente automatiquement.
+
+  ERREURS : lever une exception typée de exception/ (BusinessException
+  pour une règle métier, XxxNotFoundException pour un 404...) et laisser
+  GlobalExceptionHandler produire le format { code, message, status,
+  timestamp } localisé. Ne JAMAIS renvoyer une erreur formatée à la main
+  depuis un contrôleur : cela casse l'uniformité que le frontend attend.
+
+  DTO : package dto/ PLAT (pas de sous-dossiers request/response). PAS de
+  package mapper/ — les conversions DTO↔Entity s'écrivent dans les
+  services (CLAUDE.md mentionne un mapper/ qui n'existe pas).
+
+  SÉCURITÉ : nouvelle route = soit un préfixe déjà couvert par les règles
+  d'URL de SecurityConfig, soit un @PreAuthorize explicite sur la méthode.
+  Le code utilise @PreAuthorize partout (pas @Secured). Penser au filtrage
+  multi-tenant : toute liste « admin » doit être filtrée par l'universiteId
+  du JWT, jamais par un paramètre client non vérifié.
+
+  VALIDATION : Bean Validation (@Valid + annotations sur le DTO) ; les
+  violations deviennent automatiquement des 400 détaillés champ par champ
+  via le handler MethodArgumentNotValidException.
+
+  ASYNCHRONE : les traitements lourds suivent le motif « job + polling »
+  (cf. délibération /consolider → jobId → /consolider/status/{jobId}) ou
+  passent par Kafka (service/kafka/ : notifications, webhooks paiement,
+  génération PDF). Ne pas bloquer une requête HTTP plus de quelques
+  secondes.
+
+  I18N : tout message destiné à l'utilisateur passe par MessageSource
+  (codes dans messages*.properties), jamais de littéral en dur.
+
+
+7. CONVENTIONS FRONTEND / UI
+--------------------------------------------------------------------------------
+  ÉTAT : Context API uniquement — AuthContext (pages/context/) porte
+  l'utilisateur + JWT, persistés en localStorage. Pas de Redux/Zustand :
+  ne pas en introduire. L'état serveur se recharge à la demande via les
+  services.
+
+  API : JAMAIS d'axios direct dans un composant. Chaque domaine a son
+  service dans src/services/ (authService, paiementService...) qui utilise
+  l'instance src/api/axios.js. Les intercepteurs (src/utils/
+  apiInterceptors.js) font deux choses : attacher Authorization: Bearer à
+  chaque requête, et sur un 401, appeler POST /api/auth/refresh puis
+  REJOUER la requête d'origine — les composants n'ont donc jamais à gérer
+  l'expiration du token.
+
+  ROUTING : toutes les routes dans src/App.js, protégées par PrivateRoute
+  (vérifie l'authentification ET le rôle). Un dossier de pages par rôle
+  (src/pages/<role>/) et un layout par rôle (src/layouts/) qui porte la
+  sidebar/navigation du rôle.
+
+  FORMULAIRES : React Hook Form + Yup (schéma de validation séparé du
+  composant). Réutiliser les composants partagés (FormField...) plutôt que
+  des <input> nus.
+
+  IDENTITÉ VISUELLE — règles décidées sur ce projet, à respecter dans
+  toute nouvelle page :
+    * Le FOND DE MARQUE est porté par body::before (dégradé/image de
+      l'identité GENUC). Les surfaces posées dessus (cartes, panneaux,
+      tableaux, modales) restent TRANSPARENTES ou semi-transparentes
+      (rgba/backdrop-filter) pour laisser respirer le fond. INTERDIT :
+      un fond opaque plein écran sur un conteneur de page — il « éteint »
+      la marque et trahit visuellement la page par rapport au reste.
+    * TOUTES les couleurs/rayons/ombres passent par les variables de
+      thème CSS (var(--...)). Jamais de couleur en dur : c'est ce qui
+      garantit la cohérence clair/sombre et les thèmes par université.
+    * Les ACTIONS RAPIDES d'un tableau de bord utilisent les composants
+      partagés QuickActionsGrid / QuickActionDialog. Ne pas recréer de
+      grilles de boutons ad hoc : même si le rendu semble proche, on perd
+      le comportement (dialogues, responsive, accessibilité) et
+      l'uniformité entre rôles.
+
+
+8. GIT ET ORGANISATION DU DÉPÔT
+--------------------------------------------------------------------------------
+Le dépôt git est à la racine genuc-app/ ; genuc-frontend/ et genuc-backend/
+sont deux sous-projets du même dépôt, sans aucun couplage de build (deux
+outillages : npm et Maven). Branche de travail au moment de la rédaction :
+fix/securite-portail-ux. Les branches suivent le motif type/sujet
+(fix/..., feature/...). Rappel : d'anciens manifestes k8s/ et scripts
+infra/ ont été SUPPRIMÉS du répertoire de travail (partie 09 §7) — ne pas
+les restaurer par accident lors d'un checkout/merge.
+================================================================================

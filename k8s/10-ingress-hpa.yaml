@@ -1,0 +1,61 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: genuc-ingress
+  namespace: genuc
+  labels:
+    app.kubernetes.io/name: genuc
+    app.kubernetes.io/part-of: genuc-platform
+  annotations:
+    kubernetes.io/ingress.class: "qcloud"
+    ingress.cloud.tencent.com/rewrite-support: "true"
+    ingress.cloud.tencent.com/load-balancer-type: "classic"
+    ingress.cloud.tencent.com/rate-limit: "1000"
+spec:
+  rules:
+    - host: genuc.cd
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: genuc-frontend
+                port:
+                  number: 80
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: genuc-backend
+                port:
+                  number: 8082
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: genuc-backend-hpa
+  namespace: genuc
+  labels:
+    app.kubernetes.io/name: genuc
+    app.kubernetes.io/component: backend
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: genuc-backend
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80

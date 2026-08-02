@@ -1,0 +1,98 @@
+# ======================================
+# Maven / Gradle / Java
+# ======================================
+target/
+build/
+*.class
+*.jar
+*.rar
+*.war
+*.ear
+*.zip
+*.log
+*.o
+*.so
+*.a
+*.dylib
+*.dSYM
+
+# ======================================
+# IDE (Eclipse, VSCode, IntelliJ, STS)
+# ======================================
+.classpath
+.project
+.settings/
+.vscode/
+.idea/
+*.launch
+*.swp
+*.swo
+*~
+*.sublime-project
+*.sublime-workspace
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# ======================================
+# Spring Boot / Maven
+# ======================================
+.mvn/
+mvnw
+mvnw.cmd
+*.jks
+*.keystore
+
+# ======================================
+# ✅ CONFIGURATION & SECRETS (CRITIQUE)
+# ======================================
+# Ne JAMAIS commiter les fichiers de configuration locale
+application-local.yml
+application-local.properties
+application-dev.yml
+application-dev.properties
+.env
+.env.local
+*.properties.local
+secrets.yml
+secrets.properties
+
+# Redis, Database dumps
+dump.rdb
+*.sql
+*.sql.gz
+# … mais les migrations Flyway DOIVENT être versionnées (sinon un clone du repo
+# n'a aucun schéma : le *.sql ci-dessus les ignorait silencieusement)
+!src/main/resources/db/migration/*.sql
+
+# ======================================
+# Node / Frontend (si applicable)
+# ======================================
+node_modules/
+npm-debug.log
+yarn-error.log
+dist/
+build/
+
+# ======================================
+# OS
+# ======================================
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# ======================================
+# Temporary files
+# ======================================
+*.tmp
+*.bak
+*.swp
+*.swo
+*~
+.~*
+
+# ======================================
+# Docker
+# ======================================
+docker-compose.override.yml
+.docker/

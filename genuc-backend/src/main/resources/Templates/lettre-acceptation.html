@@ -1,0 +1,884 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="fr">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title th:text="|Lettre d'Admission — ${dossier.prenom} ${dossier.nom}|">Lettre d'Admission</title>
+    <style>
+        :root {
+            --uni-color: #0B1F4A;
+            --uni-accent: #1a3a6b;
+            --gold: #b8960c;
+            --gray-light: #f7f8fc;
+            --gray-border: #d5d8e0;
+            --text-dark: #1a1a1a;
+            --text-medium: #444;
+            --text-light: #666;
+            --white: #ffffff;
+            --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.06);
+            --shadow-md: 0 4px 20px rgba(0, 0, 0, 0.10);
+            --shadow-lg: 0 8px 40px rgba(0, 0, 0, 0.14);
+            --radius-sm: 4px;
+            --radius-md: 8px;
+            --radius-lg: 12px;
+            --transition: 0.2s ease;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Segoe UI', 'Georgia', 'Times New Roman', Times, serif;
+            font-size: 12pt;
+            color: var(--text-dark);
+            background: #e8eaf0;
+            padding: 24px 16px;
+            line-height: 1.5;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+
+        .page {
+            background: var(--white);
+            width: 210mm;
+            min-height: 297mm;
+            margin: 0 auto;
+            padding: 20mm 20mm 18mm;
+            box-shadow: var(--shadow-lg);
+            position: relative;
+            border-radius: 2px;
+        }
+
+        .page::after {
+            content: "";
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            background: radial-gradient(ellipse at 50% 40%, rgba(11, 31, 74, 0.018) 0%, transparent 70%);
+            z-index: 0;
+            border-radius: 2px;
+        }
+
+        .page > * {
+            position: relative;
+            z-index: 1;
+        }
+
+        .header {
+            display: flex;
+            align-items: flex-start;
+            gap: 20px;
+            padding-bottom: 16px;
+            border-bottom: 3px solid var(--uni-color);
+            margin-bottom: 0;
+        }
+
+        .header-logo {
+            width: 85px;
+            height: 85px;
+            object-fit: contain;
+            flex-shrink: 0;
+            border-radius: 50%;
+            background: var(--white);
+            padding: 3px;
+        }
+
+        .header-logo-placeholder {
+            width: 85px;
+            height: 85px;
+            border: 2.5px solid var(--uni-color);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 11pt;
+            font-weight: 700;
+            color: var(--uni-color);
+            text-align: center;
+            flex-shrink: 0;
+            line-height: 1.2;
+            background: #f0f2f8;
+            letter-spacing: 0.5px;
+        }
+
+        .header-info {
+            flex: 1;
+            text-align: center;
+            padding: 0 6px;
+        }
+
+        .header-republic {
+            font-size: 8.5pt;
+            color: #666;
+            letter-spacing: 1.2px;
+            text-transform: uppercase;
+            font-weight: 500;
+            margin-bottom: 2px;
+        }
+
+        .header-ministry {
+            font-size: 8pt;
+            color: #777;
+            margin-bottom: 8px;
+            letter-spacing: 0.3px;
+        }
+
+        .header-uni-name {
+            font-size: 17pt;
+            font-weight: 700;
+            color: var(--uni-color);
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            line-height: 1.2;
+        }
+
+        .header-uni-sub {
+            font-size: 9pt;
+            color: #555;
+            margin-top: 4px;
+            font-style: italic;
+            letter-spacing: 0.4px;
+        }
+
+        .header-contact {
+            font-size: 8pt;
+            color: #666;
+            margin-top: 7px;
+            line-height: 1.7;
+        }
+
+        .header-right {
+            text-align: right;
+            font-size: 8.5pt;
+            color: #555;
+            min-width: 135px;
+            flex-shrink: 0;
+            line-height: 1.8;
+            background: #f8f9fd;
+            padding: 10px 14px;
+            border-radius: var(--radius-sm);
+            border: 1px solid #e8eaf0;
+        }
+
+        .header-right strong {
+            color: var(--uni-color);
+            font-weight: 600;
+        }
+
+        .divider-motto {
+            text-align: center;
+            font-style: italic;
+            font-size: 9pt;
+            color: var(--uni-color);
+            padding: 8px 0 14px;
+            border-bottom: 1px solid #d5d8e0;
+            margin-bottom: 18px;
+            letter-spacing: 1.5px;
+            font-weight: 500;
+        }
+
+        .letter-title {
+            text-align: center;
+            margin: 18px 0 20px;
+        }
+
+        .letter-title h1 {
+            font-size: 16pt;
+            font-weight: 700;
+            color: var(--uni-color);
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            border-bottom: 2.5px solid var(--uni-color);
+            display: inline-block;
+            padding-bottom: 6px;
+            margin-bottom: 6px;
+        }
+
+        .letter-title p {
+            font-size: 10.5pt;
+            color: #555;
+            margin-top: 6px;
+            font-weight: 500;
+        }
+
+        .letter-title p strong {
+            color: var(--uni-color);
+        }
+
+        .to-block {
+            margin: 18px 0;
+            padding: 12px 16px;
+            background: #f8f9fd;
+            border-left: 4px solid var(--uni-color);
+            border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+            box-shadow: var(--shadow-sm);
+        }
+
+        .to-block p {
+            font-size: 11pt;
+            line-height: 1.8;
+        }
+
+        .to-block strong {
+            color: var(--uni-color);
+        }
+
+        .body-text {
+            font-size: 11pt;
+            line-height: 1.75;
+            text-align: justify;
+            margin-bottom: 14px;
+            color: #2a2a2a;
+        }
+
+        .body-text .highlight {
+            font-weight: 700;
+            color: var(--uni-color);
+            background: #f0f3fa;
+            padding: 1px 6px;
+            border-radius: 3px;
+            white-space: nowrap;
+        }
+
+        .body-text .highlight-matricule {
+            font-weight: 700;
+            color: var(--uni-color);
+            font-size: 13.5pt;
+            letter-spacing: 1.2px;
+            background: #f0f3fa;
+            padding: 2px 8px;
+            border-radius: 4px;
+            white-space: nowrap;
+            border: 1px dashed var(--uni-color);
+        }
+
+        .section-title {
+            font-size: 11pt;
+            font-weight: 700;
+            color: var(--uni-color);
+            background: linear-gradient(135deg, #f0f4ff 0%, #e8ecf8 100%);
+            padding: 8px 14px;
+            border-left: 4px solid var(--uni-color);
+            margin: 20px 0 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+            box-shadow: var(--shadow-sm);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 10.5pt;
+            margin-bottom: 16px;
+            border-radius: var(--radius-sm);
+            overflow: hidden;
+            box-shadow: var(--shadow-sm);
+        }
+
+        table th {
+            background: var(--uni-color);
+            color: var(--white);
+            padding: 9px 12px;
+            text-align: left;
+            font-weight: 600;
+            font-size: 10pt;
+            letter-spacing: 0.5px;
+        }
+
+        table td {
+            padding: 8px 12px;
+            border: 1px solid #e2e5ee;
+            vertical-align: middle;
+        }
+
+        table tr:nth-child(even) td {
+            background: #fafbfd;
+        }
+
+        table tr:nth-child(odd) td {
+            background: var(--white);
+        }
+
+        table tr:last-child td {
+            font-weight: 700;
+            background: #eef1f9;
+            border-top: 2px solid var(--uni-color);
+        }
+
+        .td-label {
+            color: #555;
+            font-weight: 600;
+            width: 30%;
+            background: #f8f9fd !important;
+            letter-spacing: 0.3px;
+        }
+
+        .td-value {
+            color: #111;
+            width: 20%;
+        }
+
+        .documents-list {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 5px 24px;
+            margin: 10px 0 18px;
+        }
+
+        .doc-item {
+            font-size: 10pt;
+            padding: 5px 0 5px 2px;
+            display: flex;
+            align-items: flex-start;
+            gap: 8px;
+            line-height: 1.45;
+            border-bottom: 1px dotted #e0e3ec;
+            transition: var(--transition);
+        }
+
+        .doc-item:hover {
+            background: #fafbfd;
+            border-radius: 3px;
+            padding-left: 4px;
+        }
+
+        .doc-item::before {
+            content: "✓";
+            color: #2e7d32;
+            font-weight: 700;
+            flex-shrink: 0;
+            margin-top: 1px;
+            font-size: 11pt;
+            background: #e8f5e9;
+            width: 20px;
+            height: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+        }
+
+        .validity-box {
+            background: #fffdf5;
+            border: 1.5px solid #e6a817;
+            border-radius: var(--radius-md);
+            padding: 12px 16px;
+            margin: 18px 0;
+            font-size: 10pt;
+            line-height: 1.7;
+            box-shadow: var(--shadow-sm);
+        }
+
+        .validity-box strong {
+            color: #9a5f00;
+        }
+
+        .notice-box {
+            background: #f1f8f2;
+            border: 1.5px solid #4caf50;
+            border-radius: var(--radius-md);
+            padding: 12px 16px;
+            margin: 18px 0;
+            font-size: 10pt;
+            line-height: 1.7;
+            box-shadow: var(--shadow-sm);
+        }
+
+        .notice-box strong {
+            color: #2e7d32;
+        }
+
+        .signature-section {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            margin-top: 32px;
+            gap: 24px;
+        }
+
+        .sig-left {
+            font-size: 10pt;
+            line-height: 1.7;
+            color: #555;
+            flex: 1;
+        }
+
+        .sig-left strong {
+            color: var(--uni-color);
+        }
+
+        .sig-right {
+            text-align: center;
+            min-width: 200px;
+            flex-shrink: 0;
+        }
+
+        .sig-right .sig-city {
+            font-size: 10.5pt;
+            margin-bottom: 55px;
+            color: #333;
+            font-style: italic;
+        }
+
+        .sig-right .sig-name {
+            font-weight: 700;
+            font-size: 12pt;
+            color: var(--uni-color);
+            border-top: 1.5px solid #333;
+            padding-top: 8px;
+            letter-spacing: 0.5px;
+        }
+
+        .sig-right .sig-title {
+            font-size: 9.5pt;
+            color: #666;
+            font-style: italic;
+            margin-top: 3px;
+        }
+
+        .sig-right img {
+            opacity: 0.75;
+            margin-bottom: 6px;
+        }
+
+        .footer {
+            margin-top: 28px;
+            padding-top: 10px;
+            border-top: 2.5px solid var(--uni-color);
+            display: flex;
+            justify-content: space-between;
+            font-size: 8pt;
+            color: #777;
+            line-height: 1.6;
+            gap: 12px;
+        }
+
+        .footer strong {
+            color: var(--uni-color);
+            font-weight: 600;
+        }
+
+        .footer-center {
+            text-align: center;
+            max-width: 130px;
+        }
+
+        .qr-placeholder {
+            width: 54px;
+            height: 54px;
+            border: 1.5px solid #c5c9d4;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 7pt;
+            color: #999;
+            text-align: center;
+            flex-shrink: 0;
+            border-radius: var(--radius-sm);
+            background: #fafafa;
+            letter-spacing: 0.5px;
+            margin: 0 auto;
+        }
+
+        .verification-link {
+            margin-top: 6px;
+            font-size: 7pt;
+            color: #8a8f9d;
+            word-break: break-all;
+            line-height: 1.35;
+        }
+
+        .print-bar {
+            display: flex;
+            gap: 14px;
+            justify-content: center;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .btn-print {
+            background: var(--uni-color);
+            color: var(--white);
+            border: none;
+            padding: 11px 30px;
+            font-size: 13.5px;
+            border-radius: var(--radius-md);
+            cursor: pointer;
+            font-family: 'Segoe UI', Arial, sans-serif;
+            font-weight: 600;
+            letter-spacing: 0.4px;
+            transition: all 0.2s ease;
+            box-shadow: var(--shadow-md);
+        }
+
+        .btn-print:hover {
+            opacity: 0.9;
+            transform: translateY(-1px);
+            box-shadow: 0 6px 24px rgba(0, 0, 0, 0.18);
+        }
+
+        .btn-print:active {
+            transform: translateY(0);
+            box-shadow: var(--shadow-sm);
+        }
+
+        .btn-secondary {
+            background: #5a5f6e;
+        }
+
+        .btn-secondary:hover {
+            background: #3d414a;
+        }
+
+        @media print {
+            @page {
+                size: A4;
+                margin: 0;
+            }
+
+            body {
+                background: white;
+                padding: 0;
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
+
+            .page {
+                box-shadow: none;
+                margin: 0;
+                width: 100%;
+                min-height: auto;
+                padding: 14mm 16mm 12mm;
+                border-radius: 0;
+            }
+
+            .page::after {
+                display: none;
+            }
+
+            .no-print,
+            .btn-print {
+                display: none !important;
+            }
+
+            .doc-item:hover {
+                background: transparent;
+                padding-left: 2px;
+            }
+
+            .validity-box,
+            .notice-box,
+            table {
+                box-shadow: none;
+            }
+        }
+
+        @media screen and (max-width: 800px) {
+            .page {
+                width: 100%;
+                padding: 12mm 10mm;
+            }
+
+            .header {
+                flex-direction: column;
+                align-items: center;
+                text-align: center;
+                gap: 10px;
+            }
+
+            .header-right {
+                text-align: center;
+                min-width: auto;
+                width: 100%;
+            }
+
+            .documents-list {
+                grid-template-columns: 1fr;
+            }
+
+            .signature-section {
+                flex-direction: column;
+                align-items: center;
+                text-align: center;
+            }
+
+            .sig-right .sig-city {
+                margin-bottom: 30px;
+            }
+        }
+    </style>
+    <style th:inline="css">
+        :root {
+            --uni-color: /*[[${couleurPrincipale}]]*/ '#0B1F4A';
+        }
+    </style>
+</head>
+<body>
+    <div class="print-bar no-print">
+        <button class="btn-print" onclick="window.print()">🖨️ Imprimer / Enregistrer en PDF</button>
+        <button class="btn-print btn-secondary" onclick="window.close()">✕ Fermer</button>
+    </div>
+
+    <div class="page">
+        <div class="header">
+            <div th:if="${logoSrc != null}">
+                <img th:src="${logoSrc}" alt="Logo université" class="header-logo" />
+            </div>
+            <div th:unless="${logoSrc != null}" class="header-logo-placeholder">
+                <span th:text="${universite.code}">UNI</span>
+            </div>
+
+            <div class="header-info">
+                <p class="header-republic">République Démocratique du Congo</p>
+                <p class="header-ministry">Ministère de l'Enseignement Supérieur et Universitaire</p>
+                <p class="header-uni-name" th:text="${universite.nom}">NOM DE L'UNIVERSITÉ</p>
+                <p class="header-uni-sub" th:text="${universite.typeEtablissement ?: 'Université Publique'}">Université Publique</p>
+                <div class="header-contact">
+                    <span th:if="${universite.adresse}" th:text="${universite.adresse + ', '}"></span>
+                    <span th:text="${universite.ville}">Kinshasa</span>
+                    <span th:if="${universite.telephone}"> · Tél : <span th:text="${universite.telephone}"></span></span>
+                    <br />
+                    <span th:if="${universite.email}">Email : <span th:text="${universite.email}"></span></span>
+                    <span th:if="${universite.siteWeb}"> · Web : <span th:text="${universite.siteWeb}"></span></span>
+                </div>
+            </div>
+
+            <div class="header-right">
+                <strong>Réf :</strong> <span th:text="${numeroLettre}">REF/2025/00001</span><br />
+                <strong>Date :</strong> <span th:text="${#temporals.format(dateEmission,'dd MMMM yyyy')}">01 janvier 2025</span><br />
+                <span th:if="${universite.agrementNumero}">
+                    <strong>Agrément :</strong> <span th:text="${universite.agrementNumero}"></span><br />
+                </span>
+            </div>
+        </div>
+
+        <p class="divider-motto">« Excellence · Intégrité · Service »</p>
+
+        <div class="letter-title">
+            <h1>Lettre d'Admission</h1>
+            <p>Année académique <strong th:text="${anneeAcademique}">2025-2026</strong></p>
+        </div>
+
+        <div class="to-block">
+            <p>
+                <strong>À l'attention de :</strong>
+                <span th:text="|${dossier.prenom} ${dossier.nom}|">Prénom NOM</span><br />
+                <span th:if="${dossier.adresse}" th:text="${dossier.adresse}"></span><br />
+                Email : <span th:text="${dossier.email}">email@example.com</span>
+                <span th:if="${dossier.telephone}"> · Tél : <span th:text="${dossier.telephone}"></span></span>
+            </p>
+        </div>
+
+        <p class="body-text">
+            Nous avons l'honneur de vous informer que votre dossier de candidature,
+            référencé <span class="highlight" th:text="${dossier.numeroDossier}">DOS-2025-000001</span>,
+            a été examiné par la Commission d'Admission de
+            <span th:text="${universite.nom}">l'Université</span>.
+        </p>
+
+        <p class="body-text">
+            À l'issue de cet examen, nous avons le plaisir de vous notifier votre
+            <strong>admission officielle</strong> au sein de notre établissement
+            pour l'année académique
+            <span class="highlight" th:text="${anneeAcademique}">2025-2026</span>,
+            avec le matricule étudiant :
+            <span class="highlight-matricule" th:text="${matricule}">UNIKIN202500001</span>.
+        </p>
+
+        <div class="section-title">I. Identité de l'étudiant(e)</div>
+        <table>
+            <tr>
+                <td class="td-label">Matricule attribué</td>
+                <td class="td-value"><strong th:text="${matricule}">UNIKIN202500001</strong></td>
+                <td class="td-label">N° Dossier</td>
+                <td class="td-value" th:text="${dossier.numeroDossier}">DOS-2025-000001</td>
+            </tr>
+            <tr>
+                <td class="td-label">Nom &amp; Prénom</td>
+                <td class="td-value" th:text="|${dossier.prenom} ${dossier.nom}|">Prénom NOM</td>
+                <td class="td-label">Sexe</td>
+                <td class="td-value" th:text="${dossier.sexe}">M / F</td>
+            </tr>
+            <tr>
+                <td class="td-label">Date de naissance</td>
+                <td class="td-value" th:text="${dossier.dateNaissance != null ? #temporals.format(dossier.dateNaissance,'dd/MM/yyyy') : '—'}">01/01/2000</td>
+                <td class="td-label">Lieu de naissance</td>
+                <td class="td-value" th:text="${dossier.lieuNaissance ?: '—'}">Kinshasa</td>
+            </tr>
+            <tr>
+                <td class="td-label">Nationalité</td>
+                <td class="td-value" th:text="${dossier.nationalite ?: 'Congolaise'}">Congolaise</td>
+                <td class="td-label">Email</td>
+                <td class="td-value" th:text="${dossier.email}">email@example.com</td>
+            </tr>
+        </table>
+
+        <div class="section-title">II. Programme et filière d'admission</div>
+        <table>
+            <tr>
+                <td class="td-label">Université</td>
+                <td class="td-value" colspan="3" th:text="${universite.nom}">Université</td>
+            </tr>
+            <tr>
+                <td class="td-label">Département</td>
+                <td class="td-value" th:text="${departement != null ? departement.nom : '—'}">Département</td>
+                <td class="td-label">Filière</td>
+                <td class="td-value" th:text="${filiere != null ? filiere.nom : '—'}">Informatique de Gestion</td>
+            </tr>
+            <tr>
+                <td class="td-label">Niveau d'inscription</td>
+                <td class="td-value" th:text="${dossier.niveauVise}">L1</td>
+                <td class="td-label">Durée du programme</td>
+                <td class="td-value" th:text="${filiere != null and filiere.dureeAnnees != null ? filiere.dureeAnnees + ' an(s)' : '—'}">3 an(s)</td>
+            </tr>
+            <tr>
+                <td class="td-label">Type d'inscription</td>
+                <td class="td-value" th:text="${dossier.typeInscription ?: 'Nouvelle inscription'}">Nouvelle inscription</td>
+                <td class="td-label">Année académique</td>
+                <td class="td-value" th:text="${anneeAcademique}">2025-2026</td>
+            </tr>
+            <tr>
+                <td class="td-label">Date de la rentrée</td>
+                <td class="td-value" colspan="3">
+                    <strong th:text="${dateRentree}">À confirmer par l'université</strong>
+                </td>
+            </tr>
+        </table>
+
+        <div class="section-title">III. Frais académiques — Année <span th:text="${anneeAcademique}">2025-2026</span></div>
+        <table>
+            <thead>
+                <tr>
+                    <th style="width:55%">Désignation</th>
+                    <th style="width:25%; text-align:right">Montant</th>
+                    <th style="width:20%">Devise</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr th:if="${universite.fraisInscription != null and universite.fraisInscription > 0}">
+                    <td>Frais d'inscription</td>
+                    <td style="text-align:right" th:text="${#numbers.formatDecimal(universite.fraisInscription, 1, 'COMMA', 2, 'POINT')}">0.00</td>
+                    <td th:text="${universite.devise ?: 'USD'}">USD</td>
+                </tr>
+                <tr th:if="${universite.fraisAcademiques != null and universite.fraisAcademiques > 0}">
+                    <td>Frais académiques (minérale)</td>
+                    <td style="text-align:right" th:text="${#numbers.formatDecimal(universite.fraisAcademiques, 1, 'COMMA', 2, 'POINT')}">0.00</td>
+                    <td th:text="${universite.devise ?: 'USD'}">USD</td>
+                </tr>
+                <tr th:if="${universite.fraisBibliotheque != null and universite.fraisBibliotheque > 0}">
+                    <td>Frais de bibliothèque</td>
+                    <td style="text-align:right" th:text="${#numbers.formatDecimal(universite.fraisBibliotheque, 1, 'COMMA', 2, 'POINT')}">0.00</td>
+                    <td th:text="${universite.devise ?: 'USD'}">USD</td>
+                </tr>
+                <tr th:if="${universite.fraisLabo != null and universite.fraisLabo > 0}">
+                    <td>Frais de laboratoire</td>
+                    <td style="text-align:right" th:text="${#numbers.formatDecimal(universite.fraisLabo, 1, 'COMMA', 2, 'POINT')}">0.00</td>
+                    <td th:text="${universite.devise ?: 'USD'}">USD</td>
+                </tr>
+                <tr th:if="${fraisFiliere != null and fraisFiliere > 0}">
+                    <td>Frais spécifiques filière</td>
+                    <td style="text-align:right" th:text="${#numbers.formatDecimal(fraisFiliere, 1, 'COMMA', 2, 'POINT')}">0.00</td>
+                    <td th:text="${universite.devise ?: 'USD'}">USD</td>
+                </tr>
+                <tr>
+                    <td><strong>TOTAL À PAYER</strong></td>
+                    <td style="text-align:right"><strong th:text="${#numbers.formatDecimal(totalFrais, 1, 'COMMA', 2, 'POINT')}">0.00</strong></td>
+                    <td><strong th:text="${universite.devise ?: 'USD'}">USD</strong></td>
+                </tr>
+            </tbody>
+        </table>
+
+        <p class="body-text" style="font-size:10pt; color:#666; text-align:left;">
+            ℹ️ Les frais peuvent être réglés par Mobile Money (Vodacom M-Pesa, Orange Money, Airtel Money),
+            virement bancaire ou au guichet de la caisse universitaire. Des facilités de paiement échelonné
+            peuvent être accordées sur demande à la Direction Financière.
+        </p>
+
+        <div class="section-title">IV. Documents à déposer lors de la rentrée</div>
+        <div class="documents-list">
+            <div class="doc-item">Diplôme d'État (original + 2 copies)</div>
+            <div class="doc-item">Relevé de notes du secondaire (original)</div>
+            <div class="doc-item">Acte de naissance (original + 2 copies)</div>
+            <div class="doc-item">4 photos passeport récentes fond blanc</div>
+            <div class="doc-item">Carte nationale d'identité ou passeport (copie)</div>
+            <div class="doc-item">Attestation de bonne conduite</div>
+            <div class="doc-item">Certificat médical d'aptitude physique</div>
+            <div class="doc-item">Reçu de paiement des frais d'inscription</div>
+            <div th:if="${dossier.bourse}" class="doc-item">Attestation de bourse (si applicable)</div>
+            <div th:if="${dossier.nationalite != null and dossier.nationalite != 'Congolaise'}" class="doc-item">Attestation de nationalité ou titre de séjour</div>
+        </div>
+
+        <div class="validity-box">
+            ⚠️ <strong>Validité de la présente lettre :</strong>
+            Cette lettre d'admission est valable jusqu'au
+            <strong th:text="${#temporals.format(dateValidite,'dd MMMM yyyy')}">01 mars 2025</strong>.
+            Passé ce délai, sans présentation à l'université ni paiement des frais d'inscription,
+            votre admission sera automatiquement annulée et la place proposée à un autre candidat.
+        </div>
+
+        <div class="notice-box">
+            ✅ <strong>Prochaines étapes :</strong><br />
+            1. Cliquez sur le lien reçu par email pour activer votre compte sur le portail étudiant GENUC.<br />
+            2. Connectez-vous sur votre portail pour télécharger cette lettre et suivre votre dossier.<br />
+            3. Présentez-vous à la Direction des Affaires Académiques avec tous les documents requis.<br />
+            4. Effectuez le paiement des frais d'inscription avant la date limite ci-dessus.
+        </div>
+
+        <p class="body-text">
+            Nous vous félicitons pour votre admission et vous souhaitons une excellente année académique
+            au sein de <span th:text="${universite.nom}">notre université</span>.
+            Notre équipe pédagogique est à votre disposition pour tout renseignement complémentaire.
+        </p>
+
+        <div class="signature-section">
+            <div class="sig-left">
+                <p>Pour toute information :</p>
+                <p th:if="${universite.telephone}">Tél : <strong th:text="${universite.telephone}"></strong></p>
+                <p th:if="${universite.email}">Email : <strong th:text="${universite.email}"></strong></p>
+                <p style="margin-top:10px; font-size:9pt; color:#888;">
+                    Lettre générée automatiquement par<br />
+                    la plateforme <strong>GENUC</strong> · genuc.cd
+                </p>
+            </div>
+
+            <div class="sig-right">
+                <p class="sig-city" th:text="|Fait à ${universite.ville}, le ${#temporals.format(dateEmission,'dd MMMM yyyy')}|">
+                    Fait à Kinshasa, le 01 janvier 2025
+                </p>
+                <div th:if="${sceauSrc != null}" style="margin-bottom:8px;">
+                    <img th:src="${sceauSrc}" alt="Sceau" style="height:60px;" />
+                </div>
+                <p class="sig-name" th:text="${((universite.recteurPrenom ?: '') + ' ' + (universite.recteurNom ?: 'Le Recteur')).trim()}">
+                    Le Recteur
+                </p>
+                <p class="sig-title">Recteur / Directeur Général</p>
+                <p class="sig-title" th:text="${universite.nom}">Université</p>
+            </div>
+        </div>
+
+        <div class="footer">
+            <div>
+                <p><strong th:text="${universite.nom}">UNIVERSITÉ</strong></p>
+                <p th:if="${universite.adresse}" th:text="${universite.adresse}"></p>
+                <p th:text="|${universite.ville}${universite.province != null ? ', ' + universite.province : ''}, RDC|">Kinshasa, RDC</p>
+            </div>
+            <div class="footer-center">
+                <img th:if="${qrCodeSrc != null}" th:src="${qrCodeSrc}" alt="QR code de vérification"
+                     style="width:54px;height:54px;display:block;margin:0 auto;" />
+                <div th:unless="${qrCodeSrc != null}" class="qr-placeholder">QR<br />Code<br />vérif.</div>
+                <p th:if="${verificationUrl}" class="verification-link" th:text="${verificationUrl}"></p>
+            </div>
+            <div style="text-align:right;">
+                <p>Réf : <span th:text="${numeroLettre}">REF/2025/00001</span></p>
+                <p>Matricule : <span th:text="${matricule}">UNIKIN202500001</span></p>
+                <p>Document officiel — <span th:text="${universite.nom}">UNIVERSITÉ</span></p>
+                <p style="color:#bbb;">Ne pas altérer ce document</p>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

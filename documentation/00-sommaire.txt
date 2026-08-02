@@ -1,0 +1,126 @@
+================================================================================
+GENUC — DOCUMENTATION TECHNIQUE COMPLÈTE
+Plateforme Nationale de Gestion Universitaire (République Démocratique du Congo)
+================================================================================
+
+Ce dossier contient la documentation technique complète du projet GENUC.
+Version APPROFONDIE (2026-07-16) : chaque partie explique les mécanismes,
+les justifications et les pièges — pas seulement l'inventaire. Chaque
+fichier peut être lu indépendamment ; les renvois entre parties sont
+indiqués (ex : « partie 10 §2 »).
+
+SOMMAIRE
+
+01-vue-ensemble-et-stack-technique.txt
+    Ce qu'est GENUC (multi-tenant national), architecture de
+    communication, stack backend/frontend brique par brique avec le rôle
+    de chacune, rôles utilisateurs, comptes de test, environnements.
+
+02-architecture-backend.txt
+    Cheminement d'une requête, structure des packages rôle par rôle,
+    patterns expliqués (stratégie paiement, routage lecture/écriture,
+    Kafka, cache), intégrations externes, configuration, tâches
+    planifiées, écarts connus avec CLAUDE.md (dont : pas de wrapper
+    ApiResponse<T> à ce jour).
+
+03-architecture-frontend.txt
+    Structure des dossiers, cartographie des pages par rôle et maturité,
+    mécanisme complet layouts/routage/PrivateRoute/AuthContext, catalogue
+    commenté des composants partagés, gestion d'état (piège des deux
+    instances Axios), thème, motifs UX, build/PWA.
+
+04-base-de-donnees.txt
+    Qui crée réellement le schéma (Hibernate en dev, Flyway en prod),
+    histoire du baseline squashé V1 + migrations V2-V7 expliquées,
+    groupes de tables et leur logique (distinction utilisateur/étudiant/
+    inscription), pièges (table dupliquée, contraintes CHECK, uniques
+    multi-colonnes), rôle exact de Redis.
+
+05-authentification-securite.txt
+    Flux JWT étape par étape (login par email OU matricule), contenu du
+    token, piège actif=false, anti-brute-force à deux niveaux, 2FA TOTP,
+    mécanique des rôles (piège ROLE_, incident PUBLIC_PATHS), choix de
+    SecurityConfig justifiés, signature électronique, vérification
+    publique des documents, récupération de mot de passe, audit.
+
+06-modules-metier-admissions-paiements.txt
+    Circuit d'admission étape par étape (test conditionnel, validation),
+    les deux systèmes de lettres, correctifs QR, ⚠️ point critique du
+    paiement des frais de dossier (non sécurisé), TachPay en profondeur
+    (cycle des frais, flux mobile money réel, caisse, bons de paiement),
+    récapitulatif des canaux de paiement.
+
+07-modules-metier-academique.txt
+    Cycle de vie d'une note (saisie/validation/publication et leurs
+    rôles), règles de calcul des délibérations (moyenne pondérée,
+    mentions, décisions), les 3 phases + pipeline jury complet, palmarès
+    de bout en bout, attestations/diplômes/équivalences (trois modèles
+    différents), carte étudiant.
+
+08-modules-metier-autres.txt
+    RH (paie avec séparation des pouvoirs, congés), bibliothèque (deux
+    couches de modèle, règles d'emprunt), service social (dossier →
+    bourse → versements), communication (messagerie à boîtes, chatbot à
+    règles, push optionnel), présences QR (flux complet + incohérence de
+    format connue), migration assistée (8 étapes), vie universitaire/
+    alumni/stages/TFC.
+
+09-deploiement-infrastructure.txt
+    Dev local, Docker Compose service par service (réplication Postgres,
+    PgBouncer, Kafka, Tempo — et pourquoi), Nginx directive par
+    directive, alternative same-origin, variables d'environnement et
+    leur impact, note k8s supprimé, observabilité.
+
+10-reference-api-rest.txt
+    Conventions transverses (préfixe /api, format des réponses et des
+    erreurs, versioning, contrôleurs multi-préfixes, doublons), sécurité
+    des routes (tableau URL → rôle, interaction permitAll/@PreAuthorize),
+    inventaire des 105 contrôleurs (763 endpoints), détail approfondi des
+    contrôleurs pivots : auth, activation, dossiers, TachPay, notes,
+    délibérations, portail étudiant, migration, présences.
+
+11-tests-et-qualite.txt
+    Contenu réel de chacune des 13 classes de test (84 tests), invariants
+    métier garantis, mécanique et piège du profil de test jamais activé,
+    pourquoi le seuil JaCoCo 70 % est théorique, état frontend (outillage
+    présent, zéro test), écarts CLAUDE.md avec preuves, pistes de
+    renforcement par ordre de rendement.
+
+12-guide-developpeur.txt
+    Prérequis expliqués, trois façons de démarrer, particularités du
+    poste actuel (PostgreSQL natif/Redis Docker/Eclipse), comptes seed,
+    pièges connus en format symptôme/cause/diagnostic/remède, conventions
+    backend et frontend/UI, git.
+
+--------------------------------------------------------------------------------
+Statut : document vivant. Instantané approfondi au 2026-07-16 — les
+comptages (fichiers, endpoints, tables) dérivent vite ; vérifier avant de
+citer un chiffre comme actuel.
+
+CORRECTIFS APPLIQUÉS AU CODE le 2026-07-16 (dans la foulée de cette
+documentation) :
+  - cd.genuc.dto.ApiResponse<T> CRÉÉE (elle n'existait pas malgré
+    CLAUDE.md) et branchée sur toutes les erreurs du
+    GlobalExceptionHandler — format historique conservé + champ success ;
+  - tests @SpringBootTest basculés sur Testcontainers PostgreSQL 15
+    (IntegrationTestBase, skip sans Docker) — 84/84 tests verts ;
+  - DataSourceConfig : driver JDBC configurable (plus codé en dur) ;
+  - bucket4j (dépendance morte) retirée du pom ;
+  - ScannerPresence.jsx : parsing QR aligné sur le format backend
+    GENUC:PRESENCE:... et envoi du payload brut (build front vérifié) ;
+  - CLAUDE.md réécrit pour coller à la réalité du code ;
+  - PAIEMENT PUBLIC DES FRAIS DE DOSSIER SÉCURISÉ : plus de marquage
+    immédiat — TransactionDossier PENDING + appel opérateur, confirmation
+    UNIQUEMENT par webhook signé, polling public de statut, migration V8,
+        11 tests dédiés (doc 06 §4 ; simulation opérateur seulement en dev) ;
+  - éviction du cache « statut-paiement » à la confirmation webhook
+    (le polling voyait un statut périmé jusqu'à 1 h) ;
+  - RENOMMAGE TachFee → TachPay (même date) : classes (TachPayController,
+    package service/tachpay/...), routes /api/tachpay/**, page frontend
+    /paiement-tachpay, composants TachPayCheckout/TachPayPage. Des ALIAS
+    HÉRITÉS restent servis : /api/tachfee/** (webhooks opérateur, anciens
+    liens) et la route front /paiement-tachfee (QR/emails déjà émis).
+Autres constats inchangés : pas de context-path /api, endpoints de debug
+d'AuthController protégés par @PreAuthorize SUPER_ADMIN seulement,
+docker-compose situé dans genuc-backend/.
+--------------------------------------------------------------------------------

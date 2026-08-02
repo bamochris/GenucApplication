@@ -1,0 +1,167 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: genuc-pgbouncer
+  namespace: genuc
+  labels:
+    app.kubernetes.io/name: genuc
+    app.kubernetes.io/component: pgbouncer
+    app.kubernetes.io/part-of: genuc-platform
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: pgbouncer
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: pgbouncer
+        app.kubernetes.io/name: genuc
+    spec:
+      containers:
+        - name: pgbouncer
+          image: pgbouncer/pgbouncer:latest
+          ports:
+            - containerPort: 5432
+              name: pgbouncer
+          env:
+            - name: DATABASES_HOST
+              value: "genuc-postgres"
+            - name: DATABASES_PORT
+              value: "5432"
+            - name: DATABASES_DBNAME
+              value: "genuc_db"
+            - name: DATABASES_USER
+              value: "genuc_user"
+            - name: DATABASES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: genuc-secrets
+                  key: DB_PASSWORD
+            - name: PGBOUNCER_POOL_MODE
+              value: "transaction"
+            - name: PGBOUNCER_MAX_CLIENT_CONN
+              value: "5000"
+            - name: PGBOUNCER_DEFAULT_POOL_SIZE
+              value: "100"
+            - name: PGBOUNCER_RESERVE_POOL_SIZE
+              value: "20"
+            - name: PGBOUNCER_SERVER_IDLE_TIMEOUT
+              value: "600"
+          livenessProbe:
+            exec:
+              command: ["pg_isready", "-h", "localhost", "-p", "5432", "-U", "genuc_user"]
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-h", "localhost", "-p", "5432", "-U", "genuc_user"]
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          resources:
+            requests:
+              cpu: "200m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: genuc-pgbouncer
+  namespace: genuc
+  labels:
+    app.kubernetes.io/name: genuc
+    app.kubernetes.io/component: pgbouncer
+spec:
+  ports:
+    - port: 5432
+      targetPort: 5432
+      name: postgres
+  selector:
+    app.kubernetes.io/component: pgbouncer
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: genuc-pgbouncer-replica
+  namespace: genuc
+  labels:
+    app.kubernetes.io/name: genuc
+    app.kubernetes.io/component: pgbouncer-replica
+    app.kubernetes.io/part-of: genuc-platform
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: pgbouncer-replica
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: pgbouncer-replica
+        app.kubernetes.io/name: genuc
+    spec:
+      containers:
+        - name: pgbouncer
+          image: pgbouncer/pgbouncer:latest
+          ports:
+            - containerPort: 5432
+              name: pgbouncer
+          env:
+            - name: DATABASES_HOST
+              value: "genuc-postgres-replica"
+            - name: DATABASES_PORT
+              value: "5432"
+            - name: DATABASES_DBNAME
+              value: "genuc_db"
+            - name: DATABASES_USER
+              value: "genuc_user"
+            - name: DATABASES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: genuc-secrets
+                  key: DB_PASSWORD
+            - name: PGBOUNCER_POOL_MODE
+              value: "transaction"
+            - name: PGBOUNCER_MAX_CLIENT_CONN
+              value: "3000"
+            - name: PGBOUNCER_DEFAULT_POOL_SIZE
+              value: "50"
+            - name: PGBOUNCER_RESERVE_POOL_SIZE
+              value: "10"
+            - name: PGBOUNCER_SERVER_IDLE_TIMEOUT
+              value: "600"
+          livenessProbe:
+            exec:
+              command: ["pg_isready", "-h", "localhost", "-p", "5432", "-U", "genuc_user"]
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-h", "localhost", "-p", "5432", "-U", "genuc_user"]
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          resources:
+            requests:
+              cpu: "200m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: genuc-pgbouncer-replica
+  namespace: genuc
+  labels:
+    app.kubernetes.io/name: genuc
+    app.kubernetes.io/component: pgbouncer-replica
+spec:
+  ports:
+    - port: 5432
+      targetPort: 5432
+      name: postgres
+  selector:
+    app.kubernetes.io/component: pgbouncer-replica

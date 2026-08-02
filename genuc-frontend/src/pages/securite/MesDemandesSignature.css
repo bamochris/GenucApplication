@@ -1,0 +1,187 @@
+/* src/pages/securite/MesDemandesSignature.css */
+
+.mds-page {
+  max-width: 860px;
+  margin: 0 auto;
+  padding: clamp(12px, 2.5vw, 28px);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.mds-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.mds-header-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  color: #d97706;
+  background: rgba(217, 119, 6, 0.12);
+  flex-shrink: 0;
+}
+
+.mds-header h1 {
+  margin: 0;
+  font-size: clamp(18px, 2vw, 22px);
+  color: var(--text-primary, #0B1F4A);
+}
+
+.mds-header p {
+  margin: 3px 0 0;
+  font-size: 13px;
+  color: var(--text-muted, #6b7280);
+}
+
+.mds-sous-titre {
+  margin: 10px 0 0;
+  font-size: 14px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--text-muted, #6b7280);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.mds-liste {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.mds-carte {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 18px;
+  background: var(--bg-card, #fff);
+  border: 1px solid var(--border-color, #e8ebf2);
+  border-radius: 12px;
+  box-shadow: 0 2px 8px var(--shadow-color, rgba(0, 0, 0, 0.05));
+}
+
+.mds-carte-traitee { opacity: 0.75; }
+
+.mds-carte-icone {
+  width: 42px;
+  height: 42px;
+  border-radius: 11px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 17px;
+  color: #185FA5;
+  background: rgba(24, 95, 165, 0.1);
+  flex-shrink: 0;
+}
+
+.mds-carte-infos { flex: 1; min-width: 0; }
+
+.mds-carte-titre {
+  font-size: 14.5px;
+  font-weight: 700;
+  color: var(--text-primary, #0B1F4A);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.mds-badge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 10px;
+  border-radius: 20px;
+  background: rgba(24, 95, 165, 0.12);
+  color: #185FA5;
+}
+
+.mds-carte-detail {
+  font-size: 12.5px;
+  color: var(--text-muted, #6b7280);
+  margin-top: 2px;
+}
+
+.mds-carte-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.mds-btn-valider,
+.mds-btn-refuser {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 16px;
+  border-radius: 9px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  border: none;
+}
+
+.mds-btn-valider {
+  background: linear-gradient(120deg, #0F6E56, #1D9E75);
+  color: #fff;
+}
+
+.mds-btn-valider:hover:not(:disabled) { filter: brightness(1.1); }
+
+.mds-btn-refuser {
+  background: transparent;
+  border: 1.5px solid rgba(185, 28, 28, 0.5);
+  color: #B91C1C;
+}
+
+.mds-btn-refuser:hover:not(:disabled) { background: rgba(185, 28, 28, 0.07); }
+
+.mds-btn-valider:disabled,
+.mds-btn-refuser:disabled { opacity: 0.55; cursor: not-allowed; }
+
+.mds-statut {
+  font-size: 12px;
+  font-weight: 800;
+  flex-shrink: 0;
+}
+
+.mds-statut-ok { color: #0F6E56; }
+.mds-statut-ko { color: #B91C1C; }
+
+.mds-flash {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.mds-flash-ok  { background: rgba(15, 110, 86, 0.1);  color: #0F6E56; border: 1px solid rgba(15, 110, 86, 0.3); }
+.mds-flash-err { background: rgba(185, 28, 28, 0.08); color: #B91C1C; border: 1px solid rgba(185, 28, 28, 0.3); }
+
+.mds-vide {
+  padding: 26px;
+  text-align: center;
+  color: var(--text-muted, #6b7280);
+  font-size: 14px;
+  background: var(--bg-card, #fff);
+  border: 1px dashed var(--border-color, #d1d5db);
+  border-radius: 12px;
+}
+
+@media (max-width: 640px) {
+  .mds-carte { flex-wrap: wrap; }
+  .mds-carte-actions { width: 100%; }
+  .mds-btn-valider, .mds-btn-refuser { flex: 1; justify-content: center; }
+}

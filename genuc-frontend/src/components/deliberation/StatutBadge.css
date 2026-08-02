@@ -1,0 +1,31 @@
+/* src/components/deliberation/StatutBadge.css */
+.statut-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 20px;
+  padding: 4px 12px;
+  font-weight: 600;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.statut-badge.badge-sm {
+  font-size: 11px;
+  padding: 2px 10px;
+}
+
+.statut-badge.badge-lg {
+  font-size: 15px;
+  padding: 6px 18px;
+}
+
+.statut-code {
+  font-weight: 700;
+}
+
+.statut-label {
+  font-weight: 400;
+  opacity: 0.8;
+  font-size: 0.9em;
+}

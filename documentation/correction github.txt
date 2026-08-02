@@ -1,0 +1,71 @@
+J’ai terminé l’analyse des failles du backend genuc-backend. Je n’ai pas modifié le code; j’ai seulement audité et généré les artefacts de scan.
+
+Failles Critiques
+
+Dépendances vulnérables massivement exposées
+Le projet utilise Spring Boot 3.2.0 dans pom.xml:10-11. Le scan CVE a produit cve-report-1.json: 134 CVE sur 38 dépendances, dont 10 critiques et 52 hautes.
+Impact: exposition à des CVE connues dans la stack Spring/Jackson/Tomcat/Netty/POI/etc.
+Correctif: monter Spring Boot vers une version 3.3/3.4/3.5 maintenue, puis mettre à jour les dépendances directes sensibles: POI, springdoc, JJWT, Stripe, Twilio, iText.
+
+Fichiers uploadés accessibles publiquement
+SecurityConfig.java:91 autorise GET /uploads/** publiquement, et WebConfig.java expose le dossier disque uploads/.
+Impact: documents étudiants, dossiers, rapports, recours, TFC, stages ou justificatifs peuvent être consultés si l’URL est devinée, loggée ou partagée.
+Correctif: retirer l’accès public global, servir les fichiers via endpoint contrôlé, vérifier rôle + université + propriétaire, et utiliser des URLs temporaires si besoin.
+
+Uploads construits avec le nom original non normalisé
+Plusieurs services créent le chemin avec UUID + "_" + file.getOriginalFilename() puis Paths.get(...), par exemple TravauxService.java:139-143, TfcService.java:232-236, ainsi que Bourse/Recours/Stage selon les lectures précédentes.
+Impact: risque de traversal/nom malicieux, extension dangereuse, stockage de contenu arbitraire, contournement par fichiers polyglottes.
+Correctif: ignorer le nom fourni pour le chemin disque, générer un nom serveur, normaliser, valider extension/MIME/taille, scanner le contenu, stocker le nom original seulement comme métadonnée.
+
+Secrets réels présents dans .env
+Un .env local existe avec des secrets d’apparence réelle. Je n’ai pas affiché les valeurs. Il ne ressort pas dans git status, donc il n’est probablement pas suivi actuellement, mais sa présence locale reste sensible.
+Impact: fuite possible si archive, capture, commit futur ou partage du dossier.
+Correctif: vérifier .gitignore, supprimer les secrets du poste si inutile, faire une rotation des clés si elles ont été exposées, garder uniquement .env.example sans valeurs sensibles.
+
+Failles Hautes
+
+IDOR étudiant: accès à des données par inscriptionId arbitraire
+Beaucoup d’endpoints donnent l’accès au rôle ETUDIANT mais acceptent un inscriptionId en URL sans comparaison visible avec l’étudiant authentifié: EtudiantPortalController.java:49-118, NoteController.java:28-29, PaiementController.java:74-106, BonDePaiementController.java:87-100, CarteEtudiantController.java:24-59, MessagerieController.java:23-24.
+Impact: un étudiant connecté peut potentiellement consulter notes, paiements, relevés, carte, messages ou documents d’un autre étudiant en changeant l’ID.
+Correctif: ne jamais faire confiance à inscriptionId côté client; résoudre l’inscription depuis le JWT pour les étudiants, et ajouter un garde central @PreAuthorize("@securityService.canAccessInscription(#inscriptionId, authentication)").
+
+Rate limiting contournable et routes login mal détectées
+RateLimitFilter.java fait confiance à X-Forwarded-For / X-Real-IP, donc un client direct peut changer d’IP apparente. En plus, la détection login vise /auth/login ou /auth/register, alors que le flux réel utilise /api/auth/connecter et autres alias.
+Impact: brute force login et endpoints sensibles moins protégés que prévu.
+Correctif: ne lire les headers proxy que derrière un proxy de confiance, utiliser ForwardedHeaderFilter/configuration serveur, et aligner les patterns sur /api/auth/connecter, /api/auth/login, /api/auth/inscrire, /api/auth/register.
+
+Webhooks TachPay: IP source spoofable
+TachPayController.java:760-830 extrait aussi l’IP depuis X-Forwarded-For / X-Real-IP. Même si la signature HMAC est bonne côté WebhookSecurityService.java, la whitelist IP peut être contournée si l’application est exposée directement.
+Impact: défense IP inefficace, dépendance totale au secret HMAC.
+
+Correctif: accepter ces headers uniquement depuis le reverse proxy, refuser les accès directs, configurer la whitelist au niveau Nginx/API gateway, et garder HMAC obligatoire.
+
+Refresh tokens non rotatifs
+AuthController.java:304-319 renvoie seulement un nouveau token d’accès lors du refresh; RefreshTokenService.java stocke et valide le refresh token mais ne force pas la rotation à chaque usage.
+Impact: si un refresh token fuit, il reste réutilisable jusqu’à expiration ou révocation.
+Correctif: rotation à chaque refresh, révocation de l’ancien token, détection de réutilisation, stockage hashé du refresh token au lieu du token brut.
+
+Failles Moyennes
+
+Énumération étudiants
+EtudiantController.java expose des endpoints publics permettant de tester un email ou récupérer des informations minimales par email.
+Impact: énumération de comptes, collecte d’identité, facilitation phishing/brute force.
+Correctif: rendre ces endpoints authentifiés ou retourner une réponse générique.
+
+Endpoints publics de paiement par matricule
+Les endpoints TachPay publics et les recherches par matricule peuvent exposer des informations si les matricules sont prédictibles.
+Correctif: limiter les détails retournés, ajouter rate limiting strict, captcha si public, et jeton de session de paiement court.
+
+Configuration dev dangereuse si réutilisée
+Actuator/prometheus, logs SQL/TRACE et paramètres de dev doivent rester strictement hors production.
+Correctif: profil prod verrouillé, actuator minimal, logs non verbeux, secrets uniquement via variables d’environnement/secret manager.
+
+Priorité De Correction
+
+Mettre à jour Spring Boot et les dépendances vulnérables, puis relancer le scan CVE.
+Fermer /uploads/** public et créer un service de téléchargement autorisé.
+Ajouter un contrôle central propriétaire/université pour tous les endpoints avec inscriptionId.
+Corriger la confiance dans X-Forwarded-For pour rate limit et webhooks.
+Sécuriser les uploads: nom serveur, validation extension/MIME, taille, scan, stockage hors webroot.
+Implémenter refresh-token rotation + hashage + détection reuse.
+Réduire les endpoints publics d’énumération et de paiement.

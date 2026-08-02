@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>GENUC — Hors ligne</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #0B1F4A;
+      color: white;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 20px;
+    }
+    .container { max-width: 420px; }
+    .icon { font-size: 64px; margin-bottom: 24px; }
+    h1 { font-size: 24px; margin-bottom: 12px; color: #9FE1CB; }
+    p { font-size: 15px; color: #ccc; line-height: 1.6; margin-bottom: 28px; }
+    .btn {
+      display: inline-block;
+      padding: 12px 28px;
+      background: #185FA5;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 15px;
+      cursor: pointer;
+      text-decoration: none;
+    }
+    .btn:hover { background: #1a6fc0; }
+    .note { margin-top: 24px; font-size: 12px; color: #888; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="icon">📡</div>
+    <h1>Pas de connexion Internet</h1>
+    <p>
+      Votre appareil est hors ligne. Certaines pages mises en cache sont accessibles,
+      mais les données en temps réel ne peuvent pas être récupérées.<br /><br />
+      Vos saisies en cours seront synchronisées automatiquement dès le retour de la connexion.
+    </p>
+    <button class="btn" onclick="location.reload()">Réessayer</button>
+    <p class="note">GENUC — Plateforme Nationale de Gestion Universitaire RDC</p>
+  </div>
+</body>
+</html>

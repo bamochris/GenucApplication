@@ -1,0 +1,352 @@
+================================================================================
+GENUC — PARTIE 3 : ARCHITECTURE FRONTEND (React) — VERSION APPROFONDIE
+================================================================================
+SPA React 19 (Create React App). Pas de SSR : tout le rendu se fait dans
+le navigateur, l'app ne connaît le monde que par l'API REST (partie 10).
+
+
+1. STRUCTURE DES DOSSIERS (genuc-frontend/src/) ET RÔLE DE CHACUN
+--------------------------------------------------------------------------------
+  pages/       ~22 dossiers de rôle + ~35 pages publiques/génériques au
+               premier niveau (Home, Login, Inscriptions, Diplomes,
+               VerifierDiplome, TachPayPage, VerifierAdmission...). Les
+               pages publiques de VÉRIFICATION (VerifierDiplome,
+               VerifierAdmission...) sont les cibles des QR codes imprimés
+               sur les documents officiels — elles appellent les routes
+               /api/*/verifier/** publiques (partie 10 §2).
+  components/  ~35 composants partagés au premier niveau + sous-dossiers
+               common/, ui/, superadmin/, etudiant/, deliberation/,
+               import/, settings/. Détail en §4.
+  layouts/     4 composants seulement : EtudiantLayout, ProfesseurLayout,
+               FinanceLayout, SuperAdminLayout (avec leur .css). ATTENTION
+               tous ne sont pas réellement câblés — voir §3.
+  services/    18 fichiers (~1370 lignes) — la SEULE porte vers l'API :
+               un fichier par domaine métier, encapsulant Axios. Aucun
+               composant ne doit importer axios directement.
+  api/         axios.js (instance principale + intercepteurs JWT),
+               axiosInstance.js (SECONDE instance parallèle — voir la mise
+               en garde §5), apiEndpoints.js (constantes d'URL).
+  context/     AuthContext.jsx, ThemeContext.jsx, i18nContext.jsx — les
+               trois seuls états globaux de l'application.
+  hooks/       useApi, useDebounce, useDraggableDialog, useParallelApi,
+               usePhotosIdentite. Un SECOND groupe existe sous
+               pages/hooks/ (useAuth, useFormValidation, useLocalStorage,
+               usePagination, useProtectedRoute) — emplacement historique/
+               legacy : vérifier lequel une page importe avant de modifier
+               un hook « du même nom ».
+  utils/       apiInterceptors (JWT + refresh sur 401), tokenManager,
+               errorHandler, logger, validators, sanitizeHtml (dompurify),
+               fileUrl, documentsInscription, pushNotifications (Firebase).
+  styles/      variables.css, main.css, themes/dark.css,
+               utilities/responsive.css, dialog-interactions.css.
+  config/      apiConfig.js.
+  racine       App.js (~850 lignes, TOUTES les routes), index.js,
+               index.css (racine des variables de thème).
+
+Note : un dossier src/public/ existe EN PLUS du vrai public/ à la racine —
+doublon d'actifs, résidu à nettoyer (les fichiers réellement servis sont
+ceux de public/ à la racine ; src/public/ n'est utilisé que s'il est
+importé explicitement).
+
+
+2. RÔLES ET PAGES (pages/<role>/) — CARTOGRAPHIE ET MATURITÉ
+--------------------------------------------------------------------------------
+  Rôle                     Pages    Exemples représentatifs
+  etudiant/                53       EtudiantDashboard, MesResultats,
+           (+ bulletins, cours, frais, lms, stages, tfc, quiz...)
+                                    ScannerPresence, CarteEtudiant,
+                                    Bibliotheque, QuizAttempt.
+  professeur/              49       SaisieNotes, GenererQR, ImportNotes/
+           (+ cours, notes, presences, deliberation, tfc...)
+                                    ExportNotes, TableauPresences,
+                                    MonEvaluation.
+  admin/                   47       AdminUniversiteDashboard,
+           (+ deliberation/, modules/, rh/)
+                                    FilieresGestion, GenererPalmares,
+                                    GestionFraisTachPay, MigrationAssistee.
+  finances/                18       GestionFrais, Encaissement,
+           (sous-rôles admin/, caissier/, etudiant/, rapports/)
+                                    ClotureCaisse, MesFrais,
+                                    RapportRecouvrement.
+  superadmin/              4        SuperAdminDashboard,
+                                    EnregistrementUniversite,
+                                    GestionAdminsUniversite.
+  rh/                      4        RHDashboard, GestionEmployes,
+                                    GestionCongesRH, GestionPaieRH.
+  administrateur-systeme/  2        AdministrateurSystemeDashboard,
+                                    AdministrationSysteme.
+  securite/                2        Securite2FA, MesDemandesSignature.
+  social/                  2        SocialDashboard, DossierDetailModal.
+  doyen/, chef/, chef-promotion/, caissier/, comptable/,
+  bibliothecaire/, secretaire/, appariteur/, alumni/, recteur/
+                           1-3      essentiellement un tableau de bord
+                                    chacun (DoyenDashboard, ChefDashboard,
+                                    CaissierDashboard...).
+
+LECTURE : quatre modules sont COMPLETS (etudiant, professeur, admin,
+finances — ~170 pages à eux quatre) ; les autres rôles n'ont qu'une
+coquille de tableau de bord. Interprétation pour le développement : quand
+une fonctionnalité « manque » pour un doyen ou un caissier, elle est
+souvent déjà EXPOSÉE côté API (partie 10) mais la page n'a simplement pas
+encore été construite — vérifier l'API avant de créer un endpoint.
+
+
+3. LAYOUTS, ROUTAGE ET CONTRÔLE D'ACCÈS — LE MÉCANISME COMPLET
+--------------------------------------------------------------------------------
+3.1 LAYOUTS RÉELS vs DÉCLARÉS
+  EtudiantLayout, ProfesseurLayout et FinanceLayout sont utilisés comme
+  enveloppes de routes imbriquées (<Outlet/>) dans App.js : la sidebar du
+  rôle est montée une fois, les pages du rôle s'affichent dedans.
+  SuperAdminLayout EXISTE mais n'est câblé dans AUCUNE route — code mort ;
+  le portail superadmin utilise en pratique un composant SidebarSuperAdmin
+  autonome intégré directement dans 1-2 pages. Ne pas « corriger » une
+  page superadmin en modifiant SuperAdminLayout : rien ne le rend.
+  TOUS les autres rôles partagent une coquille générique « AppLayout »
+  définie EN LIGNE dans App.js : <Navbar/> + <PortalTopbar/> +
+  <SignatureBanner/> + contenu. Ce n'est pas un layout par rôle — c'est le
+  MENU de Navbar qui est filtré par rôle.
+
+3.2 DÉCLARATION DES ROUTES
+  App.js déclare directement toutes les routes (pas de fichier de config
+  séparé). Quasiment chaque page est importée via React.lazy() (~150+
+  imports paresseux) sous un unique <Suspense> : le bundle initial reste
+  léger, chaque écran est téléchargé à sa première visite. Les layouts,
+  eux, sont importés de façon ANTICIPÉE (petits et toujours nécessaires —
+  les mettre en lazy ajouterait un flash de chargement à chaque
+  navigation).
+
+3.3 CONTRÔLE D'ACCÈS — DEUX STYLES QUI COEXISTENT
+  a) Wrappers dédiés par rôle (EtudiantPrivateRoute,
+     ProfesseurPrivateRoute, FinancePrivateRoute, PrivatePage) : combinent
+     <PrivateRoute roles={[...]}> + le layout du rôle, pour les arbres de
+     routes imbriquées.
+  b) <PrivateRoute roles={[...]}> appliqué route par route pour les rôles
+     « à plat ».
+  PrivateRoute.jsx lit isAuthenticated / isLoading / hasRole() depuis
+  AuthContext : non authentifié → redirection /login ; mauvais rôle →
+  /forbidden ; chargement en cours → spinner (évite le flash de
+  redirection au premier rendu, quand le contexte n'a pas fini de lire
+  localStorage).
+  RAPPEL SÉCURITÉ : ce contrôle côté client n'est qu'ergonomique — la
+  vraie barrière est côté backend (SecurityConfig + @PreAuthorize,
+  partie 10 §2). Cacher un lien n'interdit rien.
+
+3.4 AuthContext — LE CŒUR DE LA SESSION
+  Stocke dans localStorage : le JWT (clé genuc_token), le refresh token et
+  l'objet utilisateur. Expose login/logout/hasRole/completeMfaLogin.
+  Écoute l'événement global window « genuc:session-expired », émis par
+  l'intercepteur Axios quand un refresh échoue → déconnexion forcée +
+  redirection /login (c'est ainsi qu'une session morte se termine
+  proprement quelle que soit la page ouverte).
+  La 2FA est gérée comme une DEUXIÈME ÉTAPE de connexion : si le backend
+  répond « MFA requis », le contexte garde l'état intermédiaire et
+  completeMfaLogin(code) appelle /api/auth/2fa/login-verify pour finir.
+  RoleRedirect fait correspondre chacun des ~14 rôles backend à son
+  tableau de bord pour la redirection post-connexion (un seul endroit à
+  mettre à jour quand un nouveau rôle arrive).
+
+
+4. COMPOSANTS PARTAGÉS (src/components/) — CATALOGUE COMMENTÉ
+--------------------------------------------------------------------------------
+  Formulaires/validation  : FormField.jsx (champ standardisé — À UTILISER
+                            au lieu d'<input> nus), FileUploadPreview.jsx,
+                            settings/PasswordDialog.jsx, PasswordPanel.jsx.
+  Boîtes de dialogue      : QuickActionDialog.jsx (voir §7),
+                            ui/ConfirmationModal.jsx (confirmation
+                            générique — ne pas recréer de modale de
+                            confirmation ad hoc), LogoutModal.jsx,
+                            PasswordConfirmModal.jsx,
+                            settings/SettingsDialog.jsx (réservée aux
+                            actions COURTES — pas de listes/tableaux
+                            dedans), superadmin/ModifierUniversiteModal.
+  Tables/CRUD génériques  : common/ModuleCrud.jsx + common/ModulePage.jsx
+                            (écrans CRUD génériques pilotés par
+                            configuration — servent le ModulesController
+                            /api/modules/{ressource} : un nouveau CRUD
+                            simple peut ne coûter QUE de la config),
+                            Pagination.jsx.
+  Graphiques              : StatsChart.jsx, DashboardStats.jsx,
+                            deliberation/StatsCards.jsx,
+                            deliberation/StatsDashboard.jsx (Recharts).
+  PDF / documents         : CertificatPDF.jsx, CertificatPalmaresPDF.jsx,
+                            etudiant/ReçuPDF.jsx, Palmares.jsx — tous via
+                            @react-pdf/renderer (PDF non officiels côté
+                            client ; les documents à valeur légale restent
+                            générés par le backend, partie 01 §4).
+  Notifications / chat    : NotificationBell.jsx (polling + dropdown),
+                            ChatbotWidget.jsx — assistant à base de règles
+                            (« GENUC Cleverly ») qui LIT la config des
+                            liens de Navbar.jsx : il oriente l'utilisateur
+                            vers les pages de son rôle sans dupliquer la
+                            carte de navigation.
+  Navigation / coquille   : Navbar.jsx (le plus gros composant — menu par
+                            rôle + accordéon de modules), PortalTopbar.jsx,
+                            SidebarSuperAdmin.jsx, CommandPalette.jsx
+                            (palette Ctrl+K), ui/BackButton.jsx,
+                            ui/LogoutButton.jsx.
+  État / retour visuel    : common/EmptyState.jsx (état vide standard),
+                            common/ErrorDisplay.jsx, LoadingSpinner.jsx,
+                            ErrorBoundary.jsx (attrape les crashs de rendu
+                            — chaque sous-arbre important en est enveloppé),
+                            skeleton.css.
+  Widgets métier          : etudiant/Widget*.jsx (Cours, EmploiTemps,
+                            Messages, Notes, Notifications, Paiements —
+                            les cartes du tableau de bord étudiant),
+                            deliberation/* (tableau de jury, badges de
+                            statut, workflow de signature), import/*
+                            (progression et anomalies de la migration
+                            assistée — partie 10 §11.1).
+  Divers                  : AvatarUtilisateur.jsx, LanguageSelector.jsx,
+                            SignatureBanner.jsx (bannière de signature
+                            électronique montée sur chaque page privée —
+                            affiche les demandes de signature en attente),
+                            TachPayCheckout.jsx (écran de paiement mobile
+                            money, consomme le checkout-context de la
+                            partie 10 §7.2), PaiementStatutPoller.jsx
+                            (sonde le statut d'une transaction initiée —
+                            le pendant front du modèle « paiement confirmé
+                            par webhook »), BibliothequeRecherche.jsx.
+
+
+5. GESTION D'ÉTAT ET ACCÈS AUX DONNÉES — RÈGLES ET PIÈGES
+--------------------------------------------------------------------------------
+ÉTAT GLOBAL : Context API uniquement (AuthContext, ThemeContext,
+i18nContext). Aucun Redux/Zustand/MobX, aucune trace de React Query ou
+SWR. Philosophie : l'état SERVEUR n'est pas conservé dans un store — on
+recharge à la demande via les services ; seuls la session, le thème et la
+langue sont globaux. Ne pas introduire de store sans décision d'équipe.
+
+CACHE DE REQUÊTES (src/api/requestCache.js) : registre de MODULE partagé
+par les DEUX instances Axios (api/axios.js et api/axiosInstance.js), donc
+par toute l'application. Ce n'est pas un store d'état : rien ne s'y abonne,
+il ne fait qu'éviter des allers-retours réseau.
+  - Liste blanche de préfixes (RESSOURCES) : seules les références
+    publiques y sont resservies (universités, départements, filières,
+    cours, années académiques, vacations — TTL 60 s). Ne rien y ajouter
+    dont la réponse dépende de l'utilisateur connecté.
+  - ttlMs: 0 (cas de /api/auth/moi) = mutualisation SEULE : les appels
+    simultanés partagent une réponse, aucune réponse passée n'est
+    resservie. C'est la réponse au double montage des effets de React 19
+    en StrictMode.
+  - Piège : ne JAMAIS annuler la requête doublon pour dédupliquer. La
+    requête tuée rejetait avec CanceledError, l'appelant en concluait
+    « pas de session » — c'était la cause des déconnexions intermittentes.
+    On PARTAGE la promesse en vol, on n'annule rien.
+  - Une écriture purge les lectures de la même racine (invaliderPour), et
+    tout changement de session vide le registre (viderTout, appelé dans
+    AuthContext.finalizeLogin/logout et AuthService.logout) : le registre
+    survit à la déconnexion tant que l'onglet n'est pas rechargé, il ne
+    doit rien laisser passer d'une session à la suivante.
+  - Le rejeu automatique après échec réseau est limité à GET/HEAD/OPTIONS
+    (METHODES_REJOUABLES) : rejouer un POST de paiement risquerait un
+    second débit.
+  Ce cache est le pendant client du cache HTTP posé par le backend
+  (HttpCacheConfig, partie 2) — mêmes ressources publiques, même logique.
+
+ÉTAT LOCAL : useState/useEffect + hooks maison de chargement (useApi,
+useParallelApi — ce dernier pour paralléliser plusieurs appels d'un même
+écran). Des motifs AbortController existent dans certains composants (ex :
+NotificationBell) pour annuler les requêtes d'un composant démonté — à
+reproduire dans tout nouveau composant qui poll.
+
+FORMULAIRES : React Hook Form + Yup pour les formulaires complexes ;
+quelques pages simples (Login.jsx) valident manuellement avec useState —
+hétérogénéité héritée, tolérée.
+
+SERVICES (src/services/*.js, 18 fichiers) : chacun est une classe à
+méthodes statiques async encapsulant Axios. Domaines couverts : auth,
+bibliothèque, bon de paiement, délibération, département, équivalence
+diplôme, finance, import, information bancaire, inscription (+ stockage),
+paiement, présence, quiz, signataire, statistiques, université, vacation.
+Les erreurs passent par utils/errorHandler.js (handleApiError), qui sait
+lire le format d'erreur uniforme du backend { code, message, status,
+timestamp } (partie 10 §1.2).
+
+MISE EN GARDE — DEUX INSTANCES AXIOS PARALLÈLES : « api » (api/axios.js)
+ET « apiClient » (api/axiosInstance.js) coexistent, chacune utilisée par
+une partie des services. Danger concret : un correctif d'intercepteur
+(refresh token, en-tête, gestion d'erreur) appliqué à UNE SEULE instance
+laisse l'autre moitié des services sans le correctif — symptômes
+intermittents selon la page. Avant toute modification d'intercepteur :
+traiter LES DEUX fichiers, ou (mieux, chantier à planifier) fusionner vers
+une instance unique.
+
+
+6. STYLE ET THÈME — MÉCANIQUE COMPLÈTE
+--------------------------------------------------------------------------------
+CSS global classique : un .css par composant, importé directement — PAS de
+CSS Modules ni styled-components. Conséquence : les noms de classes sont
+GLOBAUX ; préfixer par composant (ex : .etudiant-dashboard-…) pour éviter
+les collisions.
+
+THÈME : variables CSS définies dans src/index.css (:root) et surchargées
+sous [data-theme="dark"] ; ThemeContext bascule l'attribut data-theme sur
+<html>. styles/themes/dark.css et styles/variables.css ajoutent des tokens
+supplémentaires ; styles/utilities/responsive.css centralise les points de
+rupture.
+
+CONVENTIONS OBLIGATOIRES (détaillées en partie 12 §7) :
+  - JAMAIS de couleur en dur — toujours var(--text-primary/secondary/
+    muted), var(--bg-card/secondary), var(--border-color)... C'est ce qui
+    fait fonctionner le mode sombre ET les thèmes par université sans
+    retoucher les composants.
+  - Fond de marque via body::before ; surfaces de layout TRANSPARENTES
+    (pas de fond opaque pleine page qui « éteint » la marque).
+  - Les nouveaux styles s'appuient sur les tokens existants avant d'en
+    créer de nouveaux.
+
+
+7. MOTIFS UX ÉTABLIS — QUOI RÉUTILISER, ET POURQUOI
+--------------------------------------------------------------------------------
+  - QuickActionsGrid + QuickActionDialog : grille d'« actions rapides »
+    où chaque carte ouvre une boîte de dialogue (description + bouton
+    Appliquer/Fermer) au lieu de naviguer. Utilisé sur plusieurs tableaux
+    de bord. RÈGLE : toute nouvelle grille d'actions d'un dashboard passe
+    par ces composants (comportement, responsive et accessibilité déjà
+    réglés) — pas de grilles de boutons ad hoc.
+  - Accordéon de sidebar (Navbar.jsx) : état expandedGroups qui déplie
+    chaque section de modules EN PLACE (aria-expanded). Note historique
+    (juillet 2026) : ces menus ouvraient auparavant des boîtes de dialogue
+    de navigation (NavGroupDialog/SettingsDialog) — converti en accordéon
+    avec de vrais liens ; seule l'action « Mot de passe » reste une
+    dialogue (action courte sans liste — cas légitime). Ne pas réintroduire
+    de navigation par modale.
+  - PDF côté client (@react-pdf/renderer) pour certificats/reçus/palmarès
+    non officiels ; documents officiels = backend.
+  - QR codes : professeur/GenererQR.jsx (présence) côté génération,
+    etudiant/ScannerPresence.jsx côté scan (react-qr-reader optionnel avec
+    repli saisie manuelle — partie 01 §4).
+  - Notifications : NotificationBell (polling), push Firebase
+    (utils/pushNotifications.js + public/firebase-messaging-sw.js),
+    react-hot-toast pour les retours ponctuels d'action.
+  - ChatbotWidget (« GENUC Cleverly ») : assistant de navigation à règles,
+    conscient des pages publiques et du menu du rôle connecté.
+  - CommandPalette : palette de commandes Ctrl+K.
+  - SignatureBanner : bannière de signature électronique sur chaque page
+    privée (workflow des demandes de signature, partie 10 —
+    DemandeSignatureController).
+  - PaiementStatutPoller : après initiation d'un paiement mobile money, le
+    front SONDE le statut au lieu d'attendre une réponse synchrone — motif
+    imposé par l'architecture webhook du paiement (partie 10 §7).
+
+
+8. OUTILLAGE ET BUILD
+--------------------------------------------------------------------------------
+Create React App confirmé (react-scripts 5.0.1) — pas de CRACO, pas de
+Webpack personnalisé : les possibilités de configuration sont celles de
+CRA, ni plus ni moins (variables REACT_APP_*, proxy non utilisé ici).
+
+Code-splitting par route via React.lazy() (~150+ imports paresseux dans
+App.js) ; layouts en import anticipé.
+
+PWA : public/manifest.json (standalone, raccourcis vers Dashboard/
+Résultats/Frais, icônes maskables), public/sw.js (service worker enregistré
+UNIQUEMENT en production — en dev le cache SW fausserait le rechargement),
+public/offline.html (page hors-ligne), public/firebase-messaging-sw.js
+séparé pour le push (deux service workers distincts, chacun son scope).
+
+TESTS : l'outillage est présent (@testing-library/dom, /react, /jest-dom,
+/user-event dans les dependencies + Jest via react-scripts) mais AUCUN
+fichier de test n'existe dans src/ à ce jour — état des lieux complet et
+plan d'amorçage en partie 11 §5 et §7.
+================================================================================

@@ -1,0 +1,77 @@
+/* src/pages/TachPayPage.css */
+.tachpay-page-container {
+  min-height: 100vh;
+  background-color: #020817;
+  background-image: linear-gradient(rgba(2, 8, 23, 0.88), rgba(15, 23, 42, 0.92)), var(--tachpay-bg-image);
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: cover;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+}
+
+.tachpay-page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  max-width: 1200px;
+  margin: 0 auto 20px auto;
+  padding: 0 16px;
+  width: 100%;
+}
+
+.tachpay-back-btn {
+  background: var(--bg-card, white);
+  border: none;
+  padding: 8px 20px;
+  border-radius: 30px;
+  font-weight: 600;
+  color: var(--text-primary, #0B1F4A);
+  box-shadow: 0 2px 8px var(--shadow-color, rgba(0,0,0,0.06));
+  cursor: pointer;
+  transition: all 0.2s;
+  font-size: 14px;
+}
+
+.tachpay-back-btn:hover {
+  background: #0B1F4A;
+  color: white;
+  transform: translateX(-4px);
+}
+
+.tachpay-page-logo {
+  height: 48px;
+  width: auto;
+  object-fit: contain;
+}
+
+.tachpay-page-content {
+  flex: 1;
+  max-width: 1200px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.tachpay-page-header {
+  background: rgba(15, 23, 42, 0.38);
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 18px;
+  padding: 12px 16px;
+  backdrop-filter: blur(10px);
+}
+
+@media (max-width: 768px) {
+  .tachpay-page-header {
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  .tachpay-page-logo {
+    height: 36px;
+  }
+  .tachpay-back-btn {
+    padding: 6px 14px;
+    font-size: 12px;
+  }
+}

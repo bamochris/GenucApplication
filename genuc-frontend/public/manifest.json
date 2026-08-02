@@ -1,0 +1,64 @@
+{
+  "short_name": "GENUC",
+  "name": "GENUC — Plateforme Nationale de Gestion Universitaire RDC",
+  "description": "Portail officiel de gestion universitaire de la République Démocratique du Congo",
+  "icons": [
+    {
+      "src": "favicon.ico",
+      "sizes": "64x64 32x32 24x24 16x16",
+      "type": "image/x-icon"
+    },
+    {
+      "src": "assets/logo-genuc.png",
+      "type": "image/png",
+      "sizes": "192x192",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "logo512.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "any maskable"
+    }
+  ],
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "theme_color": "#185FA5",
+  "background_color": "#185FA5",
+  "lang": "fr",
+  "categories": ["education", "productivity"],
+  "screenshots": [],
+  "shortcuts": [
+    {
+      "name": "Mon Tableau de Bord",
+      "short_name": "Dashboard",
+      "description": "Accéder à votre tableau de bord",
+      "url": "/accueil",
+      "icons": [{ "src": "assets/logo-genuc.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Mes Résultats",
+      "short_name": "Résultats",
+      "description": "Consulter vos résultats académiques",
+      "url": "/etudiant/resultats",
+      "icons": [{ "src": "assets/logo-genuc.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Mes Frais",
+      "short_name": "Paiements",
+      "description": "Gérer vos frais académiques",
+      "url": "/etudiant/frais",
+      "icons": [{ "src": "assets/logo-genuc.png", "sizes": "192x192" }]
+    }
+  ],
+  "prefer_related_applications": false,
+  "related_applications": [
+    {
+      "platform": "play",
+      "url": "https://play.google.com/store/apps/details?id=cd.genuc.app",
+      "id": "cd.genuc.app"
+    }
+  ]
+}

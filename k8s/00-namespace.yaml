@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: genuc
+  labels:
+    app.kubernetes.io/name: genuc
+    app.kubernetes.io/part-of: genuc-platform
+    environment: production

@@ -1,0 +1,19 @@
+/* src/styles/components/skeleton.css */
+.skeleton {
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: var(--radius-md);
+}
+
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+.skeleton-text { height: 1rem; width: 100%; margin-bottom: var(--spacing-2); }
+.skeleton-text-sm { height: 0.75rem; width: 60%; }
+.skeleton-text-lg { height: 1.5rem; width: 80%; }
+.skeleton-circle { width: 60px; height: 60px; border-radius: 50%; }
+.skeleton-card { height: 200px; width: 100%; border-radius: var(--radius-lg); }
+.skeleton-avatar { width: 48px; height: 48px; border-radius: 50%; }

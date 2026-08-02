@@ -1,0 +1,165 @@
+/* src/pages/admin/ParametresPaiement.css — comptes d'encaissement */
+
+.pp-page {
+  max-width: 860px;
+  margin: 0 auto;
+  padding: clamp(12px, 2.5vw, 28px);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.pp-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.pp-header-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  color: #0F6E56;
+  background: rgba(15, 110, 86, 0.12);
+  flex-shrink: 0;
+}
+
+.pp-header h1 {
+  margin: 0;
+  font-size: clamp(18px, 2vw, 22px);
+  color: var(--text-primary, #0B1F4A);
+}
+
+.pp-header p {
+  margin: 3px 0 0;
+  font-size: 13px;
+  color: var(--text-muted, #6b7280);
+}
+
+.pp-card {
+  background: var(--bg-card, #fff);
+  border: 1px solid var(--border-color, #e8ebf2);
+  border-radius: 14px;
+  padding: clamp(16px, 2vw, 22px);
+  box-shadow: 0 2px 10px var(--shadow-color, rgba(0, 0, 0, 0.05));
+}
+
+.pp-card h2 {
+  margin: 0 0 6px;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-primary, #0B1F4A);
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.pp-card h2 svg { color: #185FA5; }
+
+.pp-hint {
+  margin: 0 0 14px;
+  font-size: 12.5px;
+  color: var(--text-muted, #6b7280);
+}
+
+.pp-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.pp-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 14px;
+  margin-top: 10px;
+}
+
+.pp-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.pp-field > span {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--text-primary, #0B1F4A);
+}
+
+.pp-field input,
+.pp-field select {
+  padding: 11px 14px;
+  border: 1.5px solid var(--border-color, #d1d5db);
+  border-radius: 10px;
+  font-size: 14px;
+  background: var(--bg-card, #fff);
+  color: var(--text-primary, #0B1F4A);
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.pp-field input:focus,
+.pp-field select:focus {
+  outline: none;
+  border-color: #185FA5;
+  box-shadow: 0 0 0 3px rgba(24, 95, 165, 0.15);
+}
+
+.pp-check {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13.5px;
+  color: var(--text-secondary, #374151);
+  cursor: pointer;
+  padding: 10px 0;
+}
+
+.pp-check input {
+  width: 18px;
+  height: 18px;
+  accent-color: #185FA5;
+}
+
+.pp-flash {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.pp-flash svg { flex-shrink: 0; }
+.pp-flash-ok  { background: rgba(15, 110, 86, 0.1);  color: #0F6E56; border: 1px solid rgba(15, 110, 86, 0.3); }
+.pp-flash-err { background: rgba(185, 28, 28, 0.08); color: #B91C1C; border: 1px solid rgba(185, 28, 28, 0.3); }
+
+.pp-loading {
+  text-align: center;
+  color: var(--text-muted, #6b7280);
+  font-size: 14px;
+}
+
+.pp-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.pp-actions .btn-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 26px;
+  font-size: 14px;
+  border-radius: 10px;
+  border: none;
+  cursor: pointer;
+  color: #fff;
+}
+
+.pp-actions .btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }

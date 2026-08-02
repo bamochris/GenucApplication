@@ -1,0 +1,65 @@
+# ─── Étape 1 : Résolution des dépendances (cache Docker si pom.xml inchangé) ───
+FROM maven:3.9-eclipse-temurin-21-alpine AS deps
+WORKDIR /build
+COPY pom.xml .
+RUN mvn dependency:go-offline -q
+
+# ─── Étape 2 : Compilation et packaging ──────────────────────────────────────
+FROM deps AS builder
+COPY src ./src
+# -T 1C : 1 thread par CPU.
+#
+# ⚠️ NE PAS remettre -o (offline) : `dependency:go-offline` ne rapatrie PAS les artefacts
+# de portée test, et -DskipTests compile quand même les tests — donc les résout. Le build
+# échouait sur « Cannot access central in offline mode ... byte-buddy-agent ».
+# -Dmaven.test.skip=true saute la compilation des tests (plus rien à résoudre), et sans -o
+# Maven peut de toute façon récupérer ce que go-offline aurait manqué.
+RUN mvn clean package -Dmaven.test.skip=true -T 1C -q
+
+# ─── Étape 3 : Extraction des layers JAR (Spring Boot layered JARs) ──────────
+FROM eclipse-temurin:21-jre-alpine AS extractor
+WORKDIR /extract
+COPY --from=builder /build/target/*.jar app.jar
+RUN java -Djarmode=layertools -jar app.jar extract
+
+# ─── Étape 4 : Image finale minimale ─────────────────────────────────────────
+FROM eclipse-temurin:21-jre-alpine AS runtime
+
+# Sécurité : utilisateur non-root
+RUN addgroup -S genuc && adduser -S genuc -G genuc
+WORKDIR /app
+
+# Layers copiées dans l'ordre de fréquence de changement (cache Docker optimal)
+COPY --from=extractor --chown=genuc:genuc /extract/dependencies/ ./
+COPY --from=extractor --chown=genuc:genuc /extract/spring-boot-loader/ ./
+COPY --from=extractor --chown=genuc:genuc /extract/snapshot-dependencies/ ./
+COPY --from=extractor --chown=genuc:genuc /extract/application/ ./
+
+USER genuc
+
+EXPOSE 8082
+
+# Profil par défaut de l'image. Spring Boot lit SPRING_PROFILES_ACTIVE nativement
+# (liaison relâchée vers spring.profiles.active), et une variable d'environnement prime
+# sur le `spring.profiles.active` d'application.yml : l'hébergeur peut donc la redéfinir.
+#
+# ⚠️ NE PAS revenir à un `-Dspring.profiles.active=${SPRING_PROFILES_ACTIVE:-prod}` dans
+# l'ENTRYPOINT : celui-ci est en forme EXEC, donc sans shell — la syntaxe `${VAR:-défaut}`
+# n'y est jamais développée. Java recevait la chaîne littérale, que Spring relisait comme
+# un placeholder de défaut « -prod » (tiret compris) : profil inexistant, application-prod
+# jamais chargé, et démarrage en échec sur DB_PASSWORD non résolu.
+ENV SPRING_PROFILES_ACTIVE=prod
+
+# JVM tuning pour conteneurs :
+#   -XX:MaxRAMPercentage=75  → utilise 75% de la RAM du conteneur
+#   -XX:+UseG1GC             → GC adapté aux longues durées de vie
+#   -XX:+UseContainerSupport → détecte correctement les limites cgroup
+#   -Djava.security.egd      → démarrage rapide (entropie)
+ENTRYPOINT ["java", \
+  "-XX:+UseContainerSupport", \
+  "-XX:MaxRAMPercentage=75.0", \
+  "-XX:+UseG1GC", \
+  "-XX:G1HeapRegionSize=16m", \
+  "-XX:+ExitOnOutOfMemoryError", \
+  "-Djava.security.egd=file:/dev/./urandom", \
+  "org.springframework.boot.loader.launch.JarLauncher"]

@@ -1,0 +1,203 @@
+/* src/pages/admin/RapportsUniversite.css — module Rapports (tuiles KPI).
+   Valeurs en encre neutre (jamais en couleur de série) ; l'accent de
+   section ne colore que l'icône. Compatible thème sombre + impression. */
+
+.rap-page {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: clamp(12px, 2.5vw, 28px);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.rap-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.rap-header-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  color: #185FA5;
+  background: rgba(24, 95, 165, 0.12);
+  flex-shrink: 0;
+}
+
+.rap-header-textes { flex: 1; min-width: 200px; }
+
+.rap-header h1 {
+  margin: 0;
+  font-size: clamp(18px, 2vw, 22px);
+  color: var(--text-primary, #0B1F4A);
+}
+
+.rap-header p {
+  margin: 3px 0 0;
+  font-size: 13px;
+  color: var(--text-muted, #6b7280);
+}
+
+.rap-header-actions { display: flex; gap: 8px; }
+
+.rap-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border: 1.5px solid var(--border-color, #d1d5db);
+  border-radius: 10px;
+  background: var(--bg-card, #fff);
+  color: var(--text-secondary, #374151);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.rap-btn:hover:not(:disabled) { border-color: #185FA5; color: #185FA5; }
+.rap-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+
+.rap-btn-primary {
+  border: none;
+  background: linear-gradient(120deg, #0B1F4A, #185FA5);
+  color: #fff;
+}
+
+.rap-btn-primary:hover { filter: brightness(1.12); color: #fff; }
+
+.rap-carte {
+  background: var(--bg-card, #fff);
+  border: 1px solid var(--border-color, #e8ebf2);
+  border-radius: 14px;
+  padding: clamp(16px, 2vw, 22px);
+  box-shadow: 0 2px 10px var(--shadow-color, rgba(0, 0, 0, 0.05));
+}
+
+.rap-selecteur label { display: flex; flex-direction: column; gap: 6px; max-width: 420px; }
+.rap-selecteur span { font-size: 12.5px; font-weight: 700; color: var(--text-primary, #0B1F4A); }
+.rap-selecteur select {
+  padding: 11px 14px;
+  border: 1.5px solid var(--border-color, #d1d5db);
+  border-radius: 10px;
+  font-size: 14px;
+  background: var(--bg-card, #fff);
+  color: var(--text-primary, #0B1F4A);
+}
+
+.rap-section-titre {
+  margin: 0 0 14px;
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--text-primary, #0B1F4A);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.rap-section-icone {
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+}
+
+/* L'accent ne colore QUE l'icône de section (identité), pas les valeurs. */
+.rap-accent-bleu   .rap-section-icone { color: #185FA5; background: rgba(24, 95, 165, 0.12); }
+.rap-accent-ambre  .rap-section-icone { color: #b45309; background: rgba(217, 119, 6, 0.14); }
+.rap-accent-vert   .rap-section-icone { color: #0F6E56; background: rgba(15, 110, 86, 0.13); }
+.rap-accent-violet .rap-section-icone { color: #6D28D9; background: rgba(109, 40, 217, 0.12); }
+
+.rap-tuiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(165px, 1fr));
+  gap: 10px;
+}
+
+.rap-tuile {
+  background: var(--bg-secondary, #f8fafc);
+  border-radius: 10px;
+  padding: 14px 16px;
+  min-width: 0;
+}
+
+.rap-tuile-valeur {
+  font-size: clamp(20px, 2.2vw, 26px);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary, #0B1F4A);
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+
+.rap-tuile-libelle {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-muted, #6b7280);
+  margin-top: 3px;
+}
+
+.rap-note {
+  margin: 10px 0 0;
+  font-size: 11.5px;
+  color: var(--text-muted, #6b7280);
+  font-style: italic;
+}
+
+.rap-table-wrap { overflow-x: auto; margin-top: 14px; }
+
+.rap-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.rap-table th {
+  text-align: left;
+  padding: 8px 12px;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--text-muted, #6b7280);
+  border-bottom: 2px solid var(--border-color, #e5e7eb);
+}
+
+.rap-table td {
+  padding: 9px 12px;
+  color: var(--text-secondary, #374151);
+  border-bottom: 1px solid var(--border-color, #f0f2f5);
+  font-variant-numeric: tabular-nums;
+}
+
+.rap-erreur {
+  padding: 12px 16px;
+  border-radius: 10px;
+  background: rgba(185, 28, 28, 0.08);
+  border: 1px solid rgba(185, 28, 28, 0.3);
+  color: #B91C1C;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.rap-vide {
+  text-align: center;
+  color: var(--text-muted, #6b7280);
+  font-size: 14px;
+}
+
+/* Impression : fond blanc, pas de boutons */
+@media print {
+  .rap-header-actions, .rap-selecteur { display: none; }
+  .rap-page { max-width: none; padding: 0; }
+  .rap-carte { box-shadow: none; break-inside: avoid; }
+}

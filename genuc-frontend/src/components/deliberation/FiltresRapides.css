@@ -1,0 +1,24 @@
+.filtres-rapides {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+.filtre-btn {
+  padding: 6px 16px;
+  border: 1px solid var(--border-color, #ddd);
+  background: var(--bg-card, #fff);
+  color: var(--text-secondary);
+  border-radius: 30px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+.filtre-btn:hover {
+  background: var(--bg-secondary, #f0f0f0);
+}
+.filtre-btn.active {
+  background: #0B1F4A;
+  color: #fff;
+  border-color: #0B1F4A;
+}

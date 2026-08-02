@@ -1,0 +1,61 @@
+/* ============================================================
+   GENUC - Classes utilitaires (Version 2.1)
+   Compatible avec les styles existants : ne redéfinit aucune
+   classe de composant déjà stylée ailleurs (.card, .btn-*,
+   .badge-*, .data-table, .modal-*, .alert-*, .form-group, .sidebar,
+   .top-bar, .stat-card, .welcome-card...).
+   Les tokens (couleurs, espacements, rayons...) sont dans variables.css.
+   ============================================================ */
+
+/* ─── Typographie ─────────────────────────────────────────────── */
+.text-muted { color: var(--color-gray-500); }
+.text-center { text-align: center; }
+.text-right { text-align: right; }
+.text-uppercase { text-transform: uppercase; }
+.text-capitalize { text-transform: capitalize; }
+
+/* ─── Modificateurs de boutons (à combiner avec .btn-primary etc.) ─── */
+.btn-sm {
+  padding: var(--spacing-2) var(--spacing-3);
+  font-size: var(--font-size-xs);
+}
+.btn-lg {
+  padding: var(--spacing-4) var(--spacing-8);
+  font-size: var(--font-size-base);
+}
+.btn-block {
+  width: 100%;
+  display: flex;
+}
+
+/* ─── Grilles ──────────────────────────────────────────────────── */
+.grid {
+  display: grid;
+  gap: var(--spacing-4);
+}
+.grid-cols-1 { grid-template-columns: 1fr; }
+.grid-cols-2 { grid-template-columns: repeat(2, 1fr); }
+.grid-cols-3 { grid-template-columns: repeat(3, 1fr); }
+.grid-cols-4 { grid-template-columns: repeat(4, 1fr); }
+
+/* ─── Flexbox & espacements ──────────────────────────────────── */
+.flex { display: flex; }
+.flex-col { flex-direction: column; }
+.items-center { align-items: center; }
+.justify-between { justify-content: space-between; }
+.gap-2 { gap: var(--spacing-2); }
+.gap-4 { gap: var(--spacing-4); }
+.w-full { width: 100%; }
+.h-full { height: 100%; }
+.mt-4 { margin-top: var(--spacing-4); }
+.mb-4 { margin-bottom: var(--spacing-4); }
+.p-4 { padding: var(--spacing-4); }
+.hidden { display: none; }
+.block { display: block; }
+
+/* ─── Responsive (mobile-first) ──────────────────────────────── */
+@media (max-width: 768px) {
+  .grid-cols-2 { grid-template-columns: 1fr; }
+  .grid-cols-3 { grid-template-columns: 1fr; }
+  .grid-cols-4 { grid-template-columns: 1fr; }
+}

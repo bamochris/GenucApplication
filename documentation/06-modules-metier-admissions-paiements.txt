@@ -1,0 +1,310 @@
+================================================================================
+GENUC — PARTIE 6 : ADMISSIONS ET PAIEMENTS (VERSION APPROFONDIE)
+================================================================================
+Les deux circuits d'argent du projet n'ont PAS le même niveau de
+fiabilité : le paiement des frais de DOSSIER (§4) est un raccourci de
+démo non sécurisé, le système TachPay des frais ACADÉMIQUES (§6) est
+l'architecture de référence avec confirmation par webhook signé. Cette
+asymétrie est le fait le plus important de cette partie.
+
+
+1. CIRCUIT D'ADMISSION PUBLIQUE — ÉTAPE PAR ÉTAPE
+--------------------------------------------------------------------------------
+  1. SOUMISSION : formulaire public Inscriptions.jsx → POST /api/dossiers
+     (multipart : JSON + pièces jointes) → InscriptionPubliqueService.
+     soumettreDossierCompletAvecDocuments() → entité DossierInscription,
+     statut=EN_ATTENTE. Aucune connexion requise : le candidat reçoit un
+     numeroDossier, son identifiant de suivi pour toute la suite.
+     FORMAT DU NUMÉRO : <préfixe établissement>DOS-<année>-<6 chiffres>,
+     généré par InscriptionPubliqueService.genererNumeroDossier (unicité
+     vérifiée en base, 50 tentatives). Le préfixe vient de
+     prefixeEtablissement(nom) : sigle entier si le nom est un seul mot
+     court (« UPN » → UPNDOS-2026-123456) ; initiales des mots
+     significatifs si le nom commence par « Université » (Université de
+     Kinshasa → UKDOS-..., Université Pédagogique Nationale → UPNDOS-...) ;
+     sinon deux premières lettres (Haute École de Commerce →
+     HADOS-2026-123456). Les anciens numéros DOS-... restent valides
+     (recherche par valeur exacte) ; le @PrePersist de DossierInscription
+     garde l'ancien format comme repli si le numéro n'est pas pré-rempli.
+     VACATION : si l'établissement a des vacations OUVERTES aux
+     inscriptions (findInscriptionsOuvertes : actif + inscriptionsOuvertes
+     + dates), le choix est OBLIGATOIRE (erreur sinon, validée aussi à
+     l'étape 2 du formulaire) et la vacation doit appartenir à cet
+     établissement ; le montant des frais d'inscription est COPIÉ depuis
+     la Vacation choisie (montantInscription/deviseInscription) au moment
+     de la soumission — pas recalculé ensuite (voir §5) : une modification
+     ultérieure du tarif ne change pas les dossiers déjà déposés.
+     Si l'établissement n'a AUCUNE vacation ouverte, repli sur
+     universite.fraisInscription (devise : première de universite.devise,
+     ex. « USD/CDF » → USD).
+  2. INSTRUCTION : page /admin/dossiers (AdminDossiers.jsx) →
+     GET /api/public/admin/dossiers → filtré STRICTEMENT par
+     l'universiteId du JWT (multi-tenant, partie 05 §1). Rôles :
+     ADMIN_UNIVERSITE + SECRETAIRE_ACADEMIQUE. SUPER_ADMIN ne traite PAS
+     les dossiers individuels (il gère la plateforme nationale) — ne pas
+     s'étonner qu'un super admin « ne voie pas » les dossiers.
+     Les actions d'instruction (PATCH demander-documents/convoquer-test/
+     test-reussi/marquer-paye/valider/rejeter + analyse IA et message au
+     candidat) matérialisent la machine à états — détail des endpoints en
+     partie 10 §6.2.
+  3. TEST D'ADMISSION CONDITIONNEL : si le pourcentage du diplôme d'État
+     est < 60 % et que le test n'est pas réussi, validerDossier() REFUSE
+     la validation tant que le candidat n'a pas été convoqué
+     (convoquer-test) puis marqué réussi (test-reussi). Le seuil encode
+     une règle d'admission congolaise : bon diplôme d'État = admission
+     directe, sinon test d'entrée.
+  4. VALIDATION (PATCH .../valider) — l'étape la plus riche, tout se
+     crée ici :
+       - crée ou met à jour l'Etudiant (la personne) ;
+       - vérifie qu'aucune inscription ACTIVE n'existe déjà pour cet
+         email + cette université + cette année (anti-doublon) ;
+       - crée l'Inscription (statut VALIDE) avec matricule généré —
+         genererMatricule : code université + année + compteur (ex :
+         HECKIN202500001) ; ce matricule servira aussi d'identifiant de
+         connexion (partie 05 §1) ;
+       - crée ou réutilise le compte Utilisateur : rôle ETUDIANT,
+         compteActive=false, token d'activation VALABLE 48H, mot de
+         passe provisoire haché remplacé à l'activation — c'est ici que
+         naît le piège « compte créé mais login refusé » (partie 12 §5a) ;
+       - envoie l'email d'activation + la lettre d'admission (email +
+         PDF + notification portail) ;
+       - envoie un SMS/WhatsApp de confirmation avec le matricule (les
+         candidats sans email reçoivent quand même leur matricule) ;
+       - marque le dossier VALIDE.
+  5. SUIVI SANS CONNEXION : GET /api/dossiers/statut/{numeroDossier} ou
+     /statut/email/{email} (page SuiviDossier.jsx) — le candidat suit
+     l'avancement sans compte.
+  6. DOCUMENTS MANQUANTS : statut DOCUMENTS_MANQUANTS + création
+     anticipée d'un compte ETUDIANT restreint (token d'activation) : le
+     candidat accède à un portail LIMITÉ au complètement de son dossier
+     (EtudiantDossierController /api/etudiant/mon-dossier, page
+     CompleterDossier.jsx) jusqu'à validation complète.
+
+RÈGLE TRANSVERSE : l'année académique de référence est TOUJOURS l'année
+ACTIVE de l'université concernée (getAnneeCourante) — jamais une année
+calendaire globale. annees_academiques.universite_id est NOT NULL
+(partie 04 §4) : chaque université ouvre/ferme sa propre année.
+
+
+2. LA LETTRE D'ADMISSION — DEUX SYSTÈMES À NE PAS CONFONDRE
+--------------------------------------------------------------------------------
+  a) Lettre d'ADMISSION du DOSSIER D'INSCRIPTION (circuit public normal,
+     §1) — genererLettre()/envoyerLettreAcceptation() dans
+     InscriptionPubliqueService + EmailService.
+       - Vue HTML imprimable : template Thymeleaf
+         Templates/lettre-acceptation.html, servie par GET /api/public/
+         admin/dossiers/{id}/lettre-acceptation (bouton « 🎓 Voir la
+         lettre d'admission » d'AdminDossiers.jsx, nouvel onglet).
+       - PDF pour l'email : EmailService.genererPdfLettreAdmission (iText).
+       - CONTENU : en-tête officiel RDC/MINESU, identité de l'étudiant,
+         programme/filière, TABLEAU DÉTAILLÉ des frais académiques
+         (inscription + académiques + bibliothèque + labo + frais de
+         filière — le candidat sait ce que l'année coûtera), documents à
+         déposer à la rentrée, validité 60 jours, signature électronique
+         du recteur si un signataire est configuré (repli : nom en texte
+         seul — la lettre sort toujours, signée ou non).
+       - QR code + lien de vérification (voir §3) vers la route frontend
+         /verifier-admission → GET /api/public/admission/verifier
+         ?numeroDossier=...&matricule=...&universiteCode=... (public).
+  b) Lettre d'ACCEPTATION liée à une VACATION (concours/session d'entrée
+     jour-soir) — LettreAcceptationService, circuit SÉPARÉ et plus ancien
+     pour les étudiants acceptés via une Vacation :
+       - PDF généré directement en iText (genererPdfLettreAcceptation)
+         avec QR code natif (BarcodeQRCode) ;
+       - vérification : /verifier-lettre/:uuid (page
+         VerifierLettreAcceptation.jsx) → GET /api/lettres-acceptation/
+         verifier/{uuid} (public).
+  En cas d'évolution du contenu d'une « lettre », identifier D'ABORD
+  duquel des deux systèmes on parle — ils ne partagent ni template ni
+  service.
+
+
+3. QR CODE DE VÉRIFICATION — HISTORIQUE DU CORRECTIF (JUILLET 2026)
+--------------------------------------------------------------------------------
+Deux défauts corrigés, instructifs sur les conventions du projet :
+  - AVANT : la vue HTML de la lettre affichait un encadré texte statique
+    « QR Code vérif. » (pas scannable) ; seul le PDF email avait un vrai
+    QR. APRÈS : EmailService génère un vrai QR (ZXing, QRCodeWriter →
+    PNG → data URI base64) injecté dans le template (variable qrCodeSrc),
+    avec repli sur l'ancien encadré si la génération échoue.
+  - AVANT : l'URL de vérification pointait vers un chemin backend
+    /api/public/admission/verifier?... sous l'origine du frontend —
+    cassé en dev direct (le serveur CRA ne proxifie pas /api). APRÈS :
+    l'URL pointe vers la ROUTE FRONTEND /verifier-admission qui appelle
+    l'API en JSON — la convention appliquée PARTOUT ailleurs (carte
+    étudiant, palmarès, lettre vacation ; justification en partie 01 §2).
+    L'ancien endpoint qui fabriquait une page HTML côté backend renvoie
+    désormais du JSON.
+Moralité : tout nouveau document vérifiable doit suivre le motif
+« QR → route frontend → API JSON publique » dès le départ.
+
+
+4. PAIEMENT DES FRAIS D'INSCRIPTION (avant admission) — ⚠️ POINT CRITIQUE
+--------------------------------------------------------------------------------
+Règle métier (RDC) : les frais d'inscription se paient APRÈS la
+soumission du dossier (pas dans le formulaire), via un lien public
+renvoyé dans l'accusé de réception.
+  GET  /api/dossiers/{numeroDossier}/paiement   infos + montant dû
+  POST /api/dossiers/{numeroDossier}/payer      payerFraisInscription
+       (mobile money) / payerFraisInscriptionParCarte (carte) — page
+       publique PaiementInscription.jsx (/paiement-inscription?dossier=N)
+  Lien de paiement EXPIRANT 72 h après soumission (isPaymentLinkExpired).
+  Marquage manuel guichet : PATCH .../marquer-paye (ADMIN_UNIVERSITE/
+  SECRETAIRE_ACADEMIQUE/CAISSIER/AGENT) — pour un paiement constaté
+  physiquement.
+
+✅ POINT CRITIQUE CORRIGÉ (2026-07-16). Historique : jusqu'à cette date,
+enregistrerPaiementFraisInscription() marquait le dossier payé
+IMMÉDIATEMENT à l'appel de POST .../payer, avec une référence FACTICE,
+sans appel opérateur ni webhook — n'importe qui connaissant un numéro de
+dossier pouvait le marquer payé gratuitement (l'endpoint « TachPay »
+public/dossier/payer-mobile partageait le même défaut).
+
+FLUX ACTUEL (aligné sur TachPay §6) :
+  1. POST .../payer (ou /api/tachpay/public/dossier/payer-mobile) →
+     InscriptionPubliqueService.initierPaiementFraisInscription :
+     validations (déjà payé / lien 72h expiré / montant défini), création
+     d'une TransactionDossier PENDING (référence <numeroDossier>-<ts> —
+     sans re-préfixe DOS, le numéro de dossier le contient déjà),
+     appel RÉEL de l'opérateur (MobileMoneyService.initierChargeOperateur).
+     Le dossier n'est PAS touché à cette étape.
+  2. Le frontend sonde GET /api/dossiers/paiement/statut/{reference}
+     (public, statuts VALIDE/REJETE/EN_ATTENTE — composant
+     PaiementStatutPoller).
+  3. Le webhook opérateur signé (TachPayWebhookService) route la
+     confirmation : TransactionExterne trouvée → flux académique ; sinon
+     TransactionDossier → confirmerPaiementFraisDossier, qui SEULE marque
+     le dossier payé (idempotente : webhooks rejoués ignorés).
+  Variante carte : session Stripe + TransactionDossier STRIPE/sessionId,
+  confirmée par le webhook Stripe (même routage).
+  La table transactions_dossier est créée par la migration V8 (et par
+  ddl-auto en dev). Invariants couverts par 11 tests unitaires
+  (PaiementFraisDossierTest) : l'initiation ne marque jamais payé, seul
+  SUCCESS marque, FAILED ne marque pas, rejeu idempotent.
+  NOTE : MobileMoneyService échoue fermé en production. Les faux IDs
+  VOD_/AIR_/ORA_/AFR_ ne sont générés que si
+  genuc.payment.mobile-money.simulation-enabled=true (dev local). En prod,
+  les URLs/clés opérateur et secrets webhook doivent être fournis.
+  Même règle côté carte : StripeService ne génère une session fictive que
+  si genuc.payment.card.simulation-enabled=true ; en prod, STRIPE_API_KEY
+  et STRIPE_WEBHOOK_SECRET sont obligatoires.
+
+
+5. FRAIS D'INSCRIPTION — OÙ EST DÉFINI LE MONTANT
+--------------------------------------------------------------------------------
+Le montant se définit À L'OUVERTURE des inscriptions, au niveau de la
+VACATION (Jour/Soir), pas de l'université : champs fraisInscription +
+deviseFrais sur l'entité Vacation, configurés dans GestionVacations.jsx.
+Garde-fou : VacationService.ouvrirInscriptions() REFUSE d'ouvrir si
+fraisInscription est null ou ≤ 0 (400) — impossible d'ouvrir des
+inscriptions « gratuites » par oubli de configuration.
+Le montant est ensuite COPIÉ sur chaque DossierInscription à la
+soumission : les dossiers déjà déposés gardent leur tarif même si la
+vacation change de prix ensuite (équité + traçabilité).
+Cas particulier : un établissement SANS vacation ouverte aux
+inscriptions n'exige pas de choix de vacation ; le montant vient alors
+de universite.fraisInscription (peut être null → paiement bloqué avec
+erreur claire tant que l'admin ne l'a pas défini).
+
+
+6. TACHPAY — LE VRAI SYSTÈME DE PAIEMENT (frais académiques du cursus)
+--------------------------------------------------------------------------------
+Pour les frais dus PENDANT le cursus (minerval, bibliothèque, labo...),
+TachPay est l'architecture de référence — quatre guichets (admin/
+étudiant/public/caisse, cartographie complète en partie 10 §7) et une
+vraie confirmation asynchrone.
+
+6.1 CYCLE DE VIE D'UN FRAIS
+  L'admin crée le Frais (catalogue) puis l'AFFECTE à des promotions
+  (POST /api/tachpay/admin/frais/{id}/affecter → affectations_frais) :
+  c'est l'affectation qui rend le frais DÛ par chaque étudiant inscrit.
+  Côté étudiant : frais-a-payer (ce qui est dû), situation (consolidé),
+  checkout-context (tout l'écran de paiement en un appel), historique.
+
+6.2 FLUX MOBILE MONEY RÉEL (TachPayPaiementService.initierPaiementMobileMoney)
+  1. calcule le montant dû sur les affectations sélectionnées ;
+  2. crée un Paiement EN_ATTENTE (creerPaiementEnAttente) ;
+  3. mobileMoneyService.initierPaiement() appelle RÉELLEMENT l'opérateur
+     → TransactionExterne en statut PENDING ; le client reçoit la
+     référence et le front SONDE GET .../paiement/{reference}/statut
+     (composant PaiementStatutPoller — partie 03 §7) ;
+  4. la confirmation n'arrive QUE par webhook opérateur signé
+     HMAC-SHA256 (WebhookSecurityService — contrat testé, partie 11) :
+       POST /api/tachpay/webhook/vodacom | airtel | orange | afrimoney | stripe
+     Sans signature valide → rejet, JAMAIS de validation de paiement.
+  5. filets de sécurité : TransactionTimeoutJob (partie 02 §6) expire
+     les transactions PENDING abandonnées ; ReconciliationService
+     (/api/v1/reconciliation) recoupe périodiquement les transactions
+     locales avec les relevés opérateurs pour rattraper les webhooks
+     perdus.
+
+6.3 GUICHET CAISSE (rôles AGENT/CAISSIER/ADMIN_UNIVERSITE/SUPER_ADMIN)
+  GET  /api/tachpay/caisse/etudiant/{matricule}/frais   ce que doit
+       l'étudiant présent au guichet
+  POST .../paiement-especes                             encaissement cash
+  POST .../payer-carte | payer-mobile                   paiement assisté
+  POST .../generer-bon | valider-bon                    cycle du bon (§7 ;
+       la validation scanne le QR du bon)
+  GET  .../operations, .../rapport/journalier           journal + clôture
+La caisse écrit dans operations_caisse ; la clôture journalière est le
+point de contrôle comptable (rapprochement espèces/écritures).
+
+6.4 ARCHITECTURE INTERNE
+  PaymentOrchestratorService (pattern stratégie — partie 02 §2) porte le
+  flux commun ; une implémentation par opérateur (config/payment/*Metadata
+  + service/tachpay/) porte les spécificités. ATTENTION doublons : quatre
+  contrôleurs paiement + deux récepteurs de webhooks coexistent — avant
+  toute évolution, identifier le flux réellement branché (partie 10
+  §1.6a/b et partie 12 §5g).
+
+En clair : TachPay est LA référence de « comment un paiement mobile money
+doit fonctionner » dans ce projet — à opposer au raccourci du §4.
+
+
+7. BONS DE PAIEMENT — LE PAIEMENT DIFFÉRÉ
+--------------------------------------------------------------------------------
+Backend : BonDePaiementService/Controller (entité BonDePaiement) ;
+frontend : pages/admin/GestionBonsDePaiement.jsx.
+
+PRINCIPE : l'étudiant (ou la caisse) génère un document imprimable avec
+QR code + coordonnées bancaires/mobile money, pour un montant rattaché à
+une inscription. Il paie ensuite à la banque ou au guichet ; le CAISSIER
+valide le bon (scan du QR — POST /api/tachpay/caisse/valider-bon), ce qui
+constate le paiement. Usage type : étudiant sans mobile money, paiement
+par un parent, virement bancaire. Liste/recherche par numéro ou
+inscription, vérification, annulation, PDF téléchargeable.
+
+COORDONNÉES BANCAIRES DES BONS : gérées sur une page DÉDIÉE
+pages/admin/GestionComptesBancaires.jsx (/admin/comptes-bancaires,
+service informationBancaireService — PLUSIEURS comptes possibles).
+Historique UX : extraite en juillet 2026 d'une boîte de dialogue imbriquée
+(liste + formulaire en modal) qui piégeait une fonctionnalité complète —
+conforme depuis à la règle « les dialogues pour les actions courtes
+seulement » (partie 03 §7).
+
+⚠️ DUPLICATION D'ARCHITECTURE À CONNAÎTRE : ParametresPaiement.jsx
+(/admin/parametres-paiement) gère UN jeu de coordonnées
+(banqueNom/banqueCompte/banqueSwift/banqueTitulaire) dans les paramètres
+généraux de paiement de l'université — SANS lien avec
+informationBancaireService et ses comptes multiples pour les bons. Deux
+systèmes parallèles non reliés : modifier l'un ne met pas l'autre à jour.
+
+
+8. RÉCAPITULATIF DES CANAUX DE PAIEMENT
+--------------------------------------------------------------------------------
+  Mobile Money : Vodacom M-Pesa, Orange Money, Airtel Money, AfriMoney —
+                 une classe de métadonnées par opérateur
+                 (config/payment/*Metadata.java : URLs d'API, devises,
+                 formats de numéro), sandbox par défaut en dev.
+  Carte        : Stripe (service/tachpay/StripeService).
+  Espèces      : caisse physique (paiement-especes, opérations
+                 journalières, clôture).
+  Différé      : bons de paiement (banque/guichet, validation par QR).
+  Multi-devises: CDF/USD — table exchange_rates + ExchangeRateController
+                 (/api/v1/exchange-rates) pour les taux.
+  Aval         : échéanciers (echeances/echeanciers — paiement en
+                 tranches), pénalités de retard automatiques
+                 (ScheduledPenaliteService, minuit — partie 02 §6),
+                 remboursements (/api/remboursements), bourses
+                 (/api/bourses — prise en charge partielle/totale).
+================================================================================

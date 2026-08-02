@@ -1,0 +1,32 @@
+.deliberation-semestre {
+  padding: 20px;
+}
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+.stats-banner {
+  display: flex;
+  gap: 20px;
+  background: #fff;
+  padding: 12px 20px;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+  margin-bottom: 20px;
+  font-weight: 500;
+}
+.loading {
+  text-align: center;
+  padding: 40px;
+  color: #888;
+}
+.alert-erreur {
+  background: #FDEDEC;
+  color: #E74C3C;
+  padding: 12px 20px;
+  border-radius: 6px;
+  border-left: 4px solid #E74C3C;
+  margin-bottom: 16px;
+}

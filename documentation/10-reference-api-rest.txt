@@ -1,0 +1,685 @@
+================================================================================
+GENUC — PARTIE 10 : RÉFÉRENCE API REST (VERSION APPROFONDIE)
+================================================================================
+Chiffres bruts : 105 contrôleurs, 763 endpoints (@GetMapping/@PostMapping/
+@PutMapping/@DeleteMapping/@PatchMapping) au 2026-07-16.
+
+Cette partie cartographie l'API : conventions transverses, sécurité des
+routes, inventaire complet par domaine, puis une explication approfondie de
+chaque contrôleur pivot (auth, activation, dossiers, TachPay, notes,
+délibérations, portail étudiant, migration, présences). La source de vérité
+exhaustive reste Swagger UI (http://localhost:8082/swagger-ui.html), généré
+automatiquement par springdoc.
+
+
+1. CONVENTIONS TRANSVERSES
+--------------------------------------------------------------------------------
+1.1 PRÉFIXE /api SANS CONTEXT-PATH
+    Aucune propriété server.servlet.context-path n'est configurée (vérifié
+    dans tout src/main/resources). Le préfixe /api est écrit EN DUR dans le
+    @RequestMapping de chaque contrôleur. CLAUDE.md affirme « context path
+    /api » — c'est inexact. Conséquences pratiques :
+      - un nouveau contrôleur DOIT inclure /api lui-même, sinon sa route
+        sort du périmètre proxifié par Nginx (location /api) et du
+        périmètre des règles SecurityConfig (écrites en /api/...) ;
+      - les routes hors /api existent : /actuator/** (monitoring),
+        /uploads/** (fichiers statiques), et le fallback SPA (§1.5).
+
+1.2 FORMAT DES RÉPONSES — ApiResponse<T> (créée le 2026-07-16)
+    HISTORIQUE : la classe ApiResponse annoncée par CLAUDE.md n'existait
+    PAS dans le code. Elle a été créée le 2026-07-16
+    (cd.genuc.dto.ApiResponse<T>) et le contrat est désormais :
+      - ERREURS : toutes normalisées — GlobalExceptionHandler
+        (@RestControllerAdvice, situé dans config/) construit chaque
+        erreur via ApiResponse.error(...) ;
+      - NOUVEAUX endpoints : renvoyer ApiResponse.ok(data) /
+        ApiResponse.created(data) ;
+      - endpoints EXISTANTS : renvoient encore ResponseEntity<?> avec des
+        corps ad hoc (DTO ou Map.of(...)) — le frontend consomme ces
+        formes ; toute migration doit se faire endpoint par endpoint AVEC
+        le front. D'ici là, se référer à Swagger ou au code du service.
+    Format d'erreur (clés historiques conservées + « success » additif) :
+        { "success": false,
+          "code": "PAIEMENT_NOT_FOUND",  ← code stable, exploitable en front
+          "message": "…",                ← message i18n via MessageSource
+          "status": 404,
+          "timestamp": 1752624000000 }
+    Les messages passent par MessageSource + LocaleContextHolder : ils sont
+    localisés selon la locale de la requête (fichiers messages*.properties).
+    Correspondance exceptions → statuts HTTP :
+      404  InscriptionNotFound, PaiementNotFound, UtilisateurNotFound,
+           UniversiteNotFound, EcheancierNotFound, EcheanceNotFound,
+           ResourceNotFound, NoResourceFound (ressource statique)
+      400  MethodArgumentNotValidException (erreurs de validation Bean
+           Validation, champ par champ), BusinessException (règle métier)
+      401  InvalidCredentialsException
+      403  AccessDeniedException (Spring Security)
+      409  EmailAlreadyExistsException
+      500  RuntimeException et Exception (filets de sécurité, loggés)
+    ClientAbortException (client qui coupe la connexion, fréquent sur les
+    téléchargements PDF) est absorbée silencieusement — pas de réponse.
+    Règle de contribution : ne JAMAIS attraper une exception métier dans un
+    contrôleur pour fabriquer sa propre réponse d'erreur ; lever une
+    exception typée de exception/ et laisser le handler la formater.
+
+1.3 VERSIONING INCOHÉRENT
+    La majorité des routes sont /api/<domaine>. Cinq contrôleurs récents
+    utilisent /api/v1/... : AuthorizationController, ExchangeRateController,
+    PaymentController, ReconciliationController, ReportController. Il n'y a
+    ni politique de version écrite, ni /api/v2, ni mécanisme de dépréciation.
+    Recommandation : ne pas introduire de nouveau préfixe sans décision
+    d'équipe — l'incohérence actuelle complique déjà la config Nginx et la
+    lecture de Swagger.
+
+1.4 CONTRÔLEURS SANS @RequestMapping DE CLASSE
+    Neuf contrôleurs déclarent des chemins COMPLETS méthode par méthode :
+    DeliberationController, NoteController, RecoursController,
+    UniversiteController, ModulesController, RapportsController,
+    PaymentSettingsController, SignataireUniversiteController,
+    DemandeSignatureController.
+    Pourquoi c'est piégeux : un même fichier peut servir plusieurs préfixes
+    d'URL. Exemples réels :
+      - UniversiteController sert /api/universites/** mais AUSSI
+        PUT /api/departements/{id} et POST /api/super-admin/universites/etapes ;
+      - RecoursController éclate ses routes sur /api/etudiant/...,
+        /api/admin/recours et /api/deliberation/recours/... ;
+      - NoteController sert /api/notes/** ET /api/examens/**.
+    Conséquence : pour trouver « qui sert cette URL », ne pas se fier au nom
+    du fichier — chercher la chaîne du chemin dans tout controller/ (grep).
+
+1.5 ForwardController — FALLBACK SPA
+    GET {path:[^\.]*} : toute URL GET qui ne contient PAS de point (donc ni
+    .js, ni .css, ni .png...) et qui n'a été prise par aucun autre handler
+    est réécrite vers index.html. C'est ce qui permet le « deep-linking »
+    React : rafraîchir le navigateur sur /admin/dossiers renvoie la SPA,
+    qui rejoue ensuite la route côté client. Les URLs d'assets (avec point)
+    passent, elles, par les handlers de ressources statiques.
+
+1.6 DOUBLONS DE DOMAINES — LESQUELS FONT FOI ?
+    a) Paiements — QUATRE contrôleurs se partagent le domaine :
+       - TachPayController (/api/tachpay, 34 endpoints) : le hub actuel,
+         cycle complet frais → checkout → webhooks (détail §7) ;
+       - PaymentController (/api/v1/payments) : l'orchestrateur du pattern
+         stratégie (initiate/process/confirm/refund) ;
+       - PaymentMobileController (/api/payments/mobile) : initiation mobile
+         money + suivi de transaction, avec son propre callback ;
+       - PaiementController (/api/paiements) : CRUD/consultation métier des
+         paiements enregistrés (historique, validation).
+       Avant toute évolution, identifier lequel le frontend appelle
+       réellement pour le flux concerné (chercher dans src/services/).
+    b) Webhooks mobile money — TachPayController (/api/tachpay/webhook/*)
+       ET CallbackController (/api/payments/callback/*) reçoivent tous deux
+       des callbacks vodacom/airtel/orange. Seule l'URL déclarée dans la
+       console de l'opérateur fait foi — vérifier avant de modifier.
+    c) Emplois du temps — EmploiController (/api/emploi) et
+       EmploiUniversitaireController (/api/emploi-universitaire) coexistent ;
+       le second couvre aussi les offres d'emploi universitaires publiques.
+    d) Évaluations — EvaluationAcademiqueController (évaluations notées) et
+       EvaluationEnseignantController (évaluation DES enseignants PAR les
+       étudiants) partagent la base /api/evaluations, routes distinguées au
+       niveau méthode. Collision de préfixe à surveiller lors d'un ajout.
+
+
+2. SÉCURITÉ DES ROUTES — COMMENT UNE REQUÊTE EST AUTORISÉE
+--------------------------------------------------------------------------------
+Deux étages complémentaires (détail du mécanisme JWT en partie 05) :
+
+ÉTAGE 1 — règles d'URL dans SecurityConfig (premier match gagne, dans
+l'ordre de déclaration ; tout ce qui ne matche rien tombe sur
+anyRequest().authenticated(), donc « fermé par défaut ») :
+
+  PUBLIC (permitAll) :
+    /api/auth/**, /api/activation/**, /api/public/**
+    /api/universites/public(/**), /api/filieres/public/**,
+    /api/departements/public/**, /api/cours/public/**,
+    /api/promotion/public/**, /api/palmares/public,
+    /api/annees-academiques/public (GET)
+    Vérifications publiques de documents (anti-fraude, par UUID/code) :
+      /api/verifier/**, /api/deliberation/verifier/**,
+      /api/attestations/verifier/** (GET),
+      /api/lettres-acceptation/verifier/** (GET),
+      /api/signatures/verifier/** (GET), /api/dossiers/verifier/** (GET)
+    Dossiers candidats sans compte : POST /api/dossiers,
+      GET /api/dossiers/statut/**, GET /api/dossiers/*/paiement,
+      POST /api/dossiers/*/payer,
+      GET /api/dossiers/paiement/statut/** (polling de transaction)
+    Paiement public : /api/tachpay/public/**, /api/tachpay/webhook/**
+      (+ alias hérités /api/tachfee/** — ancien nom TachFee, conservés
+      pour les webhooks opérateur et liens déjà émis ; TachPayController
+      sert les deux préfixes)
+    Divers : POST /api/chatbot/question, GET /api/vacations/**,
+      offres publiques d'emploi, /actuator/health, OPTIONS /** (CORS),
+      GET /uploads/**, /api/inscriptions, /api/etudiants
+
+  PAR RÔLE (préfixe d'URL → rôle exigé) :
+    /api/recteur/** RECTEUR ; /api/doyen/** DOYEN ;
+    /api/secretaire/** SECRETAIRE_ACADEMIQUE ; /api/appariteur/** APPARITEUR ;
+    /api/comptable/** COMPTABLE ; /api/rh/** RH ;
+    /api/social/** SERVICE_SOCIAL ; /api/super-admin/** SUPER_ADMIN ;
+    /api/stats/** SUPER_ADMIN ; /api/systeme/** SUPER_ADMIN|ADMIN_SYSTEME
+    /api/professeur/** PROFESSEUR|ENSEIGNANT|ADMIN_UNIVERSITE|SUPER_ADMIN
+    /api/etudiant/** ETUDIANT|ADMIN_UNIVERSITE|SUPER_ADMIN|PROFESSEUR|ENSEIGNANT
+    /api/chef-promotion/** CHEF_PROMOTION|CHEF_DEPARTEMENT|ADMIN_UNIV|SUPER
+    /api/tachpay/etudiant/** ETUDIANT ; /api/tachpay/admin/** ADMIN_UNIV|SUPER
+    /api/tachpay/caisse/** AGENT|CAISSIER|ADMIN_UNIV|SUPER
+    /api/paiements/gestion/**, /api/echeances/**, /api/remboursements/** :
+      variantes AGENT/CAISSIER/ADMIN_UNIVERSITE
+
+ÉTAGE 2 — @PreAuthorize sur les méthodes de contrôleur, qui AFFINE l'étage
+1 (le code utilise @PreAuthorize, pas @Secured comme le dit CLAUDE.md).
+Point subtil : permitAll à l'étage 1 n'annule PAS l'étage 2. Exemple réel :
+/api/auth/** est permitAll, mais les endpoints de diagnostic d'AuthController
+portent @PreAuthorize("hasRole('SUPER_ADMIN')") — un anonyme reçoit 403.
+L'étage 2 est donc la SEULE protection de ces routes : ne jamais retirer un
+@PreAuthorize sous prétexte que « la route est déjà couverte ».
+
+Sessions STATELESS (SessionCreationPolicy.STATELESS) : aucune session
+serveur, chaque requête est ré-authentifiée par son JWT (JwtAuthFilter).
+Le token embarque email (subject), rôle, universiteId et compteActive —
+c'est ce qui permet le filtrage multi-tenant côté backend (§6).
+
+
+3. INVENTAIRE PAR DOMAINE (contrôleur | route de base | G/P/U/D/Pa)
+--------------------------------------------------------------------------------
+G = GET, P = POST, U = PUT, D = DELETE, Pa = PATCH.
+
+AUTH / SÉCURITÉ / SYSTÈME
+  AuthController              /api/auth                    7/15/0/0/0
+  ActivationController        /api/activation              2/2/0/0/0
+  AuthorizationController     /api/v1/authorization        2/2/0/1/0
+  AuditLogController          /api/audit/logs              2/0/0/0/0
+  UtilisateurController       /api/utilisateurs            3/1/1/1/2
+  SuperAdminController        /api/super-admin             4/1/0/0/0
+  SystemeController           /api/systeme                 1/1/0/0/0
+  HealthController            /actuator/custom-health      2/0/0/0/0
+  ForwardController           (SPA fallback)               1/0/0/0/0
+
+STRUCTURE ACADÉMIQUE / ADMINISTRATION
+  UniversiteController        /api/universites (+ divers)  8/4/2/2/1
+  DepartementController       /api/departements            4/1/1/1/0
+  FiliereController           /api/filieres                4/1/1/0/2
+  FilierePublicController     /api/filieres/public         1/0/0/0/0
+  PromotionController         /api/promotions              3/1/1/1/0
+  AnneeAcademiqueController   /api/annees-academiques      3/1/0/0/1
+  CalendrierController        /api/calendrier              3/1/1/1/1
+  StructureAcademiqueController /api                       1/0/0/0/0
+  ParametresUniversiteController /api/parametres           1/0/1/0/0
+  DocumentOfficielConfigController
+                              /api/documents-officiels/admin/configurations
+                                                           1/1/1/0/1
+  SignataireUniversiteController (signataires/signatures)  3/2/2/1/0
+  DemandeSignatureController  /api/signature/...           2/4/0/0/0
+  ModulesController           /api/modules/{ressource}     1/1/1/1/0
+  RapportsController          /api/admin/universites/{id}/rapports 1/0/0/0/0
+  TransitionController        /api/admin/transition        0/1/0/0/0
+  MigrationImportController   /api/migrations              4/7/3/1/0
+
+INSCRIPTIONS / ÉTUDIANTS
+  InscriptionPubliqueController /api/public                4/3/1/0/6
+  InscriptionController       /api/inscriptions            9/2/0/0/2
+  InscriptionInternationaleController /api/inscriptions/international 1/1/0/0/0
+  DossierInscriptionController /api/dossiers/...           3/3/1/1/0
+  EtudiantController          /api/etudiants               2/1/0/0/0
+  EtudiantDossierController   /api/etudiant/mon-dossier    1/1/0/0/0
+  EtudiantPortalController    /api/etudiant/portal         16/8/1/0/0
+  CarteEtudiantController     /api/carte-etudiant          2/1/0/0/0
+  ChefPromotionController     /api/chef-promotion          5/0/0/0/0
+  LettreAcceptationController /api/lettres-acceptation     7/3/0/0/0
+  EquivalenceDiplomeController /api/equivalences           3/1/0/1/1
+
+ACADÉMIQUE (cours, notes, examens, présences)
+  CoursController             /api/cours                   13/4/1/1/4
+  SupportCoursController      /api/cours (supports)        1/1/0/1/0
+  NoteController              /api/notes + /api/examens    7/7/0/0/3
+  ImportExportController      /api/notes/import-export     2/1/0/0/0
+  BaremeController            /api/baremes                 3/1/1/1/0
+  ClassementController        /api/classement              1/0/0/0/0
+  EvaluationAcademiqueController /api/evaluations          3/3/0/0/0
+  ControleAcademiqueController /api/controle               1/3/0/0/0
+  SurveillanceController      /api/surveillances           2/1/0/0/0
+  PresenceController          /api/presences               4/2/0/0/1
+  HoraireController           /api/horaires                2/1/0/1/0
+  EmploiController            /api/emploi                  4/2/0/0/0
+  EmploiUniversitaireController /api/emploi-universitaire  9/4/1/1/0
+  ChargeHoraireController     /api/charges-horaires        2/1/0/1/0
+  TravauxController           /api/travaux                 3/2/0/0/1
+  LMSController               /api/lms                     5/6/0/1/0
+  IAController                /api/ia                      2/1/0/0/0
+  ProfesseurController        /api/professeur              4/0/0/0/0
+  ProfesseurEtudiantsController /api/professeur/etudiants  1/0/0/0/0
+
+DÉLIBÉRATIONS / RÉSULTATS / DOCUMENTS
+  DeliberationController      /api/deliberations (+ /api/verifier) 5/3/1/0/1
+  DeliberationWorkflowController /api/deliberation          14/10/1/0/1
+  CritereDeliberationController /api/criteres-deliberation 1/1/0/0/0
+  PalmaresController          /api/palmares                8/5/0/0/2
+  RecoursController           /api/etudiant + /api/admin + /api/deliberation
+                                                           5/2/2/0/0
+  AttestationController       /api/attestations            4/3/0/0/2
+  DocumentController          /api/documents               0/1/0/0/1
+  TfcController               /api/tfc                     3/3/0/0/3
+  StageController             /api/stages                  4/2/0/0/3
+
+FINANCES / PAIEMENTS
+  TachPayController           /api/tachpay                 13/18/1/0/1
+  PaiementController          /api/paiements               4/2/0/0/2
+  PaymentController           /api/v1/payments             1/4/0/0/0
+  PaymentMobileController     /api/payments/mobile         1/3/0/0/0
+  CallbackController          /api/payments/callback       0/4/0/0/0
+  PaymentSettingsController   /api/admin/universites/{id}/parametres-paiement
+                                                           2/0/1/0/0
+  BonDePaiementController     /api/bons-paiement           7/2/0/0/0
+  EcheanceController          /api/echeances               2/2/0/0/0
+  EcheancierController        /api/echeanciers             3/2/0/0/1
+  FraisAdminController        /api/admin/frais             6/3/2/0/4
+  FraisEtudiantController     /api/etudiant/frais          4/0/0/0/0
+  CaisseController            /api/caisse                  3/1/0/0/1
+  OperationCaisseController   /api/caisse/operations       2/1/0/0/0
+  ComptabiliteController      /api/comptabilite            4/3/1/0/1
+  TresorerieController        /api/tresorerie              1/1/0/0/0
+  RapportFinancierController  /api/rapports/financiers     6/0/0/0/0
+  ReconciliationController    /api/v1/reconciliation       1/2/0/0/0
+  RemboursementController     /api/remboursements          2/1/0/0/5
+  BourseController            /api/bourses                 4/2/0/1/2
+  InformationBancaireController /api/informations-bancaires 1/1/1/1/0
+  ExchangeRateController      /api/v1/exchange-rates       2/1/0/0/0
+  ReportController            /api/v1/reports              1/2/0/0/0
+
+RH / VIE DE CAMPUS / SERVICES
+  RHController                /api/rh                      9/6/1/0/5
+  CongeController             /api/conges                  2/1/0/0/2
+  VacationController          /api/vacations               12/3/1/3/5
+  BibliothequeController      /api/bibliotheque            14/7/3/4/1
+  ServiceSocialController     /api/social                  12/3/1/0/4
+  VieUniversitaireController  /api/vie-universitaire       3/4/2/3/0
+  AlumniController            /api/alumni                  2/0/0/0/0
+  ConferenceController        /api/recherche/conferences   1/1/0/1/0
+  ProjetRechercheController   /api/recherche/projets       1/1/0/1/0
+  LaboratoireController       /api/recherche/laboratoires  1/1/0/1/0
+  PublicationController       /api/recherche/publications  1/1/0/1/0
+  EvaluationEnseignantController /api/evaluations          3/1/0/0/0
+  RecteurController           /api/recteur                 3/1/0/0/0
+
+COMMUNICATION / DIVERS
+  MessagerieController        /api/messagerie              5/2/0/0/1
+  NotificationController      /api/notifications           3/1/0/0/2
+  DeviceTokenController       /api/notifications/push      0/1/0/1/0
+  AlerteController            /api/alertes                 4/1/0/0/2
+  ChatbotController           /api/chatbot                 0/1/0/0/0
+  StatsController             /api/stats                   2/0/0/0/0
+
+
+4. AUTHENTIFICATION EN PROFONDEUR (/api/auth — 22 endpoints, tous permitAll
+   à l'étage URL, affinés par @PreAuthorize)
+--------------------------------------------------------------------------------
+4.1 CYCLE DE VIE DE LA SESSION
+  POST /connecter (alias /login — les DEUX chemins sont déclarés sur la
+       même méthode). Corps : LoginRequest validé (@Valid). Comportement
+       vérifié par les tests d'AuthService :
+         - l'email est normalisé en minuscules avant recherche ;
+         - compte verrouillé → InvalidCredentialsException (401) ;
+         - mauvais mot de passe → InvalidCredentialsException (401) ;
+         - compte NON ACTIVÉ (actif=false) → BusinessException (400) —
+           c'est le piège n°1 du guide développeur (partie 12 §5a) ;
+         - succès → Map contenant access token + refresh token. Le JWT
+           embarque : email (subject), rôle, universiteId, compteActive.
+       Si le compte a la 2FA active, la réponse demande une vérification
+       TOTP au lieu de délivrer directement les tokens (voir 4.2).
+  POST /refresh — corps { refreshToken } ; renvoie un nouvel access token.
+       Appelé automatiquement par l'intercepteur Axios du frontend sur 401.
+  POST /logout — corps { refreshToken } ; invalide le refresh token côté
+       serveur (l'access token, stateless, expire de lui-même).
+  GET  /moi — profil de l'utilisateur porteur du token (@AuthenticationPrincipal).
+
+4.2 DOUBLE AUTHENTIFICATION (TOTP)
+  POST /2fa/setup    (connecté) génère le secret et l'URI d'enrôlement
+                     (QR code à scanner dans Google Authenticator etc.)
+  POST /2fa/confirm  (connecté) valide un premier code → 2FA activée
+  POST /2fa/login-verify  au login : corps { email?, code } → délivre les
+                     tokens si le code TOTP est bon
+  POST /2fa/disable  (connecté, avec code) désactive
+  GET  /2fa/status   état d'enrôlement du compte courant
+  La configuration TOTP est dans config/TotpConfig.
+
+4.3 GESTION DU COMPTE
+  POST /mot-de-passe-oublie   corps { email } → email de réinitialisation
+  POST /changer-mot-de-passe  (connecté) ancien + nouveau mot de passe
+  POST /ajouter-email         (connecté) email secondaire
+  POST /photo, GET /mes-photos  photo de profil (multipart)
+  POST /inscrire              création de compte ; règles vérifiées par les
+       tests : email unique (409 sinon), universiteId OBLIGATOIRE pour les
+       rôles admin, departementId OBLIGATOIRE pour un enseignant.
+
+4.4 ENDPOINTS DE DIAGNOSTIC — TOUS @PreAuthorize("hasRole('SUPER_ADMIN')")
+  Nuance importante par rapport à une lecture rapide : bien que /api/auth/**
+  soit permitAll à l'étage URL, ces endpoints sont protégés au niveau
+  méthode (un anonyme ou un non-super-admin reçoit 403) :
+    GET  /diagnostiquer/{email}   état complet d'un compte (actif, verrou,
+                                  rôle...) — outil de support
+    POST /reinitialiser/{email}   force un nouveau mot de passe
+    POST /reinitialiser-tous      réinitialise les COMPTES DE TEST déclarés
+                                  dans GenucProperties.getTestAccounts()
+                                  (pas tous les comptes de la base)
+    GET  /fix-admin               répare/recrée le compte admin avec le mot
+                                  de passe seed Genuc2024!
+    GET  /test-admin              ping de rôle (SUPER_ADMIN)
+    GET  /test-etudiant           ping de rôle (@PreAuthorize ETUDIANT)
+  POST /verifier-mot-de-passe est aussi restreint SUPER_ADMIN dans le code
+  actuel — surprenant pour un endpoint de « re-vérification avant action
+  sensible » ; à corriger si on veut l'utiliser pour d'autres rôles.
+  Risque résiduel : ces routes reposent UNIQUEMENT sur l'annotation de
+  méthode. Toute refactorisation qui la supprimerait les ouvrirait au
+  public (permitAll). À garder en tête lors des revues de code.
+
+
+5. ACTIVATION DE COMPTE (/api/activation — public par conception)
+--------------------------------------------------------------------------------
+Circuit : un compte créé par le circuit d'inscription naît avec actif=false
+et reçoit un email contenant un token d'activation.
+  GET  /verifier?token=...        valide le token : 200 si token connu, non
+                                  expiré ET compte pas encore actif ; 400
+                                  sinon (token inconnu, expiré, ou déjà
+                                  activé) — comportements couverts par 13
+                                  tests unitaires.
+  POST /creer-mot-de-passe        l'utilisateur choisit son mot de passe →
+                                  le compte passe actif=true. Refus (400) si
+                                  les deux saisies diffèrent, mot de passe
+                                  trop court, ou champs manquants.
+  POST /renvoyer                  renvoie l'email d'activation. Conception
+                                  ANTI-ÉNUMÉRATION vérifiée par les tests :
+                                  la réponse est IDENTIQUE que l'email
+                                  existe ou non (pas d'oracle), et aucun
+                                  email n'est envoyé si le compte est déjà
+                                  actif.
+  GET  /statut?email=...          indique si le compte est activé.
+
+
+6. INSCRIPTION PUBLIQUE ET DOSSIERS EN PROFONDEUR
+--------------------------------------------------------------------------------
+6.1 CÔTÉ CANDIDAT — SANS COMPTE (routes permitAll)
+  Le candidat n'a pas encore de compte GENUC ; son identifiant de suivi est
+  le numeroDossier généré au dépôt.
+  POST /api/public/inscription        dépôt de candidature (formulaire public)
+  POST /api/dossiers                  variante de dépôt via
+       DossierInscriptionController (deux surcharges : JSON et multipart
+       avec pièces jointes)
+  GET  /api/dossiers/statut/{numeroDossier}   suivi par numéro
+  GET  /api/dossiers/statut/email/{email}     suivi par email
+  PUT  /api/dossiers/{id}                     compléter/corriger le dossier
+  DELETE /api/dossiers/{id}/annuler           retrait de candidature
+  Frais de dossier, payables SANS compte (flux sécurisé depuis 2026-07-16,
+  détail complet en partie 06 §4) :
+  GET  /api/dossiers/{numeroDossier}/paiement  état des frais
+  POST /api/dossiers/{numeroDossier}/payer     INITIE la transaction
+       opérateur (TransactionDossier PENDING) — le dossier n'est marqué
+       payé que par le webhook signé
+  GET  /api/dossiers/paiement/statut/{reference}  polling public
+       (VALIDE / REJETE / EN_ATTENTE) — voir aussi les routes
+       /api/tachpay/public/dossier/... §7.3
+  GET  /api/public/admission/verifier          vérification publique du
+       résultat d'admission.
+
+6.2 CÔTÉ INSTRUCTION — ADMIN D'UNIVERSITÉ
+  Rôles : ADMIN_UNIVERSITE et SECRETAIRE_ACADEMIQUE (+ CAISSIER/AGENT pour
+  l'action de paiement). FILTRAGE MULTI-TENANT : le JWT de l'admin contient
+  son universiteId ; GET /api/public/admin/dossiers ne renvoie QUE les
+  dossiers de cette université. Un admin ne peut pas instruire les dossiers
+  d'une autre université.
+  Le dossier avance par actions PATCH, qui matérialisent la machine à états
+  de l'instruction :
+    PATCH .../demander-documents   pièces manquantes → notification candidat
+    PATCH .../convoquer-test       convocation au test d'admission
+    PATCH .../test-reussi          issue favorable du test
+    PATCH .../marquer-paye         frais de dossier réglés (constatés
+                                   manuellement, ex. paiement au guichet)
+    PATCH .../valider              admission prononcée → génération de la
+                                   lettre d'acceptation (GET .../lettre-
+                                   acceptation pour le PDF) et création du
+                                   compte étudiant (actif=false, email
+                                   d'activation envoyé)
+    PATCH .../rejeter              refus motivé
+  Outils d'instruction :
+    GET  .../analyse               analyse automatisée du dossier (IA)
+    POST .../message               message libre au candidat
+    POST .../renvoyer-activation   renvoyer l'email d'activation du compte
+                                   créé — LE remède au piège actif=false.
+
+
+7. TACHPAY EN PROFONDEUR (/api/tachpay — 34 endpoints, hub paiement)
+--------------------------------------------------------------------------------
+Le contrôleur matérialise quatre « guichets » distincts, chacun verrouillé
+par les règles d'URL de SecurityConfig (§2) :
+
+7.1 ADMIN (/admin/**, rôles ADMIN_UNIVERSITE|SUPER_ADMIN)
+  Définition du catalogue de frais : POST/PUT /admin/frais, PATCH
+  .../statut (activer/désactiver un frais), GET (liste + détail),
+  POST /admin/frais/{id}/affecter = affectation d'un frais à des promotions
+  entières (c'est l'affectation qui rend un frais « dû » par les étudiants).
+
+7.2 ÉTUDIANT (/etudiant/**, rôle ETUDIANT)
+  GET /etudiant/frais-a-payer      liste de ce qui est dû
+  GET /etudiant/situation          situation financière consolidée
+  GET /etudiant/checkout-context   TOUT ce qu'il faut pour afficher l'écran
+                                   de paiement (frais sélectionnables,
+                                   moyens de paiement actifs de l'université,
+                                   devises/taux) — évite au front d'appeler
+                                   4 endpoints
+  GET /etudiant/historique         paiements passés
+  Deux voies de paiement en ligne :
+    POST /etudiant/payer-carte     carte bancaire (Stripe)
+    POST /etudiant/payer-mobile    mobile money (Vodacom/Airtel/Orange) —
+         initie la transaction ; la confirmation arrive PAR WEBHOOK (7.4),
+         le front sonde GET /etudiant/paiement/{reference}/statut
+  Et une voie différée :
+    POST /etudiant/bon-paiement    génère un BON DE PAIEMENT (référence à
+         présenter à la banque/au guichet), PDF via GET
+         /etudiant/bon-paiement/{numero}/pdf ; le bon sera validé à
+         l'encaissement par la caisse (7.3).
+
+7.3 PUBLIC (/public/**, permitAll) — les candidats et payeurs sans compte
+  Mêmes primitives que l'espace étudiant, mais l'identification passe par
+  le matricule OU le numéro de dossier :
+    GET /public/etudiant/{matricule}/checkout-context
+    GET /public/dossier/{numeroDossier}/checkout-context
+    POST /public/payer-carte | /public/payer-mobile
+    POST /public/dossier/payer-carte | /public/dossier/payer-mobile
+  Cas d'usage : un parent paie les frais de son enfant avec le matricule ;
+  un candidat paie ses frais de dossier avant d'avoir un compte.
+
+7.4 CAISSE (/caisse/**, rôles AGENT|CAISSIER|ADMIN_UNIVERSITE|SUPER_ADMIN)
+  Le guichet physique de l'université :
+    GET  /caisse/etudiant/{matricule}/frais   consulter ce qu'un étudiant doit
+    POST /caisse/paiement-especes             encaissement en espèces
+    POST /caisse/payer-carte | payer-mobile   paiement électronique assisté
+    POST /caisse/generer-bon | valider-bon    cycle du bon de paiement
+    GET  /caisse/operations                   journal des opérations
+    GET  /caisse/rapport/journalier           clôture de journée
+
+7.5 WEBHOOKS (/webhook/vodacom|airtel|orange|afrimoney|stripe, permitAll)
+  Les opérateurs notifient l'issue des transactions initiées en 7.2/7.3.
+  permitAll est OBLIGATOIRE (l'opérateur n'a pas de JWT) ; la sécurité
+  repose sur WebhookSecurityService, dont les tests documentent le contrat :
+    - signature HMAC dans un en-tête, vérifiée contre un secret partagé ;
+    - requête SANS en-tête de signature → rejet ;
+    - mauvaise signature → rejet ;
+    - secret non configuré alors qu'il est obligatoire → rejet ;
+    - en dev sans secret configuré → accepté (facilite les tests locaux) ;
+    - repli sur un secret global si le secret par opérateur manque.
+  Après vérification, le webhook ROUTE la confirmation entre les deux flux
+  qui partagent ces URLs : TransactionExterne trouvée (provider+externalId)
+  → frais académiques (MobileMoneyService/StripeService.confirmerPaiement) ;
+  sinon → frais de DOSSIER (InscriptionPubliqueService.
+  confirmerPaiementFraisDossier, qui marque le DossierInscription payé).
+  Les deux chemins sont idempotents (webhooks rejoués ignorés) et évincent
+  le cache de statut du polling. ReconciliationService
+  (/api/v1/reconciliation) recoupe périodiquement les transactions locales
+  avec les relevés opérateurs pour rattraper les webhooks perdus.
+
+
+8. NOTES ET EXAMENS EN PROFONDEUR (NoteController)
+--------------------------------------------------------------------------------
+Le cycle d'une note comporte trois états successifs, chacun gardé par des
+rôles différents (@PreAuthorize par méthode) :
+
+  SAISIE (PROFESSEUR, CHEF_DEPARTEMENT, ADMIN_UNIVERSITE, SUPER_ADMIN)
+    POST /api/notes                        note unitaire
+    POST /api/notes/lot/{coursId}/{annee}  saisie en lot pour tout un cours
+    POST /api/notes/{id}/rattrapage        note de seconde session (préserve
+                                           la note de première session)
+    POST /api/notes/cours/{coursId}/calcul recalcul de la moyenne du cours
+
+  VALIDATION (CHEF_DEPARTEMENT, ADMIN_UNIVERSITE, SUPER_ADMIN)
+    PATCH /api/notes/{id}/valider          validation unitaire
+    POST  .../valider-tout                 validation de tout un cours
+    Files d'attente pour les valideurs :
+    GET /api/notes/universite/{uniId}/a-valider
+    GET /api/notes/departement/{departementId}/a-valider
+
+  PUBLICATION (ADMIN_UNIVERSITE, SUPER_ADMIN)
+    PATCH /api/notes/{id}/publier  et  POST .../publier-tout
+    C'est la publication qui rend la note VISIBLE côté portail étudiant.
+
+  CONSULTATION
+    GET /api/notes/etudiant/{inscriptionId}/{annee}  (ETUDIANT et
+        encadrement — l'étudiant ne voit que le publié)
+    GET /api/notes/cours/{coursId}/{annee} (+ /stats : distribution,
+        moyenne, taux de réussite du cours)
+
+  EXAMENS (routes /api/examens dans le MÊME contrôleur — voir §1.4)
+    POST /api/examens                       planifier une session
+    GET  /api/examens/universite/{uniId}/prochains
+    GET  /api/examens/aujourd-hui           tableau de bord du jour
+    PATCH /api/examens/{id}/statut          avancement (planifié/en cours/
+                                            terminé...)
+  Outils connexes : ImportExportController (/api/notes/import-export,
+  import Excel de notes + modèle), BaremeController (/api/baremes, barèmes
+  de cotation par université).
+
+
+9. DÉLIBÉRATIONS EN PROFONDEUR (DeliberationWorkflowController,
+   /api/deliberation — 26 endpoints)
+--------------------------------------------------------------------------------
+La délibération est le processus par lequel un jury statue sur le passage/
+l'échec/le diplôme de chaque étudiant à partir de ses notes (logique métier
+détaillée en partie 07 ; ici, la surface API).
+
+9.1 SESSIONS EN TROIS PHASES
+  POST /premiere     ouvre/traite la session de première délibération
+  POST /rattrapage   session de rattrapage (seconde session)
+  POST /cloturer     clôture de l'année de délibération
+  Rôles noyau : ADMIN_UNIVERSITE|SUPER_ADMIN, élargis selon les actions à
+  DOYEN, RECTEUR, CHEF_DEPARTEMENT, SECRETAIRE_ACADEMIQUE (voir les
+  @PreAuthorize par méthode — dix combinaisons distinctes dans ce fichier).
+
+9.2 PRÉPARATION ET CONSOLIDATION
+  POST /preparer (+ /preparer/departement)  construit les fiches de
+       délibération à partir des notes VALIDÉES. Les tests du service
+       documentent deux règles : impossible de préparer sans notes ; en
+       dernière année avec moyenne suffisante, le système PROPOSE le
+       diplôme (proposition, pas décision — le jury tranche).
+  POST /consolider                          agrégation lourde lancée en
+       ASYNCHRONE : la réponse contient un jobId, le front sonde
+       GET /consolider/status/{jobId} jusqu'à complétion. Ne pas bloquer
+       une requête HTTP sur ce traitement.
+
+9.3 TENUE DU JURY ET PUBLICATION
+  PATCH /{id}/tenue          enregistre que le jury s'est tenu (date, PV)
+  POST  /{id}/publier        publication des résultats d'une délibération ;
+        règle vérifiée par test : on ne peut PAS publier une délibération
+        dont la tenue n'a pas été enregistrée.
+  POST  /publier/departement publication en masse
+  POST  /pv-global           procès-verbal global de la session
+
+9.4 RESTITUTIONS ET DOCUMENTS
+  GET /liste, /{id}, /inscription/{inscriptionId}   consultation
+  GET /stats, /stats/avancees                       taux de réussite etc.
+  GET /releve/{inscriptionId}                       relevé de notes
+  GET /bulletin/{inscriptionId}                     bulletin
+  GET /releve/telecharger/{inscriptionId}           PDF
+  GET /etudiant/resultats, /etudiant/pdf            vue de l'étudiant
+       connecté (rôle ETUDIANT) — ses propres résultats uniquement
+  GET /verifier/{uuid}   VÉRIFICATION PUBLIQUE : chaque document émis porte
+       un UUID/QR code ; n'importe qui (employeur, autre université) peut
+       vérifier l'authenticité sans compte. Route permitAll (§2).
+  GET /audit             trace de qui a fait quoi sur les délibérations.
+
+9.5 PARAMÈTRES ET IMPORT
+  GET/PUT /parametres/{universiteId}   seuils et règles de délibération
+       PROPRES à chaque université (multi-tenant jusque dans les règles).
+  POST /import/notes                   injection de notes pour délibération
+       (reprises d'historique).
+
+9.6 ANCIEN CONTRÔLEUR
+  DeliberationController (/api/deliberations/..., sans « workflow ») expose
+  une génération précédente du même domaine : preparer/{inscriptionId},
+  preparer-lot, jury, publier, relevés, stats, et GET /api/verifier/{uuid}
+  (doublon de la vérification publique). Avant toute évolution, vérifier
+  lequel des deux le frontend appelle pour l'écran concerné.
+
+
+10. PORTAIL ÉTUDIANT EN PROFONDEUR (/api/etudiant/portal — 25 endpoints)
+--------------------------------------------------------------------------------
+Backend-for-frontend de l'espace étudiant. Tout est indexé par
+inscriptionId : une INSCRIPTION représente un étudiant dans UNE promotion
+pour UNE année académique — un étudiant a donc plusieurs inscriptions au
+fil de sa scolarité, et le portail affiche celle qui est sélectionnée.
+@PreAuthorize ETUDIANT|ADMIN_UNIVERSITE|SUPER_ADMIN (les admins peuvent
+voir le portail « comme » l'étudiant, pour le support).
+
+  Tableau de bord : GET /dashboard/{inscriptionId} (agrégat cours/notes/
+      finances/annonces en un appel).
+  Cours : GET /{inscriptionId}/cours (+ détail /{coursId}) ; progression
+      e-learning : POST .../lecon/{leconId}/complete.
+  Notes : GET /{inscriptionId}/notes (+ /export) — notes PUBLIÉES seulement.
+  Relevé : cycle complet — /releve (contenu), /releve/disponibilite (est-il
+      prêt ?), /releve/statut, /releve/a-paye (le relevé peut être
+      conditionné au paiement de frais), /releve/telecharger (PDF),
+      POST /releve/renvoyer-email.
+  Documents officiels : GET /documents-officiels (catalogue configuré par
+      l'université via DocumentOfficielConfigController) ;
+      POST /documents/demander (workflow de demande) ;
+      POST /documents/generer (génération directe quand elle est permise).
+  Profil : GET/PUT /profil/{inscriptionId}.
+  Travaux : GET /{inscriptionId}/travaux (devoirs/TP, dépôts via
+      TravauxController).
+  TFC/mémoire : GET /{inscriptionId}/tfc ; POST /tfc/depot (dépôt du
+      document final ; l'encadrement passe par TfcController).
+  Stages : GET /stages/offres (bourse aux offres), POST /stages/postuler/
+      {offreId}, GET /{inscriptionId}/stage (suivi), POST /{inscriptionId}/
+      stage (déclaration), POST .../stage/rapport (rapport de stage).
+
+
+11. MIGRATION ASSISTÉE ET PRÉSENCES EN PROFONDEUR
+--------------------------------------------------------------------------------
+11.1 MIGRATION (/api/migrations, ADMIN_UNIVERSITE|SUPER_ADMIN)
+  Pipeline d'import de données historiques (anciens systèmes, fichiers
+  Excel d'universités qui rejoignent la plateforme). Chaque import est une
+  ressource persistée qui avance étape par étape — on peut fermer le
+  navigateur et reprendre :
+    1. GET  /modele            télécharger le modèle de fichier attendu
+    2. POST (base)             créer l'import en téléversant le fichier
+    3. PUT  /{id}/mapping      faire correspondre les colonnes du fichier
+                               aux champs GENUC
+    4. PUT  /{id}/options      options (année cible, promotion, doublons...)
+    5. POST /{id}/verifier     contrôles de cohérence → erreurs par ligne
+    6. GET  /{id}/lignes       examiner les lignes et leurs erreurs ;
+       PUT/DELETE /{id}/lignes/{ligneId}  corriger ou écarter une ligne
+       SANS retoucher le fichier source
+    7. POST /{id}/simuler      répétition générale (aucune écriture)
+    8. POST /{id}/importer     exécution réelle
+  Contrôle d'exécution : POST /{id}/pause, /reprendre, /annuler — les longs
+  imports sont interruptibles. GET (base) liste les imports, GET /{id}
+  donne l'avancement.
+
+11.2 PRÉSENCES PAR QR CODE (/api/presences)
+  Flux nominal en cours magistral :
+    1. Le professeur affiche GET /generer-qr (PROFESSEUR|CHEF_DEPARTEMENT|
+       ADMIN_UNIVERSITE) — un QR code de session de cours ;
+    2. chaque étudiant le scanne avec l'app → POST /scanner (rôle ETUDIANT) ;
+       la présence est horodatée côté serveur.
+  Rattrapage manuel : POST /cours/{coursId}/saisie (le professeur coche la
+  liste — pannes, étudiants sans téléphone).
+  Consultation : GET /etudiant/{etudiantId} (historique d'un étudiant),
+  GET /cours/{coursId} et /cours/{coursId}/tableau (grille par séance).
+  Justification d'absence : PATCH /{presenceId}/justifier (motif, pièce).
+================================================================================

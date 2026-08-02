@@ -1,0 +1,73 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ══════════════════════════════════════════════════════════════════════════
+   Design « premium » (bleu nuit & or) — OPT-IN, réversible.
+   Tokens SCOPÉS sous .design-premium : rien n'est appliqué par défaut, et le
+   design classique existant reste 100 % intact. La classe design-premium est
+   posée sur <html> par le sélecteur de design (DesignContext).
+   ══════════════════════════════════════════════════════════════════════════ */
+.design-premium {
+  --gu-background: 222 47% 6%;
+  --gu-foreground: 210 40% 96%;
+  --gu-card: 221 44% 12%;
+  --gu-card-foreground: 210 40% 96%;
+  --gu-primary: 41 84% 60%;
+  --gu-primary-foreground: 222 47% 9%;
+  --gu-secondary: 213 65% 20%;
+  --gu-secondary-foreground: 210 40% 96%;
+  --gu-muted: 221 32% 16%;
+  --gu-muted-foreground: 214 20% 68%;
+  --gu-accent: 41 84% 60%;
+  --gu-accent-foreground: 222 47% 9%;
+  --gu-destructive: 0 72% 55%;
+  --gu-destructive-foreground: 210 40% 98%;
+  --gu-success: 152 55% 45%;
+  --gu-border: 214 33% 22%;
+  --gu-input: 214 33% 20%;
+  --gu-ring: 41 84% 60%;
+  --gu-gold: 41 84% 60%;
+  --gu-gold-soft: 41 70% 72%;
+  --gu-radius: 1rem;
+  color: hsl(var(--gu-foreground));
+  font-family: 'Inter', system-ui, 'Segoe UI', sans-serif;
+}
+
+/* Quand le mode premium est actif globalement (classe sur <html>), on force le
+   fond de marque sombre + un dégradé nuit lisible (le fond de marque est conservé). */
+html.design-premium body {
+  background-color: hsl(var(--gu-background));
+}
+html.design-premium body::before {
+  /* Utilise var(--bg-image) (pas d'url() en dur → pas de résolution webpack).
+     Le sélecteur de design force --bg-image sur l'image sombre en mode premium. */
+  background-image:
+    radial-gradient(1200px 600px at 80% -10%, hsl(41 84% 60% / 0.1), transparent 60%),
+    radial-gradient(1000px 700px at -10% 20%, hsl(213 90% 55% / 0.14), transparent 55%),
+    linear-gradient(180deg, hsl(222 47% 7% / 0.86), hsl(222 47% 5% / 0.94)),
+    var(--bg-image) !important;
+  background-size: cover !important;
+  background-position: center !important;
+  background-repeat: no-repeat !important;
+}
+
+/* Surfaces en verre translucide (premium) — laissent voir le fond de marque. */
+.design-premium .glass {
+  background: hsl(221 44% 12% / 0.55);
+  backdrop-filter: blur(16px) saturate(140%);
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
+  border: 1px solid hsl(210 40% 92% / 0.08);
+}
+.design-premium .glass-strong {
+  background: hsl(221 46% 11% / 0.72);
+  backdrop-filter: blur(20px) saturate(150%);
+  -webkit-backdrop-filter: blur(20px) saturate(150%);
+  border: 1px solid hsl(210 40% 92% / 0.09);
+}
+.design-premium .text-gradient-gold {
+  background: linear-gradient(100deg, hsl(41 90% 70%), hsl(41 84% 56%));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}

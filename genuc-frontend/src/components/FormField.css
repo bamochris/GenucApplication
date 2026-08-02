@@ -1,0 +1,119 @@
+/* Styles FormField */
+
+.form-field {
+  margin-bottom: 16px;
+  width: 100%;
+}
+
+.form-label {
+  display: block;
+  margin-bottom: 6px;
+  font-weight: 600;
+  color: var(--text-secondary, #374151);
+  font-size: 14px;
+}
+
+.required {
+  color: #dc2626;
+  margin-left: 2px;
+}
+
+.form-input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.form-icon {
+  position: absolute;
+  left: 12px;
+  color: var(--text-muted, #9ca3af);
+  pointer-events: none;
+  font-size: 16px;
+}
+
+.form-input {
+  width: 100%;
+  padding: 10px 12px;
+  padding-left: 40px;
+  border: 1px solid var(--border-color, #d1d5db);
+  border-radius: 6px;
+  font-size: 14px;
+  color: var(--text-primary, #111827);
+  background: var(--bg-card, white);
+  transition: all 0.2s;
+  font-family: inherit;
+}
+
+.form-input:focus {
+  outline: none;
+  border-color: #185fa5;
+  box-shadow: 0 0 0 3px rgba(24, 95, 165, 0.1);
+}
+
+.form-input:disabled {
+  background: var(--bg-secondary, #f3f4f6);
+  color: var(--text-muted, #9ca3af);
+  cursor: not-allowed;
+}
+
+.form-input.error {
+  border-color: #dc2626;
+  background: #fef2f2;
+}
+
+.form-input.error:focus {
+  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.1);
+}
+
+.form-select,
+.form-textarea {
+  padding-left: 12px !important;
+}
+
+.form-textarea {
+  resize: vertical;
+  min-height: 100px;
+}
+
+.form-error {
+  margin-top: 4px;
+  color: #dc2626;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.form-hint {
+  margin-top: 4px;
+  color: var(--text-muted, #9ca3af);
+  font-size: 12px;
+}
+
+/* Bouton afficher/masquer le mot de passe */
+.form-input-password {
+  padding-right: 40px;
+}
+
+.form-password-toggle {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 16px;
+  padding: 4px;
+  line-height: 1;
+  color: var(--text-muted, #6b7280);
+}
+
+.form-password-toggle:hover {
+  color: #185fa5;
+}
+
+.form-password-toggle:focus {
+  outline: 2px solid rgba(24, 95, 165, 0.3);
+  outline-offset: 2px;
+  border-radius: 4px;
+}

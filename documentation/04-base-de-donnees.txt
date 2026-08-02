@@ -1,0 +1,236 @@
+================================================================================
+GENUC — PARTIE 4 : BASE DE DONNÉES (VERSION APPROFONDIE)
+================================================================================
+
+1. MOTEUR ET GESTION DU SCHÉMA — QUI CRÉE RÉELLEMENT LES TABLES
+--------------------------------------------------------------------------------
+PostgreSQL (driver org.postgresql). En dev : utilisateur genuc_user, base
+genuc_db, port 5432 (sur le poste actuel : instance PostgreSQL 18 NATIVE,
+pas le conteneur — partie 12 §3a).
+
+IMPORTANT — DEUX MÉCANISMES DE SCHÉMA COEXISTENT, UN SEUL EST ACTIF :
+  EN DEV : Hibernate (spring.jpa.hibernate.ddl-auto=update) compare au
+  démarrage les entités JPA au schéma réel et AJOUTE ce qui manque
+  (tables, colonnes). « update » est ADDITIF uniquement : il ne supprime
+  ni ne renomme jamais rien — renommer un champ d'entité crée une NOUVELLE
+  colonne et laisse l'ancienne orpheline avec ses données. C'est pour cela
+  qu'une base de dev ancienne accumule des colonnes mortes : normal, pas
+  un bug.
+  EN PROD : Flyway (spring.flyway.enabled=true dans application-prod)
+  exécute les scripts db/migration/ dans l'ordre des versions, et
+  ddl-auto passe à validate : Hibernate se contente de VÉRIFIER que le
+  schéma correspond aux entités et refuse de démarrer sinon. Les
+  migrations sont donc la seule voie d'évolution du schéma en production.
+  CONSÉQUENCE PRATIQUE : une évolution de schéma se code DEUX fois — dans
+  l'entité (pour le dev quotidien) ET dans une migration Vn (pour la
+  prod), et la migration doit être testée explicitement avec
+  FLYWAY_ENABLED=true sur une base jetable (pièges détaillés en partie 12
+  §5b). Les fichiers Flyway sont tenus à jour mais ne sont PAS le
+  mécanisme qui crée les tables au quotidien.
+
+
+2. MIGRATIONS FLYWAY (db/migration/) — HISTOIRE ET CONTENU
+--------------------------------------------------------------------------------
+7 fichiers, V1 à V7, très inégaux : V1 fait ~8670 lignes (132 tables),
+V2-V7 totalisent ~209 lignes.
+
+  V1__baseline_schema.sql — LE BASELINE « SQUASHÉ »
+      Schéma complet (132 CREATE TABLE) généré depuis la base de dev le
+      2026-07-02, aligné sur 124 entités JPA. Son en-tête raconte
+      l'histoire : l'ANCIENNE série V1-V7 était partielle et ÉCHOUAIT sur
+      base vierge, car elle référençait des tables que seul Hibernate
+      ddl-auto avait créées chez les développeurs (dérive classique quand
+      deux mécanismes de schéma coexistent). Décision prise : écraser
+      (squash) tout l'historique en UN baseline complet auto-suffisant,
+      et repartir avec une nouvelle série V2-V7 incrémentale par-dessus.
+      Le baselining (baseline-version: 1, commenté dans application.yml)
+      permet d'appliquer cette V1 « virtuellement » sur une base déjà
+      peuplée : Flyway la marque appliquée sans la rejouer.
+
+  V2__add_vacations_and_documents.sql
+      Ajoute promotions.vacations (planification Jour/Soir — spécificité
+      du contexte RDC : une même promotion peut avoir des sessions de
+      jour et de soirée) et les chemins des documents légaux de
+      l'université (document_agrement, document_arrete, document_statuts).
+      Corrige AUSSI la contrainte unique mal posée sur
+      annees_academiques.libelle (voir §4 — bug historique documenté).
+
+  V3__encaissement_universite.sql
+      Ajoute à universite_payment_settings les numéros MARCHANDS mobile
+      money (M-Pesa, Orange Money, Airtel Money) et les champs de compte
+      bancaire : chaque université encaisse sur SES comptes — la
+      plateforme n'est pas un intermédiaire financier centralisé.
+
+  V4__demandes_signature.sql
+      Table demandes_signature : file d'attente où un signataire habilité
+      approuve un document (ou un lot) AVANT application de la signature
+      électronique — le pendant base du workflow exposé par
+      DemandeSignatureController et de la SignatureBanner du front.
+
+  V5__modules_administration.sql
+      La plus grosse incrémentale (7 tables) : annonces, campus,
+      batiments, fournisseurs, actifs_patrimoine, maintenances_actifs,
+      publications_recherche — le module patrimoine/infrastructure et vie
+      de campus, ajouté après le baseline.
+
+  V6__documents_officiels_config.sql
+      Table documents_officiels_config : chaque université configure
+      QUELS documents officiels elle propose, leur template et le code de
+      frais requis (c'est ce qui alimente le catalogue « documents
+      officiels » du portail étudiant, partie 10 §10) ; ajoute
+      code_document/libelle_document à attestations.
+
+  V7__parametres_messagerie_universite.sql
+      Colonnes email/nom d'expéditeur dans parametres_universite : les
+      messages sortants peuvent porter l'identité de l'université
+      émettrice plutôt que celle de la plateforme.
+
+
+3. GROUPES DE TABLES DU BASELINE (~132 tables) ET LEUR LOGIQUE
+--------------------------------------------------------------------------------
+Le modèle suit la hiérarchie institutionnelle congolaise et le parcours
+étudiant. Clé de lecture multi-tenant : presque tout est rattaché
+directement ou transitivement à universites (universite_id).
+
+  ORGANISATION/HIÉRARCHIE ACADÉMIQUE (~9)
+      universites → facultes → departements → filieres → promotions ;
+      annees_academiques (par université — voir §4) ; tables de liaison
+      universite_facultes/universite_departements/universite_promotions.
+      La PROMOTION (ex : « L1 Informatique 2025-2026 ») est l'unité
+      opérationnelle : c'est à elle qu'on affecte cours, frais, étudiants.
+
+  UTILISATEURS/ÉTUDIANTS/PERSONNEL (~11)
+      Distinction structurante à comprendre :
+        utilisateurs   = le COMPTE (email, mot de passe, rôle, actif) ;
+        etudiants      = la PERSONNE étudiante (état civil, matricule) ;
+        inscriptions   = un étudiant DANS une promotion POUR une année —
+                         c'est la clé de presque tout le reste (notes,
+                         paiements, délibérations, portail : partie 10
+                         §10).
+      Plus : personnel, dossiers_inscription (candidatures), roles/
+      permissions/role_permissions/user_roles (RBAC en base, complément
+      du RoleEnum), refresh_tokens, hierarchical_access.
+
+  COURS/PÉDAGOGIE/LMS (~16)
+      cours, cours_vacations, lecons, supports_cours, seances_live, quiz,
+      questions, reponses, tentatives_quiz, notes_questions,
+      progressions_etudiants, charges_horaires, horaires, salles,
+      laboratoires, presences. Le sous-ensemble lecons/quiz/progressions
+      est la brique e-learning (LMSController).
+
+  NOTES/ÉVALUATION/DÉLIBÉRATION (~13)
+      notes, examens, controle_cours, baremes_evaluation (+ lignes),
+      criteres_deliberation, deliberations, delibererations (DOUBLON MORT
+      — §4), releves_notes, lignes_releve, meilleurs_etudiants,
+      parametres_palmares, recours.
+
+  PAIEMENTS/FINANCE (~23, le plus gros domaine)
+      Deux sous-ensembles à distinguer :
+      - le FLUX de paiement : frais, categories_frais, affectations_frais
+        (frais ↔ promotions : c'est l'affectation qui rend un frais dû),
+        echeances/echeanciers, bons_paiement, paiements, transactions,
+        transactions_externes, transaction_logs, refunds, remboursements,
+        payment_providers, reconciliation_details/payment_reconciliation
+        (rapprochement avec les relevés opérateurs), exchange_rates
+        (multi-devises CDF/USD) ;
+      - la COMPTABILITÉ de l'université : caisses, operations_caisse,
+        budgets, depenses, categories_depense, comptes_comptables,
+        ecritures_comptables, informations_bancaires, payment_reports.
+
+  DOCUMENTS OFFICIELS/SIGNATURE (~6)
+      attestations, lettres_acceptation, equivalences_diplomes,
+      signataires_universite, signatures_electroniques,
+      regles_signature_document (quel type de document exige quelles
+      signatures — la configuration du circuit de signature).
+
+  RH/PAIE (~5)
+      paies, validations_paie, conges, contrats, presences_personnel.
+
+  VIE ÉTUDIANTE/SOCIAL/RECHERCHE/BIBLIOTHÈQUE (~25)
+      bourses (+ offres/conditions/candidatures), aides_sociales,
+      dossiers_sociaux, associations (+ membres),
+      evenements_universitaires (+ participants), stages/offres_stage/
+      candidatures_stage, conferences, publications, projets_recherche,
+      livres/categories_ouvrage/emprunts (bibliothèque), tfc/sujets_tfc/
+      chapitres_tfc/commentaires_tfc (le mémoire est suivi CHAPITRE par
+      chapitre avec commentaires de l'encadrant), soumissions_travaux/
+      travaux_devoirs/reponses_etudiant.
+
+  SYSTÈME/MONITORING (~15)
+      audit_logs, security_events, connexion_logs, notifications (+
+      parametres), alertes, messages, sms_logs (trace de chaque SMS
+      envoyé), device_tokens (push), reservations, services_universite,
+      parametres_universite, parametres_lmd, parametres_notification,
+      universite_configurations.
+
+
+4. POINTS PARTICULIERS À CONNAÎTRE (PIÈGES ET MOTIFS)
+--------------------------------------------------------------------------------
+  TABLE DUPLIQUÉE PAR FAUTE DE FRAPPE HISTORIQUE : le baseline contient
+  « deliberations » ET « delibererations » (un « re » en trop), colonnes
+  quasi identiques. Seule deliberations est mappée par une entité JPA
+  (Deliberation.java) ; delibererations est un résidu mort de l'ère
+  pré-squash. Ne JAMAIS l'utiliser (une requête SQL manuelle qui s'y
+  trompe lit une table vide) ; candidate à suppression dans une future
+  migration de nettoyage.
+
+  CONTRAINTES CHECK PLUTÔT QU'ENUMS POSTGRES pour deliberations :
+    decision : EN_ATTENTE, ADMIS, ADMIS_RATTRAPAGE, REDOUBLE, EXCLU, DIPLOME
+    mention  : TRES_GRANDE_DISTINCTION ... REUSSITE, AJOURNE
+    phase    : PREPARATION, PREMIERE, RATTRAPAGE, PUBLIEE, CLOTUREE
+    statut   : EN_PREPARATION, PRÊTE, TENUE, PUBLIEE
+  Avantage : ajouter une valeur = modifier la contrainte (simple ALTER),
+  pas un type. Revers : ajouter une valeur à l'enum Java SANS mettre à
+  jour la contrainte CHECK fait échouer les INSERT en prod (où le schéma
+  est verrouillé par Flyway) — penser à la migration correspondante.
+
+  BUG HISTORIQUE CORRIGÉ (V2) : annees_academiques.libelle portait une
+  contrainte unique GLOBALE — or « 2025-2026 » doit être unique PAR
+  UNIVERSITÉ, pas sur toute la plateforme (multi-tenant !). V2 supprime
+  la contrainte globale et conserve l'UNIQUE composite (libelle,
+  universite_id) déjà présent dans V1. Rappel pratique associé : ne
+  jamais créer une AnneeAcademique sans université — universite_id est
+  NOT NULL.
+
+  MOTIF VÉRIFICATION/TRAÇABILITÉ (anti-fraude documentaire) : les tables
+  de documents officiels portent un numéro séquentiel LISIBLE (pour
+  l'humain) ET une colonne uuid_verification UNIQUE (pour la machine) :
+  attestations (numero_attestation, uuid_verification), deliberations
+  (uuid_verification — vérification de diplôme), releves_notes
+  (numero_releve, uuid_verification), dossiers_inscription/
+  dossiers_sociaux (numero_dossier). L'UUID est imprimé en QR code sur le
+  PDF ; les endpoints publics /verifier/** (partie 10 §2) le résolvent.
+  Tout NOUVEAU document officiel doit reproduire ce motif.
+
+  CONTRAINTES UNIQUES MULTI-COLONNES (invariants métier gravés en base) :
+    notes (inscription_id, cours_id, annee_academique, session)
+      → un étudiant n'a qu'UNE note par cours/année/session — le
+        rattrapage est une AUTRE session, pas un écrasement.
+    criteres_deliberation (promotion_id, annee_academique_id)
+    progressions_etudiants (inscription_id, cours_id)
+    parametres_palmares (universite_id, annee_academique)
+    documents_officiels_config (universite_id, code)
+    departements (code, faculte_id)
+  Ces contraintes doublent les validations service : même un bug applicatif
+  ne peut pas créer les doublons correspondants.
+
+
+5. REDIS — CE QUI Y VIT (ET CE QUI N'Y VIT PAS)
+--------------------------------------------------------------------------------
+Redis ne stocke AUCUNE donnée pérenne — tout y est reconstructible :
+  - CACHE APPLICATIF : @Cacheable/@CacheEvict sur les services listés en
+    partie 02 §2. Clés préfixées genuc:cache:, TTL déclarés par cache dans
+    cd.genuc.config.cache.CacheNames (30 s pour un statut de paiement, 6 h
+    pour une fiche d'établissement). En cas de donnée « fantôme » en dev
+    (une modification qui ne s'affiche pas), vider le cache :
+    docker exec genuc-redis redis-cli FLUSHALL — sans risque ; ou, sans
+    toucher au reste de Redis, DELETE /api/admin/cache (SUPER_ADMIN).
+  - CANAL D'INVALIDATION : genuc:cache:invalidation (pub/sub). Chaque
+    instance y annonce ses écritures pour que les autres vident l'entrée
+    correspondante de leur cache mémoire. Aucune valeur n'y transite, juste
+    un nom de cache et une clé.
+  - RATE LIMITING : compteurs du RateLimitFilter, préfixe rl: (script Lua
+    « sliding window » — partie 05).
+Perdre Redis ne perd donc rien ; mais le backend EXIGE Redis joignable au
+démarrage (partie 12 §1).
+================================================================================

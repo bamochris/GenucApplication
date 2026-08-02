@@ -1,0 +1,398 @@
+================================================================================
+GENUC — PARTIE 2 : ARCHITECTURE BACKEND (Spring Boot) — VERSION APPROFONDIE
+================================================================================
+Chiffres bruts (genuc-backend/src/main/java/cd/genuc/) : 105 contrôleurs,
+110 services, 128 repositories, 141 fichiers sous model/ (entités JPA +
+enums), 45 DTO.
+
+Couches classiques : Controller → Service → Repository → Base de données.
+RÉPONSES REST — mise à jour 2026-07-16 : la classe cd.genuc.dto.
+ApiResponse<T> existe désormais (créée ce jour, elle n'existait PAS
+malgré ce qu'affirmait CLAUDE.md). GlobalExceptionHandler (situé dans
+config/, pas dans exception/) l'utilise pour TOUTES les erreurs :
+{ success:false, code, message i18n, status, timestamp, erreurs? } —
+mêmes clés qu'historiquement + champ additif « success ». Les endpoints
+EXISTANTS renvoient encore des ResponseEntity<?> avec DTO/Map ad hoc
+(le frontend consomme ces formes) ; les NOUVEAUX endpoints doivent
+renvoyer ApiResponse.ok(data). Détail du contrat en partie 10 §1.2.
+
+CHEMINEMENT D'UNE REQUÊTE (pour se repérer dans les packages) :
+  1. RateLimitFilter (security/) — compteur Redis par IP/route ; 429 si
+     dépassement ;
+  2. JwtAuthFilter (security/) — extrait le Bearer token, le valide via
+     JwtService, peuple le SecurityContext ;
+  3. règles d'URL de SecurityConfig (config/) puis @PreAuthorize de la
+     méthode — 401/403 si échec ;
+  4. contrôleur (controller/) — parse/valide (@Valid) et délègue ;
+  5. service (service/) — logique métier, transactions, cache, événements ;
+  6. repository (repository/) — Spring Data JPA vers PostgreSQL (routé
+     lecture/écriture par RoutingDataSource) ;
+  7. toute exception remonte au GlobalExceptionHandler qui la formate.
+
+
+1. STRUCTURE DES PACKAGES, RÔLE PAR RÔLE
+--------------------------------------------------------------------------------
+config/ (25 fichiers) — TOUT ce qui câble l'application :
+  SecurityConfig        chaîne de filtres + tableau des règles d'URL
+                        (reproduit en partie 10 §2). C'est LE fichier à
+                        ouvrir pour savoir qui peut appeler quoi.
+  SwaggerConfig         OpenAPI/springdoc + schéma d'auth Bearer (permet
+                        de tester les endpoints protégés depuis Swagger).
+  CacheConfig           cache Redis, sérialisation des valeurs, TTL.
+  DataSourceConfig + RoutingDataSource
+                        deux pools Hikari (primaire/replica) ; le routage
+                        envoie les lectures vers le réplica (voir §2).
+  WebConfig             CORS (ouvert en dev), ressources statiques
+                        (uploads/, build React dans static/).
+  MailConfig, S3Config, FirebaseConfig, TwilioConfig, TotpConfig,
+  KafkaConfig, WebClientConfig, MultipartConfig (50 MB max)
+                        une classe de config par intégration externe —
+                        chacune se désactive proprement si ses clés
+                        manquent (l'app démarre sans S3/Firebase/Twilio).
+  GenucProperties       @ConfigurationProperties typé : les réglages
+                        métier (comptes de test, base-url, secrets
+                        webhook...) lus depuis application.yml — préférer
+                        l'injection de cette classe à @Value dispersés.
+  GlobalExceptionHandler voir ci-dessus (oui, il vit ici, pas dans
+                        exception/ — piège de navigation classique).
+  DataInitializer, DataLoader, PaiementDataInitializer
+                        seeds idempotents exécutés au démarrage (comptes
+                        de test, université de démo, données paiement).
+  config/payment/       métadonnées PAR OPÉRATEUR mobile money
+                        (AfriMoneyMetadata, AirtelMoneyMetadata,
+                        OrangeMoneyMetadata, VodacomMpesaMetadata +
+                        BasePaymentMetadata) : URLs d'API, codes devise,
+                        formats de numéro — la partie « configuration »
+                        du pattern stratégie de paiement.
+
+controller/ (105 fichiers) — un contrôleur = une façade REST d'un domaine.
+  Inventaire complet avec routes et volumes en partie 10 §3 ; regroupement
+  indicatif :
+  - Académique : CoursController, NoteController (notes ET examens),
+    EvaluationAcademiqueController, ControleAcademiqueController,
+    HoraireController, EmploiUniversitaireController,
+    ChargeHoraireController, PresenceController, TfcController,
+    StageController, SupportCoursController.
+  - Structure : UniversiteController, DepartementController,
+    FiliereController/FilierePublicController, PromotionController,
+    AnneeAcademiqueController, CalendrierController.
+  - Étudiants/inscription : EtudiantController, EtudiantPortalController
+    (backend-for-frontend du portail étudiant), EtudiantDossierController,
+    InscriptionController, InscriptionPubliqueController,
+    DossierInscriptionController, CarteEtudiantController,
+    ChefPromotionController.
+  - Délibération/résultats : DeliberationController (ancienne génération),
+    DeliberationWorkflowController (génération actuelle),
+    CritereDeliberationController, PalmaresController, RecoursController,
+    AttestationController, LettreAcceptationController,
+    EquivalenceDiplomeController.
+  - Finance : TachPayController (hub, 34 endpoints), PaiementController,
+    PaymentController, PaymentMobileController, CallbackController,
+    BonDePaiementController, EcheanceController/EcheancierController,
+    CaisseController, ComptabiliteController, RapportFinancierController,
+    ReconciliationController, BourseController,
+    InformationBancaireController.
+  - RH : RHController, CongeController, VacationController.
+  - Campus : BibliothequeController, ConferenceController,
+    ProjetRechercheController, LaboratoireController,
+    VieUniversitaireController, ServiceSocialController, AlumniController.
+  - Admin/système : SuperAdminController, AuthController,
+    ActivationController, UtilisateurController, AuditLogController,
+    ParametresUniversiteController, DocumentOfficielConfigController,
+    SignataireUniversiteController, DemandeSignatureController,
+    MigrationImportController.
+  - Divers/infra : HealthController, ChatbotController,
+    NotificationController, DeviceTokenController, MessagerieController,
+    StatsController, AlerteController, EvaluationEnseignantController,
+    ForwardController (fallback SPA).
+
+service/ (110 fichiers) — la logique métier, miroir des domaines de
+  controller/, plus deux sous-packages :
+  - service/kafka/ : NotificationConsumer/Producer,
+    PaiementWebhookConsumer, PdfGenerationConsumer — le découplage
+    asynchrone : le contrôleur publie un événement, le consommateur fait
+    le travail lent (envoi, génération) hors requête HTTP.
+  - service/tachpay/ : le cœur paiement — MobileMoneyService,
+    StripeService, TachPayAdminService, TachPayPaiementService,
+    TachPayWebhookService, WebhookSecurityService (vérification HMAC,
+    contrat testé — partie 11 §1).
+
+repository/ (128 interfaces Spring Data JPA) — une par entité + quelques
+  repositories de requêtes spécifiques. Aucune implémentation manuelle :
+  Spring génère tout à partir des noms de méthodes/@Query.
+
+model/ (141 fichiers) — entités JPA + enums (statuts, rôles, types).
+  Détail par domaine en partie 04. Lombok @Builder/@Data largement utilisé.
+
+dto/ (45 fichiers) — package PLAT (PAS de sous-dossiers request/response
+  malgré ce que CLAUDE.md laisse penser) ; seuls deux sous-packages
+  existent : dto/callback/ (VodacomCallbackPayload, OrangeCallbackPayload,
+  AirtelCallbackPayload — les formats bruts des webhooks opérateur) et
+  dto/kafka/ (NotificationEvent, PaiementWebhookEvent, PdfGenerationEvent —
+  les messages du bus).
+
+exception/ (11 fichiers) — BusinessException (erreur métier générique,
+  → 400), PaymentException, ErrorResponse, et les exceptions NotFound par
+  domaine (Inscription/Paiement/Universite/Utilisateur/Echeance(ier)/
+  ResourceNotFoundException → 404), EmailAlreadyExistsException (→ 409),
+  InvalidCredentialsException (→ 401). Convention : le service LÈVE, le
+  GlobalExceptionHandler FORMATE — jamais de try/catch de présentation.
+
+mapper/ — N'EXISTE PAS (CLAUDE.md le mentionne à tort) ; la conversion
+  DTO ↔ entité se fait en ligne dans les services.
+
+security/ (6 fichiers) —
+  JwtAuthFilter          filtre par requête : Bearer → validation →
+                         SecurityContext.
+  JwtService             signature/validation des tokens ; claims : email
+                         (subject), rôle, universiteId, compteActive ;
+                         refuse un secret trop court (contrat vérifié par
+                         14 tests — partie 11 §1).
+  CustomUserDetailsService  charge l'Utilisateur pour Spring Security.
+  RefreshTokenService    stockage/rotation des refresh tokens + purge
+                         planifiée (03h00).
+  LoginAttemptService    verrouillage de compte après échecs répétés.
+  RateLimitFilter        limitation de débit Redis par script Lua
+                         « sliding window » — PAS Bucket4j : cette
+                         dépendance du pom est vestigiale.
+
+util/ (2 fichiers seulement) — PdfGenerateur, PasswordHashGenerator.
+  (Pas de JwtUtil/DateUtil/ValidationUtil, contrairement à CLAUDE.md.)
+
+job/ — TransactionTimeoutJob (voir §6).
+
+
+2. PATTERNS ARCHITECTURAUX, EXPLIQUÉS
+--------------------------------------------------------------------------------
+STRATÉGIE (paiement) : PaymentOrchestratorService construit une
+  Transaction persistée puis délègue l'initiation à l'implémentation de
+  l'opérateur choisi (Vodacom M-Pesa, Orange Money, Airtel Money,
+  AfriMoney, Stripe). Intérêt : ajouter un opérateur = une classe de
+  stratégie + ses métadonnées config/payment/, sans toucher au flux
+  commun (création, suivi, réconciliation). Le retour se fait par WEBHOOK
+  asynchrone — l'état d'une transaction n'est jamais « confirmé » dans la
+  requête HTTP initiale. Détail en partie 06.
+
+ROUTAGE LECTURE/ÉCRITURE : RoutingDataSource étend
+  AbstractRoutingDataSource — à chaque acquisition de connexion, une clé
+  de contexte décide du pool cible : écritures → primaire, lectures →
+  réplica. En dev les deux pools pointent sur la MÊME base (le routage est
+  transparent) ; en prod il permet de décharger les rapports/consultations
+  sur un réplica Postgres. Piège associé : une méthode de service marquée
+  lecture seule qui ÉCRIT échouera ou écrira au mauvais endroit — marquer
+  correctement les transactions.
+
+ÉVÉNEMENTIEL KAFKA : @EnableKafka + paires producteur/consommateur
+  (notifications, webhooks paiement, PDF). Le producteur publie un
+  événement typé (dto/kafka/) et répond immédiatement ; le consommateur
+  traite en tâche de fond. DÉSACTIVÉ par défaut en dev (KAFKA_ENABLED=
+  false) : le code bascule alors sur exécution directe — c'est pourquoi le
+  poste de dev n'a pas besoin de broker. En prod, le compose fournit
+  kafka + zookeeper.
+
+TÂCHES PLANIFIÉES : @EnableScheduling sur la classe principale ; les crons
+  vivent dans les services concernés (§6) — pas de scheduler central.
+
+CACHE : @EnableCaching + deux niveaux — Caffeine en mémoire (L1) devant Redis
+  (L2). Tout est déclaré dans cd.genuc.config.cache.CacheNames : nom, TTL et
+  éligibilité au L1, un seul fichier à modifier. @Cacheable/@CacheEvict dans
+  DeliberationService, EtudiantService, FiliereDetailsService,
+  HoraireService, NoteService, ParametresUniversiteService,
+  UniversiteService, TachPayAdminService/TachPayPaiementService.
+
+  - Le L1 n'est activé que pour les données de RÉFÉRENCE non nominatives
+    (universités, paramètres, filières, horaires). Jamais pour les notes, les
+    profils ni le financier. Les invalidations sont diffusées entre instances
+    par Redis pub/sub (canal genuc:cache:invalidation) ; un TTL local plafonné
+    à 120 s borne l'obsolescence si un message se perd.
+    Interrupteur : genuc.cache.local.enabled=false → retour à « Redis seul ».
+  - Le gestionnaire refuse de créer un cache non déclaré
+    (disableCreateOnMissingCache) : une faute de frappe dans un @Cacheable
+    échoue au lieu de créer un cache fantôme. DeclarationCachesTest vérifie au
+    build que tous les noms annotés existent dans CacheNames.
+  - Sérialisation : liste blanche de types (BasicPolymorphicTypeValidator sur
+    cd.genuc.*, java.util/time/lang/math). L'ancien LaissezFaireSubTypeValidator
+    permettait à quiconque pouvait écrire dans Redis de faire instancier
+    n'importe quelle classe du classpath. ModuleJacksonHibernate convertit les
+    collections et proxies Hibernate en types java.util : sans lui, le @class
+    écrit pointait sur PersistentBag et AUCUNE lecture de cache ne réussissait.
+  - Supervision : GET /api/admin/cache (SUPER_ADMIN) — TTL, taux de succès du
+    L1 ; DELETE /api/admin/cache[/{nom}] pour purger. Métrique d'erreurs :
+    genuc_cache_errors_total.
+
+  Règle d'or : toute mutation d'une donnée cachée doit porter le
+  @CacheEvict correspondant, sinon l'API sert du périmé — en
+  cas de donnée « fantôme » en dev, vider Redis (docker exec genuc-redis
+  redis-cli FLUSHALL) avant de chercher un bug applicatif.
+  Piège classique : @CacheEvict ne se déclenche PAS sur un appel interne à la
+  même classe (auto-invocation, le proxy Spring n'est pas traversé) — c'est la
+  raison des évictions globales sur NoteService.saisirEnLot/publierParCours.
+
+CACHE HTTP : HttpCacheConfig pose no-store sur tout /api/** par défaut (une
+  réponse authentifiée ne doit pas rester dans le cache disque d'un poste
+  partagé) et public/max-age=60 + ETag sur la liste blanche des ressources
+  publiques de référence.
+
+@Async : un seul usage identifié — DeliberationService (traitement de
+  délibération en tâche de fond, motif job + polling côté API : partie 10
+  §9.2).
+
+BUILDER : Lombok @Builder massif sur entités et DTO — les constructions
+  s'écrivent Entite.builder().champ(x).build().
+
+
+3. INTÉGRATIONS EXTERNES — QUOI, OÙ, POUR QUOI FAIRE
+--------------------------------------------------------------------------------
+  Email       : SMTP (MailConfig) + templates Thymeleaf dans Templates/
+                (email-activation.html, email-bienvenue.html,
+                lettre-acceptation.html) — EmailService. L'activation de
+                compte (partie 10 §5) dépend de ce canal : sans SMTP
+                configuré en dev, les comptes créés restent inactivables
+                par email (utiliser les remèdes de la partie 12 §5a).
+  SMS         : Africa's Talking (SmsService, entité SmsLog pour tracer
+                chaque envoi).
+  WhatsApp    : WhatsApp Business Cloud API (WhatsAppService).
+  Push mobile : Firebase Cloud Messaging (FirebaseConfig + firebase-admin,
+                PushNotificationService, entité DeviceToken — le front
+                enregistre son token via /api/notifications/push).
+  Twilio      : TwilioConfig — canal SMS/voix complémentaire.
+  Mobile money: Vodacom M-Pesa, Orange Money, Airtel Money, AfriMoney —
+                URLs SANDBOX en config par défaut ; webhooks signés
+                HMAC-SHA256 vérifiés par WebhookSecurityService.
+  Carte       : Stripe (service/tachpay/StripeService).
+  OCR         : Tesseract via tess4j (OcrLocalService) — 100 % local,
+                aucun appel réseau : analyse des pièces d'un dossier
+                d'inscription sans exposer les données des candidats.
+  PDF         : iText 7 — utilisé par AnalyseDocumentService,
+                CarteEtudiantService, EmailService,
+                LettreAcceptationService, PalmaresService,
+                PdfDeliberationService, RelevePdfService, RHService,
+                util/PdfGenerateur.
+  QR code     : ZXing pour les PNG web (présence, admission HTML) ;
+                iText barcodes pour les QR incorporés aux PDF officiels.
+  Excel/CSV   : Apache POI + commons-csv — ImportExportService (notes),
+                MigrationImportService (imports historiques).
+  Stockage    : AWS S3 (SDK v2) — S3Config, S3Service, URLs pré-signées
+                (téléchargement direct sans transiter par le backend),
+                domaine CloudFront optionnel.
+  2FA/TOTP    : totp-spring-boot-starter + TotpConfig, TwoFactorService.
+  Observabilité: Micrometer + Prometheus, OpenTelemetry (OTLP → Tempo),
+                Actuator health groups liveness/readiness.
+
+
+4. CONFIGURATION — OÙ SE RÈGLE QUOI
+--------------------------------------------------------------------------------
+application.yml — configuration de RÉFÉRENCE, indépendante du profil.
+  Convention systématique ${VARIABLE:defaut} : chaque réglage est
+  surchargeable par variable d'environnement sans toucher au fichier.
+  Contenu notable : pool Hikari (100 connexions primaire / 50 replica),
+  Flyway (désactivé par défaut — voir partie 12 §5b), cache Redis TTL
+  3600s, SMTP, Thymeleaf, Kafka (désactivé par défaut), secret/expiration
+  JWT + refresh, secrets de signature webhook PAR OPÉRATEUR, comptes de
+  test (externalisés), endpoints sandbox mobile money, Actuator/
+  Prometheus/OTel, logs structurés trace/span ID.
+application-dev.properties (98 lignes) / application-prod.properties
+  (69 lignes) — surcharges par environnement. Prod : flyway.enabled=true
+  + ddl-auto=validate (le schéma est verrouillé par les migrations).
+db/migration/ — scripts Flyway V1..V7 (V1 = baseline 132 tables), voir
+  partie 04.
+messages_fr.properties — bundle i18n (français uniquement pour l'instant ;
+  les messages d'erreur du GlobalExceptionHandler viennent de là).
+Templates/ — 3 templates Thymeleaf (emails, lettre d'admission).
+static/ — build React de production pré-compilé, servi par Spring Boot —
+  l'alternative same-origin au reverse proxy Nginx (§2 de la partie 01).
+
+DÉTAIL IMPORTANT — open-in-view : laissé à true (défaut Spring). Cela
+garde la session Hibernate ouverte pendant TOUT le rendu de la réponse,
+ce qui permet à la sérialisation Jackson de déclencher des chargements
+lazy. NoteController, CoursController, InscriptionController et
+UniversiteController renvoient encore des entités JPA BRUTES avec
+associations lazy : désactiver open-in-view aujourd'hui provoquerait des
+LazyInitializationException sur ces endpoints. La sortie propre est de
+migrer ces retours vers des DTO explicites AVANT de couper open-in-view
+(migration non commencée). D'ici là : open-in-view=true est un choix
+contraint, pas une préférence.
+
+
+5. RÔLES ET AUTORISATION
+--------------------------------------------------------------------------------
+15+ rôles (RoleEnum). Autorisation en deux étages : règles d'URL dans
+SecurityConfig + @PreAuthorize sur les méthodes (tableau complet en
+partie 10 §2 ; le code n'utilise PAS @Secured malgré CLAUDE.md).
+
+MÉCANIQUE DU PRÉFIXE ROLE_ (source d'un bug historique) : hasRole("X")
+compare avec l'authority « ROLE_X » (préfixe ajouté automatiquement),
+alors que hasAnyAuthority("X") compare LITTÉRALEMENT avec « X ». Comme
+JwtService produit des authorities préfixées ROLE_ (vérifié par test),
+un contrôleur écrit avec hasAnyAuthority('ETUDIANT') ne matche JAMAIS —
+PresenceController a eu ce bug. Règle : toujours hasRole/hasAnyRole, ou
+hasAuthority('ROLE_X') si on tient à la forme longue.
+Voir 05-authentification-securite.txt pour le détail complet.
+
+
+6. TÂCHES PLANIFIÉES (@Scheduled) — QUI TOURNE QUAND, ET POURQUOI
+--------------------------------------------------------------------------------
+  job/TransactionTimeoutJob          toutes les 60 s + passe de 2 min :
+      expire les transactions de paiement restées « en attente » (un
+      mobile money non confirmé ne doit pas bloquer un frais
+      indéfiniment) ; c'est le filet de sécurité complémentaire des
+      webhooks et de la réconciliation.
+  service/MetricsScheduler           toutes les 60 s : rafraîchit les
+      métriques métier exposées à Prometheus.
+  service/PalmaresService            02h00 : recalcul du palmarès si
+      autoGeneration est activé (classements par promotion/université).
+  service/ScheduledAlerteService     08h00 : génération/diffusion des
+      alertes du jour (échéances, événements).
+  service/ScheduledPenaliteService   minuit : applique les pénalités de
+      retard de paiement sur les échéances dépassées.
+  security/RefreshTokenService       03h00 : purge des refresh tokens
+      expirés (la table ne grossit pas indéfiniment).
+  model/ScheduledTasks               contient des crons (08h00, minuit,
+      02h00) explicitement DÉSACTIVÉS en commentaire — doublons
+      historiques des tâches ci-dessus, laissés en l'état pour éviter une
+      double exécution. Ne pas les réactiver sans supprimer l'équivalent.
+  NOTE d'exploitation : @Scheduled s'exécute dans CHAQUE instance — si le
+  backend est un jour répliqué en plusieurs pods, ces tâches tourneront
+  en double (prévoir un verrou type ShedLock à ce moment-là).
+
+
+7. TESTS (SYNTHÈSE — le détail complet est en partie 11)
+--------------------------------------------------------------------------------
+13 classes, 84 méthodes @Test, concentrées sur auth/sécurité et cinq
+services critiques. Points exacts à retenir :
+  - la majorité sont des tests unitaires Mockito ; seuls AuthControllerTest
+    et SecurityConfigTest chargent un contexte @SpringBootTest — et comme
+    AUCUN test n'active le profil « test », ces deux-là utilisent la
+    config par défaut et exigent le PostgreSQL local (piège détaillé en
+    partie 11 §3) ;
+  - H2 n'est utilisé automatiquement QUE par UtilisateurRepositoryTest
+    (@DataJpaTest) — l'affirmation « les tests tournent sur H2 » n'est
+    vraie que pour lui ;
+  - TestContainers : dépendance déclarée, JAMAIS utilisée ;
+  - JaCoCo : rapport généré à chaque mvn test (target/site/jacoco/), mais
+    le SEUIL de 70 % est lié à la phase verify que les commandes
+    documentées n'atteignent jamais — contrainte théorique (partie 11 §4).
+
+
+8. ÉCARTS HISTORIQUES AVEC CLAUDE.md — ET LEUR RÉSOLUTION (2026-07-16)
+--------------------------------------------------------------------------------
+CLAUDE.md a été RÉÉCRIT le 2026-07-16 pour coller à la réalité. État :
+  - ApiResponse<T> : n'existait pas → CRÉÉE (cd.genuc.dto.ApiResponse),
+    branchée sur GlobalExceptionHandler ; nouveaux endpoints = ApiResponse.
+  - Pas de package mapper/ (conversion DTO en ligne dans les services) —
+    toujours vrai, CLAUDE.md corrigé.
+  - dto/ n'est PAS scindé en request/response — toujours vrai.
+  - util/ ne contient que PdfGenerateur et PasswordHashGenerator.
+  - @PreAuthorize partout, pas @Secured — CLAUDE.md corrigé.
+  - Pas de server.servlet.context-path — /api est écrit dans chaque
+    contrôleur — CLAUDE.md corrigé.
+  - Testcontainers : était déclaré sans usage → désormais RÉELLEMENT
+    utilisé (IntegrationTestBase + PostgreSQL 15 conteneurisé pour les
+    @SpringBootTest — partie 11).
+  - Schéma piloté en dev par Hibernate (ddl-auto=update), Flyway désactivé
+    (réservé prod). Voir partie 04 — inchangé, documenté dans CLAUDE.md.
+  - bucket4j : dépendance morte SUPPRIMÉE du pom (rate limiting = script
+    Lua Redis).
+  - DataSourceConfig : le driver JDBC n'est plus codé en dur
+    (spring.datasource.driverClassName, défaut PostgreSQL).
+================================================================================

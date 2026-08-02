@@ -1,0 +1,98 @@
+/* src/styles/utilities/responsive.css */
+@import '../variables.css';
+
+/* ─── Mobile-first : tout est mobile par défaut ─── */
+
+/* ─── Tables responsives — scroll horizontal par défaut ─── */
+.table-responsive {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border-radius: var(--radius-lg);
+}
+
+/* ─── Tables responsives — vue "card" sur petit mobile ─── */
+@media (max-width: 600px) {
+  .table-responsive--cards .data-table thead {
+    display: none;
+  }
+
+  .table-responsive--cards .data-table,
+  .table-responsive--cards .data-table tbody,
+  .table-responsive--cards .data-table tr,
+  .table-responsive--cards .data-table td {
+    display: block;
+    width: 100%;
+  }
+
+  .table-responsive--cards .data-table tr {
+    background: white;
+    border-radius: 10px;
+    margin-bottom: 12px;
+    padding: 12px 14px;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.07);
+    border: 1px solid #f0f0f0;
+  }
+
+  .table-responsive--cards .data-table td {
+    border: none;
+    padding: 5px 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    font-size: 13px;
+    gap: 8px;
+  }
+
+  .table-responsive--cards .data-table td::before {
+    content: attr(data-label);
+    font-weight: 600;
+    color: #94a3b8;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    min-width: 110px;
+    flex-shrink: 0;
+  }
+
+  .table-responsive--cards .data-table td:last-child {
+    margin-top: 6px;
+    padding-top: 8px;
+    border-top: 1px solid #f0f0f0;
+    justify-content: flex-end;
+  }
+
+  .table-responsive--cards .data-table td:last-child::before {
+    display: none;
+  }
+
+  [data-theme="dark"] .table-responsive--cards .data-table tr {
+    background: #1e293b;
+    border-color: #334155;
+  }
+
+  [data-theme="dark"] .table-responsive--cards .data-table td {
+    border-top-color: #334155;
+  }
+}
+
+/* ─── Tablette ─── */
+@media (min-width: 768px) {
+  .hide-md { display: none !important; }
+  .show-md { display: block !important; }
+  .grid-cols-2-md { grid-template-columns: repeat(2, 1fr); }
+  .grid-cols-3-md { grid-template-columns: repeat(3, 1fr); }
+  .flex-row-md { flex-direction: row !important; }
+}
+
+/* ─── Desktop ─── */
+@media (min-width: 1024px) {
+  .hide-lg { display: none !important; }
+  .show-lg { display: block !important; }
+  .grid-cols-4-lg { grid-template-columns: repeat(4, 1fr); }
+  .grid-cols-6-lg { grid-template-columns: repeat(6, 1fr); }
+}
+
+/* ─── Grand écran ─── */
+@media (min-width: 1280px) {
+  .grid-cols-8-xl { grid-template-columns: repeat(8, 1fr); }
+}

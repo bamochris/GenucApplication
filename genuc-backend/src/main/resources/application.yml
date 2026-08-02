@@ -1,0 +1,510 @@
+# ======================================
+# GENUC Platform - Configuration YAML
+# ======================================
+
+spring:
+  application:
+    name: GENUC-Platform
+
+  # ─── Profil actif ───────────────────────────
+  # En local (sans -Dspring.profiles.active), le profil "dev" s'active par défaut.
+  # En prod, ACTIVE_PROFILE=prod doit être positionné explicitement (voir déploiement K8s/Docker).
+  profiles:
+    active: ${ACTIVE_PROFILE:dev}
+
+  main:
+    allow-circular-references: false  # Désactivé pour forcer la résolution des dépendances circulaires
+
+  # ─── Internationalisation (i18n) ────────────
+  messages:
+    basename: messages_fr
+    encoding: UTF-8
+    fallback-to-system-locale: false
+    use-code-as-default-message: true
+
+  # ─── Fichiers uploadés ──────────────────────
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 10MB    # plafonne les requêtes multipart (uploads)
+
+  # ─── Base de données PostgreSQL ─────────────
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/genuc_db}
+    username: ${DB_USERNAME:genuc_user}
+    # Pas de fallback en clair : le profil "dev" fournit ses propres identifiants locaux.
+    password: ${DB_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+    # Dimensionnement : voir DataSourceConfig. PostgreSQL accepte 100 connexions au total
+    # par défaut (max_connections) ; demander 200 + 100 garantissait des échecs d'acquisition
+    # sous charge. Le pool dimensionne le parallélisme RÉEL de la base, pas la concurrence
+    # applicative — la file d'attente devant le pool absorbe les pointes.
+    hikari:
+      maximum-pool-size: ${DB_POOL_SIZE:30}
+      minimum-idle: ${DB_POOL_MIN_IDLE:5}
+      connection-timeout: 20000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+      pool-name: GenucHikariPool
+      connection-test-query: SELECT 1
+      leak-detection-threshold: 60000
+      # Tuning pool replica (lecture seule)
+      replica:
+        maximum-pool-size: ${DB_REPLICA_POOL_SIZE:15}
+        minimum-idle: ${DB_REPLICA_POOL_MIN_IDLE:2}
+    # ─── Replica PostgreSQL (lecture seule) ─────
+    # En dev : pointe sur le même serveur (REPLICA_URL == DB_URL)
+    # En prod : pointer sur un vrai replica streaming PostgreSQL
+    replica:
+      url: ${REPLICA_URL:${DB_URL:jdbc:postgresql://localhost:5432/genuc_db}}
+      username: ${REPLICA_USERNAME:${DB_USERNAME:genuc_user}}
+      password: ${REPLICA_PASSWORD:${DB_PASSWORD}}
+
+  # ─── JPA / Hibernate ────────────────────────
+  jpa:
+    hibernate:
+      ddl-auto: ${JPA_DDL_AUTO:update}   # update en dev, validate en prod (géré par Flyway)
+    show-sql: false
+    # open-in-view VOLONTAIREMENT à true (défaut Spring). NE PAS désactiver tant que
+    # les contrôleurs renvoient des entités JPA brutes avec associations lazy
+    # (UniversiteController.listerPublic → Universite.facultes, NoteController,
+    # CoursController, InscriptionController, ...). Testé le 2026-07-25 : open-in-view:false
+    # casse GET /api/universites/public (LazyInitializationException → HTTP 500) sur le
+    # portail d'inscription public. Désactiver OSIV est la DERNIÈRE étape d'une migration
+    # complète vers des DTOs + JOIN FETCH, pas un flip de flag isolé.
+    open-in-view: true
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        jdbc:
+          batch_size: 20
+          # Nombre de lignes rapatriées par aller-retour réseau sur les grandes listes.
+          fetch_size: 100
+        order_inserts: true
+        order_updates: true
+        format_sql: true
+        use_sql_comments: true
+        # ─── Anti N+1 ────────────────────────────────────────────────────
+        # Le levier le plus rentable de toute cette configuration. open-in-view étant
+        # volontairement actif et les contrôleurs renvoyant des entités JPA brutes, chaque
+        # association paresseuse touchée pendant la sérialisation déclenche sa propre
+        # requête : lister 50 universités avec leurs 3 @ElementCollection, c'est 1 + 150
+        # allers-retours. Avec un batch de 50, Hibernate regroupe ces chargements en
+        # « WHERE id IN (…) » et le même écran tombe à quelques requêtes. Aucune
+        # modification du code métier, aucun changement de comportement visible.
+        default_batch_fetch_size: 50
+        query:
+          # Arrondit la taille des clauses IN aux puissances de 2 : deux listes de tailles
+          # voisines partagent alors le même plan préparé côté PostgreSQL au lieu d'en
+          # créer un par cardinalité.
+          in_clause_parameter_padding: true
+
+  # ─── Flyway ─────────────────────────────────
+  # V1__baseline_schema.sql = schéma complet (132 tables) généré depuis le schéma dev,
+  # aligné sur les 124 entités JPA. Les anciennes V1–V7 partielles (qui échouaient sur
+  # base vierge) ont été remplacées le 2026-07-02 — aucun environnement n'avait de
+  # flyway_schema_history (Flyway désactivé partout), le re-baseline est donc sans risque.
+  # baseline-version: 1 → une base DÉJÀ PEUPLÉE est marquée « V1 appliquée » (Flyway ne
+  # baseline que les schémas non vides) ; une base vierge exécute V1 normalement.
+  flyway:
+    enabled: ${FLYWAY_ENABLED:false}          # Désactivé en dev (ddl-auto:update suffit)
+    locations: classpath:db/migration
+    baseline-on-migrate: true                 # Sécurité : permet le premier run sur une BDD existante
+    baseline-version: 1
+    validate-on-migrate: true
+
+  # ─── Cache (Redis) ──────────────────────────
+  # ⚠️ Ces propriétés ne s'appliquent PAS : le RedisCacheManager est déclaré à la main dans
+  # cd.genuc.config.CacheConfig, qui court-circuite l'auto-configuration. Elles sont
+  # conservées pour rester cohérentes avec la configuration réelle (mêmes préfixe et
+  # politique de valeurs nulles) ; les TTL, eux, sont déclarés par cache dans
+  # cd.genuc.config.cache.CacheNames — c'est le seul endroit à modifier.
+  cache:
+    type: redis
+    redis:
+      time-to-live: 3600000
+      cache-null-values: false
+      use-key-prefix: true
+      key-prefix: "genuc:cache:"
+
+  # ─── Redis Connection ───────────────────────
+  # Mode standalone (dev) — pointer REDIS_SENTINEL_MASTER en prod pour Sentinel
+  data:
+    redis:
+      repositories:
+        enabled: false
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      timeout: 5000ms
+      # Sentinel HA (prod) — décommentez et configurez en prod :
+      # sentinel:
+      #   master: ${REDIS_SENTINEL_MASTER:genuc-master}
+      #   nodes: ${REDIS_SENTINEL_NODES:sentinel1:26379,sentinel2:26379,sentinel3:26379}
+      #   password: ${REDIS_SENTINEL_PASSWORD:}
+      lettuce:
+        pool:
+          # Aligné sur le pool de threads Tomcat : au-delà, les connexions supplémentaires
+          # ne peuvent de toute façon être utilisées par personne.
+          max-active: ${REDIS_POOL_SIZE:64}
+          max-idle: 16
+          min-idle: 4
+          max-wait: 2000ms
+        # Reconnexion automatique si Redis devient indisponible
+        shutdown-timeout: 200ms
+
+  # ─── Email (SMTP) ───────────────────────────
+  mail:
+    host: ${MAIL_HOST:smtp.gmail.com}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          connectiontimeout: 5000
+          timeout: 5000
+          writetimeout: 5000
+          starttls:
+            enable: true
+            required: true
+
+  # ─── Thymeleaf ──────────────────────────────
+  thymeleaf:
+    prefix: classpath:/Templates/
+    suffix: .html
+    cache: ${THYMELEAF_CACHE:false}
+
+  # ─── DevTools ───────────────────────────────
+  devtools:
+    restart:
+      enabled: false
+
+  # ─── Kafka ───────────────────────────────────
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    # Désactivé en dev — mettre KAFKA_ENABLED=true en prod
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      acks: "1"
+      retries: 3
+      properties:
+        spring.json.add.type.headers: false
+    consumer:
+      group-id: genuc-workers
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      auto-offset-reset: earliest
+      enable-auto-commit: false
+      properties:
+        spring.json.trusted.packages: "cd.genuc.dto.kafka"
+
+# ─── Server ──────────────────────────────────
+server:
+  port: ${SERVER_PORT:8082}
+  error:
+    include-message: ${SERVER_ERROR_INCLUDE_MESSAGE:on_param}
+    include-stacktrace: ${SERVER_ERROR_INCLUDE_STACKTRACE:never}
+  tomcat:
+    # 2000 threads réservaient ~2 Go de piles pour un pool de 30 connexions à la base :
+    # les threads supplémentaires ne faisaient qu'attendre, en dégradant le temps de
+    # réponse de tout le monde plutôt qu'en refusant proprement l'excédent. On
+    # dimensionne le pool de threads dans le même ordre de grandeur que la capacité réelle.
+    threads:
+      max: ${TOMCAT_MAX_THREADS:200}
+      min-spare: ${TOMCAT_MIN_SPARE_THREADS:20}
+    accept-count: ${TOMCAT_ACCEPT_COUNT:200}
+    connection-timeout: 10000
+    # Libère les connexions ouvertes inutilisées (SPA + navigateurs mobiles à réseau instable)
+    keep-alive-timeout: 30000
+    max-keep-alive-requests: 200
+  compression:
+    enabled: true
+    mime-types: application/json,application/xml,text/html,text/plain
+    min-response-size: 1024
+
+# ─── JWT ──────────────────────────────────────
+genuc:
+  kafka:
+    enabled: ${KAFKA_ENABLED:false}
+
+  # ─── Cache applicatif ───────────────────────
+  # Les noms, TTL et éligibilité au cache local sont déclarés dans
+  # cd.genuc.config.cache.CacheNames — un seul endroit, versionné avec le code.
+  cache:
+    local:
+      # Niveau 1 en mémoire (Caffeine) devant Redis, réservé aux données de référence
+      # non nominatives. Les invalidations sont diffusées entre instances par Redis
+      # pub/sub. Mettre à false pour revenir au comportement « Redis seul ».
+      enabled: ${CACHE_LOCAL_ENABLED:true}
+      # Plafond du TTL local : borne la fenêtre d'obsolescence si un message
+      # d'invalidation se perd (Redis momentanément injoignable).
+      ttl-max-seconds: ${CACHE_LOCAL_TTL_MAX_SECONDS:120}
+  jwt:
+    # Pas de fallback ici : le profil "dev" fournit sa propre clé de dev (application-dev.properties).
+    # En prod, JWT_SECRET doit être positionné en variable d'environnement — l'appli refuse de démarrer sinon.
+    secret: ${JWT_SECRET}
+    expiration: ${JWT_EXPIRATION:86400000}    # 24h (86400000 ms) en prod — 15 min (900000 ms) en dev via application-dev.properties
+  refresh-token:
+    # Les refresh tokens sont stockés HACHÉS (SHA-256) et tournés à chaque appel de
+    # /api/auth/refresh. Présenter un jeton déjà utilisé révoque toutes les sessions
+    # du compte (détection de rejeu) — cf. RefreshTokenService.
+    expiration-days: ${REFRESH_TOKEN_EXPIRATION_DAYS:7}
+
+  # ─── Proxies de confiance ───────────────────
+  # Les en-têtes X-Forwarded-For / X-Real-IP ne sont lus que si la connexion TCP
+  # provient d'une de ces plages. Ailleurs, ce sont des en-têtes falsifiables par le
+  # client : les honorer permettrait de contourner le rate limiting (une IP neuve à
+  # chaque tentative de connexion) et la whitelist IP des webhooks TachPay.
+  # Défaut = plages privées, ce qui correspond au déploiement type (Nginx en frontal
+  # sur le réseau Docker). METTRE À VIDE si le backend est exposé directement.
+  proxy:
+    trusted: ${TRUSTED_PROXIES:127.0.0.1/32,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16}
+
+  # ─── Fichiers téléversés ────────────────────
+  # Seuls les sous-dossiers d'identité visuelle (universites, logos, certificats) sont
+  # servis publiquement sous /uploads/**. Tout le reste passe par /api/fichiers/**,
+  # avec contrôle du propriétaire — cf. FichierAccesService.
+  # Le nom de fichier sur disque est toujours généré par le serveur, et l'extension
+  # comme la signature binaire du contenu sont validées (StockageFichierService).
+  uploads:
+    racine: ${UPLOADS_ROOT:uploads}
+    taille-max-mo: ${UPLOADS_MAX_MO:25}
+
+  # ─── Sécurité des webhooks de paiement ──────
+  # Chaque opérateur signe le corps brut du webhook en HMAC-SHA256 avec un
+  # secret partagé (en-tête X-Webhook-Signature). require-signature=true (défaut,
+  # prod) : un webhook sans secret configuré est REJETÉ. Les secrets doivent être
+  # fournis en variables d'environnement — jamais en dur ici.
+  webhook:
+    require-signature: ${WEBHOOK_REQUIRE_SIGNATURE:true}
+    secret: ${WEBHOOK_SECRET:}
+    # URL publique de base par laquelle les opérateurs rappellent nos webhooks
+    # (ex. tunnel ngrok en dev, domaine public en prod). Vide → pas de notifUrl.
+    public-base-url: ${WEBHOOK_PUBLIC_BASE_URL:}
+    vodacom:
+      secret: ${WEBHOOK_VODACOM_SECRET:}
+    airtel:
+      secret: ${WEBHOOK_AIRTEL_SECRET:}
+    orange:
+      secret: ${WEBHOOK_ORANGE_SECRET:}
+    afrimoney:
+      secret: ${WEBHOOK_AFRIMONEY_SECRET:}
+  payment:
+    mobile-money:
+      # false par défaut : en production, un opérateur mal configuré échoue
+      # au lieu de générer un faux identifiant local.
+      simulation-enabled: ${MOBILE_MONEY_SIMULATION_ENABLED:false}
+    card:
+      # Même principe pour Stripe Checkout : les sessions fictives ne sont
+      # autorisées qu'en dev local explicite.
+      simulation-enabled: ${CARD_PAYMENT_SIMULATION_ENABLED:false}
+
+  # Comptes de test : SUPPRIMÉS de la config de production.
+  # Les comptes de test doivent être créés uniquement via un script de seed
+  # dédié en environnement de développement, jamais dans la configuration
+  # partagée ou en production.
+
+# ─── SMS (Africa's Talking) ──────────────────
+africastalking:
+  api:
+    key: ${AFRICASTALKING_API_KEY:dev_key}
+  username: ${AFRICASTALKING_USERNAME:sandbox}
+  shortcode: ${AFRICASTALKING_SHORTCODE:default}
+sms:
+  enabled: ${SMS_ENABLED:false}
+
+# ─── WhatsApp Business (Meta Cloud API) ──────
+whatsapp:
+  api:
+    url: ${WHATSAPP_API_URL:https://graph.facebook.com/v19.0}
+  phone-number-id: ${WHATSAPP_PHONE_NUMBER_ID:dev_phone_id}
+  access-token: ${WHATSAPP_ACCESS_TOKEN:dummy}
+  enabled: ${WHATSAPP_ENABLED:false}
+
+# ─── Firebase Cloud Messaging (notifications push) ──
+firebase:
+  credentials:
+    base64: ${FIREBASE_CREDENTIALS_BASE64:}
+  enabled: ${FIREBASE_ENABLED:false}
+
+# ─── Twilio ──────────────────────────────────
+twilio:
+  account:
+    sid: ${TWILIO_ACCOUNT_SID:dummy}
+  auth:
+    token: ${TWILIO_AUTH_TOKEN:dummy}
+  phone:
+    number: ${TWILIO_PHONE_NUMBER:dummy}
+
+# ─── AWS S3 / CloudFront ─────────────────────
+aws:
+  region: ${AWS_REGION:eu-west-3}
+  access-key-id: ${AWS_ACCESS_KEY_ID:}
+  secret-access-key: ${AWS_SECRET_ACCESS_KEY:}
+  s3:
+    enabled: ${AWS_S3_ENABLED:false}          # false en dev, true en prod
+    bucket: ${AWS_S3_BUCKET:genuc-documents}
+    presigned-url-expiry-hours: 24
+  cloudfront:
+    domain: ${CLOUDFRONT_DOMAIN:}             # ex: d1abc123xyz.cloudfront.net
+
+# ─── Frontend ────────────────────────────────
+app:
+  base-url: ${APP_BASE_URL:http://localhost:3000}
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000,http://localhost:3001}
+
+# ─── Actuator / Prometheus / K8s probes / OTel ─────
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: when-authorized
+      group:
+        liveness:
+          include: livenessState
+        readiness:
+          include: readinessState,db,redis
+  health:
+    livenessstate:
+      enabled: true
+    readinessstate:
+      enabled: true
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
+      slo:
+        http.server.requests: 50ms,100ms,200ms,500ms,1000ms
+  tracing:
+    sampling:
+      probability: ${OTEL_SAMPLING_PROBABILITY:0.0}
+  otlp:
+    tracing:
+      endpoint: ${OTEL_EXPORTER_OTLP_ENDPOINT:http://localhost:4318/v1/traces}
+    metrics:
+      export:
+        enabled: false
+
+# ─── Logging structuré JSON (pour Loki/ELK) ─────────────
+logging:
+  level:
+    cd.genuc: INFO
+    org.springframework.web: WARN
+    # Supprime le doublon "Resolved [ClientAbortException]" — notre GlobalExceptionHandler logue déjà
+    org.springframework.web.servlet.mvc.method.annotation.ExceptionHandlerExceptionResolver: ERROR
+    org.hibernate.SQL: WARN
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] [%X{traceId}/%X{spanId}] %-5level %logger{36} - %msg%n"
+
+# ═══════════════════════════════════════════════
+#  CONFIGURATION DES OPÉRATEURS MOBILE MONEY
+# ═══════════════════════════════════════════════
+
+# ─── Vodacom M-Pesa ──────────────────────────
+vodacom:
+  mpesa:
+    api:
+      url: ${MPESA_API_URL:https://sandbox.mpesa.vodacom.com/v1/payment}
+    consumer:
+      key: ${MPESA_CONSUMER_KEY:dummy_key}
+      secret: ${MPESA_CONSUMER_SECRET:dummy_secret}
+    initiator:
+      name: ${MPESA_INITIATOR_NAME:dummy_initiator}
+      password: ${MPESA_INITIATOR_PASSWORD:dummy_pass}
+    shortcode: ${MPESA_SHORTCODE:171717}
+    environment: ${MPESA_ENVIRONMENT:sandbox}
+
+# ─── Orange Money ─────────────────────────────
+orange:
+  money:
+    api:
+      url: ${ORANGE_API_URL:https://api.orange.com/orange-money/v1/payment}
+    oauth:
+      url: ${ORANGE_OAUTH_URL:https://api.orange.com/oauth/v3/token}
+    client:
+      id: ${ORANGE_CLIENT_ID:dummy_client}
+      secret: ${ORANGE_CLIENT_SECRET:dummy_secret}
+    merchant:
+      code: ${ORANGE_MERCHANT_CODE:default}
+    environment: ${ORANGE_ENVIRONMENT:sandbox}
+
+# ─── Stripe (carte bancaire, Checkout hébergé) ───
+# Avec STRIPE_API_KEY : vraie page de saisie Stripe. Sans clé, l'appel échoue
+# sauf si genuc.payment.card.simulation-enabled=true (dev local explicite).
+# webhook-secret sert à vérifier la signature des webhooks (Stripe CLI en local,
+# whsec_...).
+stripe:
+  api:
+    key: ${STRIPE_API_KEY:}
+  webhook-secret: ${STRIPE_WEBHOOK_SECRET:}
+  webhook:
+    require-signature: ${STRIPE_WEBHOOK_REQUIRE_SIGNATURE:true}
+
+# ─── Airtel Money ─────────────────────────────
+airtel:
+  money:
+    api:
+      url: ${AIRTEL_API_URL:https://api.airtel.africa/money/v1/payment}
+    client:
+      id: ${AIRTEL_CLIENT_ID:dummy_client}
+      secret: ${AIRTEL_CLIENT_SECRET:dummy_secret}
+    merchant:
+      code: ${AIRTEL_MERCHANT_CODE:default}
+    environment: ${AIRTEL_ENVIRONMENT:sandbox}
+
+# ─── AfriMoney ─────────────────────────────────
+afrimoney:
+  api:
+    url: ${AFRIMONEY_API_URL:https://api.afrimoney.cd/v1/payment}
+  client:
+    id: ${AFRIMONEY_CLIENT_ID:dummy_client}
+    secret: ${AFRIMONEY_CLIENT_SECRET:dummy_secret}
+  merchant:
+    code: ${AFRIMONEY_MERCHANT_CODE:default}
+  environment: ${AFRIMONEY_ENVIRONMENT:sandbox}
+
+# ═══════════════════════════════════════════════
+#  RESILIENCE4J — Circuit breakers paiement externe
+# ═══════════════════════════════════════════════
+# Protège les appels aux opérateurs (Mobile Money, Stripe) : au-delà de
+# failure-rate-threshold % d'échecs RÉSEAU (OperateurPaiementException) sur la
+# fenêtre glissante, le circuit s'OUVRE et les appels échouent immédiatement
+# (fail-fast, HTTP 503) pendant wait-duration-in-open-state, au lieu de laisser
+# les threads s'accumuler sur un opérateur injoignable.
+# register-health-indicator=false : on n'expose pas l'état via /actuator/health
+# (sinon un circuit ouvert ferait basculer la santé) — on s'appuie sur les
+# métriques Micrometer resilience4j_circuitbreaker_* exportées vers Prometheus.
+# Aucun @Retry : re-tenter une initiation de paiement risquerait un double-débit.
+resilience4j:
+  circuitbreaker:
+    configs:
+      paiement:
+        register-health-indicator: false
+        sliding-window-type: COUNT_BASED
+        sliding-window-size: 20
+        minimum-number-of-calls: 8
+        failure-rate-threshold: 60
+        slow-call-duration-threshold: 8s
+        slow-call-rate-threshold: 80
+        wait-duration-in-open-state: 30s
+        permitted-number-of-calls-in-half-open-state: 3
+        automatic-transition-from-open-to-half-open-enabled: true
+        record-exceptions:
+          - cd.genuc.exception.OperateurPaiementException
+    instances:
+      operateurMobileMoney:
+        base-config: paiement
+      stripeCheckout:
+        base-config: paiement

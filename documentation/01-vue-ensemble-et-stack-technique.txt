@@ -1,0 +1,311 @@
+================================================================================
+GENUC — PARTIE 1 : VUE D'ENSEMBLE ET STACK TECHNIQUE (VERSION APPROFONDIE)
+================================================================================
+
+1. QU'EST-CE QUE GENUC ?
+--------------------------------------------------------------------------------
+GENUC (Gestion Numérique Universitaire Complète) est une plateforme
+NATIONALE de gestion universitaire pour la République Démocratique du
+Congo. « Nationale » a un sens architectural fort : une seule instance
+héberge PLUSIEURS universités (multi-tenant par colonne universiteId, pas
+par base séparée), avec un niveau de pilotage au-dessus d'elles
+(SUPER_ADMIN). Chaque université garde ses propres paramètres : frais,
+règles de délibération, signataires, moyens de paiement, thème visuel.
+
+La plateforme couvre le cycle de vie complet :
+  - ADMISSION PUBLIQUE : un candidat SANS compte dépose un dossier en
+    ligne, paie ses frais de dossier (mobile money/carte/guichet), est
+    instruit par l'université (documents, test d'admission), reçoit une
+    lettre d'acceptation vérifiable par QR code, puis un compte étudiant.
+  - SCOLARITÉ : inscription à une promotion, paiement des frais
+    académiques (échéanciers, bons de paiement, caisse physique), cours,
+    supports, présences par QR code, travaux, examens.
+  - RÉSULTATS : saisie/validation/publication des notes, délibérations en
+    jury (deux sessions + clôture), relevés, bulletins, palmarès,
+    attestations et diplômes — tous les documents officiels portent un
+    UUID vérifiable publiquement (lutte anti-faux diplômes).
+  - ADMINISTRATION : RH (congés, vacations), comptabilité/trésorerie,
+    bibliothèque, service social, communication (messagerie, alertes,
+    notifications push/SMS/WhatsApp), alumni, stages, TFC/mémoires.
+  - PILOTAGE NATIONAL : création des universités, statistiques
+    transverses, audit, migration assistée des données historiques des
+    universités qui rejoignent la plateforme.
+
+Le projet est composé de deux sous-projets INDÉPENDANTS dans le même dépôt
+git, qui communiquent uniquement par HTTP (API REST) :
+  genuc-backend/   → API Spring Boot 3.2 (Java 21, Maven)
+  genuc-frontend/  → SPA React 19 (Create React App, npm)
+Aucun partage de code, de build ni de package manager : on peut compiler,
+tester et déployer chacun sans l'autre. Le contrat entre les deux est
+l'API REST (documentée en partie 10 et via Swagger).
+
+
+2. ARCHITECTURE GÉNÉRALE DE COMMUNICATION
+--------------------------------------------------------------------------------
+
+    Navigateur (SPA React)
+        │  Axios (src/api/axios.js) — JWT en en-tête Authorization
+        ▼
+    Nginx (reverse proxy, déploiement complet)  ──►  /api  →  Spring Boot :8082
+                                                       /swagger-ui.html
+        ou, alternative same-origin :
+    Spring Boot sert directement le build React (src/main/resources/static/
+    + ForwardController qui renvoie index.html pour toute URL sans point)
+
+Pourquoi deux chemins de service du front :
+  - DERRIÈRE NGINX (production) : Nginx sert les fichiers statiques du
+    build React et proxifie /api vers le backend — même origine, pas de
+    CORS, cache statique efficace.
+  - SANS NGINX : le build React peut être copié dans static/ du backend ;
+    le ForwardController (partie 10 §1.5) assure le deep-linking SPA.
+  - EN DEV : deux serveurs distincts (3000 et 8082) ; le front appelle
+    directement REACT_APP_API_BASE_URL, le backend ouvre CORS en dev.
+
+Le frontend n'interroge JAMAIS PostgreSQL ou Redis directement — tout
+passe par l'API REST. C'est ce qui permet de considérer le backend comme
+la seule autorité (validation, sécurité, multi-tenancy).
+
+SUBTILITÉ IMPORTANTE — liens générés côté backend : les QR codes et les
+liens envoyés par email utilisent la convention « app.base-url » = origine
+du FRONTEND. Ils pointent vers des ROUTES FRONTEND (ex : /verifier-lettre/
+:uuid), jamais vers /api/... directement. Raison : un lien /api/... marche
+derrière Nginx mais pas en dev deux-ports, et n'offre aucune mise en page ;
+la route frontend, elle, fonctionne partout et appelle l'API elle-même.
+Conséquence pratique : changer l'URL publique du front exige de mettre à
+jour app.base-url côté backend, sinon les QR codes imprimés pointent au
+mauvais endroit.
+
+
+3. STACK TECHNIQUE — BACKEND (genuc-backend/), BRIQUE PAR BRIQUE
+--------------------------------------------------------------------------------
+Langage / runtime : Java 21 (LTS), build Maven. Spring Boot 3.2.0.
+
+STARTERS SPRING ET LEUR RÔLE DANS GENUC :
+  spring-boot-starter-web         API REST (Spring MVC, Tomcat embarqué,
+                                  Jackson pour le JSON).
+  spring-boot-starter-security    chaîne de filtres (JwtAuthFilter, rate
+                                  limit), règles d'URL + @PreAuthorize.
+  spring-boot-starter-data-jpa    Hibernate + Spring Data (128 repositories
+                                  générés par interface).
+  spring-boot-starter-validation  Bean Validation sur les DTO (@Valid) —
+                                  erreurs converties en 400 détaillés par
+                                  le GlobalExceptionHandler.
+  spring-boot-starter-mail        SMTP (activation de compte, lettres,
+                                  notifications).
+  spring-boot-starter-thymeleaf   templates HTML DES EMAILS et documents
+                                  (pas de pages web servies en Thymeleaf —
+                                  le front est React).
+  spring-boot-starter-webflux     UNIQUEMENT pour WebClient (appels HTTP
+                                  sortants vers les API mobile money etc.) ;
+                                  le serveur reste MVC bloquant classique.
+  starter-cache + data-redis      cache applicatif à deux niveaux (Caffeine
+                                  en mémoire devant Redis) via @Cacheable ;
+                                  TTL par cache déclarés dans CacheNames.
+                                  Redis porte aussi les compteurs du rate
+                                  limiting et le canal d'invalidation du
+                                  cache local entre instances.
+  caffeine                        cache de niveau 1 en mémoire, borné, avec
+                                  statistiques exportées vers Prometheus.
+  spring-boot-starter-actuator    /actuator/health (groups liveness/
+                                  readiness), métriques Prometheus.
+  spring-boot-devtools            rechargement à chaud en dev.
+
+BASE DE DONNÉES : PostgreSQL (driver org.postgresql), pool HikariCP
+  (20 connexions max). Deux datasources sont déclarées : la principale
+  (écriture) et une « replica » (lecture seule) routées par
+  RoutingDataSource — en dev les deux pointent sur la même base, en prod
+  cela permet de décharger les lectures sur un réplica (le compose définit
+  d'ailleurs postgres-replica + pgbouncer). Schéma géré en dev par
+  Hibernate (ddl-auto=update) ; Flyway (7 scripts, V1 = baseline de 132
+  tables) n'est ACTIVÉ qu'en production — détail et pièges en parties 04
+  et 12 §5b.
+
+SÉCURITÉ : JWT signés (jjwt 0.12.3) portant email/rôle/universiteId/
+  compteActive ; TOTP (dev.samstevens.totp) pour la 2FA ; rate limiting
+  maison sur Redis avec script Lua « sliding window » (la dépendance
+  bucket4j est déclarée mais NON utilisée — écart à connaître) ; sessions
+  STATELESS. Détail complet en partie 05.
+
+DOCUMENTS / PDF : iText 7 (kernel, io, layout, barcodes) génère TOUS les
+  PDF officiels : lettres d'acceptation, attestations, cartes d'étudiant,
+  bons de paiement, relevés/bulletins — y compris les QR codes INTÉGRÉS
+  aux PDF. ZXing (core + javase) génère les QR codes en PNG pour les
+  contextes web (affichage à l'écran, scanner de présence). Deux librairies
+  QR coexistent donc, chacune pour son support (PDF vs image web).
+
+OCR : Tesseract via tess4j — analyse LOCALE et déterministe des pièces
+  d'un dossier d'inscription (lecture des diplômes scannés). Choix
+  délibéré : pas d'IA en ligne, pas de données candidates envoyées à un
+  tiers, fonctionne sans internet.
+
+BUREAUTIQUE : Apache POI (poi-ooxml) pour l'import/export Excel (notes,
+  migration) ; commons-csv pour le CSV.
+
+COMMUNICATIONS SORTANTES : SMTP (email), Africa's Talking (SMS, opérateur
+  adapté au marché africain), WhatsApp Business Cloud API, Twilio,
+  Firebase Admin SDK (push mobile). Chaque canal a sa config dans config/
+  et se désactive proprement si les clés manquent.
+
+PAIEMENT : pattern STRATÉGIE — PaymentOrchestratorService délègue à une
+  implémentation par opérateur (Vodacom M-Pesa, Orange Money, Airtel
+  Money, AfriMoney) + Stripe pour la carte. Webhooks entrants signés
+  HMAC-SHA256, vérifiés par WebhookSecurityService ; réconciliation
+  périodique pour rattraper les webhooks perdus. Détail en partie 06 et
+  10 §7.
+
+ASYNCHRONE : Apache Kafka (spring-kafka) pour découpler les traitements
+  lents (emails, notifications, génération PDF, webhooks de paiement) —
+  service/kafka/ contient producteurs et consommateurs. DÉSACTIVÉ par
+  défaut en dev (KAFKA_ENABLED=false) : les traitements passent alors en
+  exécution directe, ce qui simplifie le poste de dev (pas de broker à
+  lancer).
+
+OBSERVABILITÉ : Micrometer → Prometheus (métriques), OpenTelemetry →
+  OTLP → Tempo (traces distribuées), logs structurés avec trace/span ID
+  pour corréler logs et traces. Actuator expose liveness/readiness.
+
+STOCKAGE FICHIERS : AWS S3 (SDK v2) pour les PDF générés (bons, reçus,
+  attestations) en cloud ; stockage local uploads/ (servi en GET public)
+  en alternative/complément. Limite d'upload : 50 MB.
+
+DOC API : springdoc-openapi → Swagger UI sur /swagger-ui.html, schéma
+  d'authentification Bearer intégré (on peut tester les endpoints
+  protégés depuis Swagger en collant un token).
+
+TESTS : JUnit 5, Mockito, Spring Security Test, H2. État RÉEL nuancé
+  (détail en partie 11) : 13 classes/84 tests concentrés sur le noyau
+  auth/sécurité ; H2 n'est utilisé automatiquement que par @DataJpaTest ;
+  TestContainers est déclaré mais utilisé nulle part ; le seuil JaCoCo de
+  70 % est lié à une phase Maven jamais exécutée — objectif déclaré, pas
+  contrainte appliquée.
+
+
+4. STACK TECHNIQUE — FRONTEND (genuc-frontend/), BRIQUE PAR BRIQUE
+--------------------------------------------------------------------------------
+FRAMEWORK : React 19.2 généré par Create React App (react-scripts 5.0.1).
+  Pas de Vite, pas de Next.js : pas de SSR, pas de code serveur — une SPA
+  pure dont tout le rendu se fait dans le navigateur. Choisir CRA en 2026
+  est daté, mais le coût de migration n'a pas été jugé prioritaire.
+
+ROUTING : react-router-dom v7. TOUTES les routes sont déclarées dans
+  src/App.js (fichier central volumineux mais qui donne la carte complète
+  de l'app d'un coup d'œil), avec chargement paresseux — React.lazy() —
+  de la plupart des pages : le bundle initial reste raisonnable malgré la
+  centaine d'écrans, chaque page n'étant téléchargée qu'à la première
+  visite.
+
+FORMULAIRES : react-hook-form + yup (@hookform/resolvers) pour les
+  formulaires complexes — le schéma Yup centralise les règles, RHF
+  minimise les re-rendus. Les formulaires simples (ex : connexion)
+  utilisent une validation manuelle useState — hétérogénéité assumée.
+
+HTTP : axios, instance UNIQUE dans src/api/axios.js. Les intercepteurs
+  (src/utils/apiInterceptors.js) attachent le JWT à chaque requête et, sur
+  401, appellent /api/auth/refresh puis REJOUENT la requête — la gestion
+  d'expiration de session est invisible pour les composants.
+
+ÉTAT GLOBAL : Context API uniquement — AuthContext (utilisateur + JWT,
+  persistés en localStorage), ThemeContext (clair/sombre). Pas de Redux ni
+  Zustand : l'état serveur est rechargé à la demande via les services, ce
+  qui évite tout problème de synchronisation de store.
+
+UI / COMPOSANTS : PAS de librairie de composants tierce (ni MUI, ni Ant) —
+  composants maison dans src/components/, stylés par variables CSS. Cela
+  donne le contrôle total du thème par université, au prix d'un coût
+  d'entretien des composants de base. Compléments ciblés : react-icons
+  (icônes FontAwesome), react-hot-toast (toasts), recharts (graphiques
+  des tableaux de bord).
+
+PDF CÔTÉ CLIENT : @react-pdf/renderer — certains documents sont générés
+  DANS le navigateur (aperçus, documents non officiels). Les documents
+  OFFICIELS restent générés côté backend (iText) car ils portent
+  signature/UUID de vérification.
+
+SÉCURITÉ FRONT : dompurify assainit tout HTML dynamique (anti-XSS) ;
+  react-google-recaptcha (v2) protège les formulaires publics (dépôt de
+  dossier, mot de passe oublié) contre les robots.
+
+PUSH : firebase (SDK client, FCM) — totalement optionnel : si les clés
+  REACT_APP_FIREBASE_* du .env sont vides, l'initialisation est sautée
+  proprement, aucune erreur console.
+
+QR CODE (SCAN) : react-qr-reader chargé en OPTIONNEL — require() dans un
+  try/catch dans ScannerPresence.jsx ; si le paquet n'est pas installé,
+  l'app propose la saisie manuelle du contenu du QR (repli fonctionnel :
+  la présence reste enregistrable).
+
+THÈME : variables CSS dans src/index.css + fichiers de thème
+  (src/styles/themes/dark.css). Fond de marque via body::before, surfaces
+  transparentes, JAMAIS de couleur en dur — règles détaillées en partie 12
+  §7 (elles conditionnent l'homogénéité visuelle de toute l'app).
+
+TESTS : l'outillage est installé (@testing-library/dom, /react,
+  /jest-dom, /user-event dans les dependencies + Jest via react-scripts)
+  mais AUCUN fichier de test n'existe à ce jour — voir partie 11 §5.
+
+
+5. RÔLES UTILISATEURS — QUI FAIT QUOI
+--------------------------------------------------------------------------------
+15+ rôles, chacun avec son dossier de pages (pages/<role>/), son layout
+(sidebar propre) et ses gardes backend (@PreAuthorize — le code n'utilise
+pas @Secured, contrairement à CLAUDE.md). Vue d'ensemble fonctionnelle :
+
+  SUPER_ADMIN           pilotage national : universités, stats globales,
+                        comptes, migration, transition d'années.
+  ADMIN_SYSTEME         exploitation technique (/api/systeme).
+  ADMIN_UNIVERSITE      le rôle-pivot : instruit les dossiers d'admission,
+                        gère frais/structures/paramètres DE SON université
+                        (multi-tenant par universiteId du JWT).
+  SECRETAIRE_ACADEMIQUE instruction des dossiers, délibérations,
+                        documents académiques.
+  RECTEUR / DOYEN       validation/consultation de niveau direction
+                        (délibérations, PV, rapports).
+  CHEF_DEPARTEMENT      validation des notes, délibérations de son
+                        département, charges horaires.
+  PROFESSEUR/ENSEIGNANT cours, supports, saisie des notes, présences
+                        (génération du QR), travaux, TFC encadrés.
+  ETUDIANT              portail (partie 10 §10) : cours, notes publiées,
+                        relevés, paiements, stages, TFC, présence (scan).
+  CAISSIER / AGENT      guichet TachPay : encaissements, bons, rapport
+                        journalier.
+  COMPTABLE             comptabilité, rapports financiers.
+  RH                    dossiers du personnel, congés, vacations.
+  BIBLIOTHECAIRE        catalogue, prêts, pénalités.
+  APPARITEUR            surveillance/logistique des examens.
+  SERVICE_SOCIAL        aides, cas sociaux (/api/social).
+  ALUMNI, AUDITEUR, INVITE  accès restreints spécifiques.
+
+La correspondance URL → rôle est codifiée dans SecurityConfig (tableau
+complet en partie 10 §2) ; la navigation par rôle est décrite en partie 03.
+
+
+6. COMPTES DE TEST (données de seed, environnement de développement)
+--------------------------------------------------------------------------------
+  Super Admin : admin@genuc.cd        / Genuc2024!
+  Professeur  : professeur@unikin.cd  / Prof123!
+  Étudiant    : etudiant@unikin.cd    / Etudiant123!
+  Sysadmin    : sysadmin@genuc.cd     / Sysadmin123!
+
+Créés au démarrage par DataInitializer/DataLoader (config/), de façon
+IDEMPOTENTE (existsByEmail — jamais d'écrasement d'une base existante).
+L'étudiant peut se connecter avec son email OU son matricule
+(ex : HECKIN202500001) — résolution matricule → email côté backend
+(AuthService.resoudreIdentifiant). Détails et réparation des comptes en
+partie 12 §4.
+
+
+7. ENVIRONNEMENTS D'EXÉCUTION
+--------------------------------------------------------------------------------
+  Backend  : mvn spring-boot:run → http://localhost:8082. PAS de context
+             path : le préfixe /api est porté par les contrôleurs
+             eux-mêmes (partie 10 §1.1).
+  Frontend : npm start → http://localhost:3000 (écoute 0.0.0.0 : testable
+             depuis un téléphone du même réseau — utile pour le scan QR).
+  Stack complète : docker-compose up -d depuis genuc-backend/ (le fichier
+             n'est PAS à la racine) — Postgres + réplica + PgBouncer +
+             Redis + Kafka/Zookeeper + Tempo + backend + frontend/Nginx.
+  Poste de dev actuel : PostgreSQL natif + Redis Docker + backend Eclipse —
+             particularités et pièges en partie 12 §3.
+
+Voir 09-deploiement-infrastructure.txt pour le détail.
+================================================================================

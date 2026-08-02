@@ -1,0 +1,15 @@
+# Exclure les fichiers inutiles du contexte Docker (accélère le build)
+target/
+*.md
+*.log
+.git
+.github
+.mvn/
+mvnw
+mvnw.cmd
+docker-compose*.yml
+Dockerfile*
+.env*
+*.iml
+.idea/
+.vscode/

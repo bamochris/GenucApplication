@@ -1,0 +1,171 @@
+/* src/components/SignatureBanner.css — bandeau et modal de signature */
+
+.sig-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 18px;
+  margin: 12px 16px 0;
+  border-radius: 12px;
+  font-size: 13.5px;
+}
+
+.sig-banner-warn {
+  background: rgba(217, 119, 6, 0.1);
+  border: 1px solid rgba(217, 119, 6, 0.35);
+  color: #92400e;
+}
+
+[data-theme="dark"] .sig-banner-warn { color: #fbbf24; }
+
+.sig-banner-info {
+  background: rgba(24, 95, 165, 0.08);
+  border: 1px solid rgba(24, 95, 165, 0.3);
+  color: #185FA5;
+}
+
+.sig-banner-icon { font-size: 20px; flex-shrink: 0; }
+.sig-banner-texte { flex: 1; min-width: 0; }
+
+.sig-banner-action {
+  flex-shrink: 0;
+  padding: 8px 16px;
+  border: none;
+  border-radius: 9px;
+  background: linear-gradient(120deg, #0B1F4A, #185FA5);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.sig-banner-action:hover { filter: brightness(1.12); }
+
+.sig-banner-fermer {
+  flex-shrink: 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+  opacity: 0.6;
+  cursor: pointer;
+  padding: 6px;
+}
+
+.sig-banner-fermer:hover { opacity: 1; }
+
+/* ─── Modal ─── */
+.sig-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1300;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(7, 16, 38, 0.6);
+  backdrop-filter: blur(4px);
+}
+
+.sig-modal {
+  width: min(480px, 100%);
+  background: var(--bg-card, #fff);
+  border-radius: 16px;
+  padding: 26px;
+  box-shadow: 0 24px 64px rgba(4, 12, 32, 0.4);
+}
+
+.sig-modal h3 {
+  margin: 0 0 8px;
+  font-size: 17px;
+  color: var(--text-primary, #0B1F4A);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.sig-modal h3 svg { color: #d97706; }
+
+.sig-modal p {
+  margin: 0 0 14px;
+  font-size: 13px;
+  color: var(--text-muted, #6b7280);
+  line-height: 1.5;
+}
+
+.sig-zone-apercu {
+  border: 2px dashed var(--border-color, #d1d5db);
+  border-radius: 12px;
+  min-height: 130px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 12px;
+  transition: border-color 0.15s;
+  background: var(--bg-secondary, #f8fafc);
+}
+
+.sig-zone-apercu:hover { border-color: #185FA5; }
+
+.sig-zone-apercu span {
+  font-size: 13px;
+  color: var(--text-muted, #6b7280);
+  text-align: center;
+}
+
+.sig-zone-apercu img {
+  max-width: 100%;
+  max-height: 140px;
+  object-fit: contain;
+}
+
+.sig-flash {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-radius: 9px;
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 12px;
+}
+
+.sig-flash-ok  { background: rgba(15, 110, 86, 0.1);  color: #0F6E56; }
+.sig-flash-err { background: rgba(185, 28, 28, 0.08); color: #B91C1C; }
+
+.sig-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.sig-btn-ghost {
+  padding: 10px 18px;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary, #4b5563);
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.sig-btn-primary {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 9px;
+  background: linear-gradient(120deg, #0B1F4A, #185FA5);
+  color: #fff;
+  font-size: 13.5px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.sig-btn-primary:disabled { opacity: 0.55; cursor: not-allowed; }
+
+@media (max-width: 640px) {
+  .sig-banner { flex-wrap: wrap; margin: 10px 10px 0; }
+  .sig-banner-action { width: 100%; text-align: center; }
+}

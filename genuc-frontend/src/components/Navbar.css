@@ -1,0 +1,866 @@
+/* src/components/Navbar.css - VERSION DÉFINITIVE AVEC TOGGLE STABLE ET CONTRASTE */
+:root {
+  --sidebar-bg: #0B1F4A;
+  --sidebar-border: rgba(255, 255, 255, 0.08);
+  --text-primary: #FFFFFF;
+  --text-secondary: #ffffff;
+  --text-tertiary: #9FE1CB;
+  --accent-color: #1D9E75;
+  --accent-light: #1D3A6E;
+  --hover-bg: rgba(255, 255, 255, 0.12);
+  --hover-bg-strong: rgba(255, 255, 255, 0.2);
+  --active-bg: rgba(29, 158, 117, 0.2);
+  --active-text: #9FE1CB;
+  --active-border-left: #1D9E75;
+  --error-color: #ff6b6b;
+  --error-bg: rgba(255, 107, 107, 0.15);
+
+  --sidebar-width: 264px;
+  --sidebar-width-collapsed: 68px;
+  --logo-icon-size: 34px;
+  --user-avatar-size: 32px;
+  --user-avatar-size-mobile: 28px;
+  --button-size: 32px;
+  --button-size-mobile: 28px;
+
+  --spacing-xs: 4px;
+  --spacing-sm: 8px;
+  --spacing-md: 10px;
+  --spacing-lg: 30px;
+  --spacing-xl: 16px;
+  --spacing-2xl: 18px;
+
+  --font-size-xs: 10px;
+  --font-size-sm: 12px;
+  --font-size-md: 13px;
+  --font-size-lg: 15px;
+  --font-size-xl: 16px;
+  --font-weight-normal: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+
+  --transition-fast: 0.15s;
+  --transition-normal: 0.3s;
+  --transition-timing: ease;
+
+  --border-radius-sm: 6px;
+  --border-radius-md: 8px;
+  --border-radius-lg: 50%;
+}
+
+.dark-mode {
+  --sidebar-bg: #0a0a1a;
+  --text-secondary: #B8D9FF;
+  --text-tertiary: #f0c040;
+  --active-bg: rgba(255, 255, 255, 0.08);
+  --active-text: #B8D9FF;
+  --active-border-left: #B8D9FF;
+  --hover-bg-strong: rgba(255, 255, 255, 0.12);
+}
+
+.sidebar {
+  width: var(--sidebar-width);
+  min-height: 100vh;
+  background-color: var(--sidebar-bg);
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  position: fixed;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  z-index: 1000;
+  transition: width var(--transition-normal) var(--transition-timing), background-color var(--transition-normal) var(--transition-timing);
+  box-shadow: 2px 0 8px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+}
+
+/* ─── En‑tête du logo (hauteur réduite) ─────────────────────── */
+.sidebar-logo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 12px;
+  border-bottom: 1px solid var(--sidebar-border);
+  flex-shrink: 0;
+  min-height: 44px;
+  gap: 8px;
+}
+
+/* ─── Image du logo ──────────────────────────────────────────── */
+.logo-image {
+  height: 32px;
+  width: auto;
+  max-width: 100%;
+  display: block;
+  transition: height var(--transition-fast) var(--transition-timing);
+}
+
+/* ─── Bouton de repli/dépliage (TOUJOURS VISIBLE) ──────────── */
+.sidebar-toggle {
+  background: rgba(255, 255, 255, 0.16);
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  color: #fff;
+  font-size: 20px;
+  width: 34px;
+  height: 34px;
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s, transform 0.15s;
+  flex-shrink: 0;
+}
+.sidebar-toggle:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+.sidebar-toggle:active {
+  transform: scale(0.92);
+}
+.sidebar-toggle:focus-visible {
+  outline: 2px solid var(--accent-color);
+  outline-offset: 2px;
+}
+
+/* ★★★ ZÉRO padding en haut du nav */
+.sidebar-nav {
+  flex: 1;
+  padding: 4px 8px 8px 8px;      /* TOP = 4px pour coller au logo */
+  overflow-y: auto;
+  overflow-x: hidden;
+  scroll-behavior: smooth;
+}
+
+.sidebar-nav::-webkit-scrollbar {
+  width: 6px;
+}
+
+.sidebar-nav::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.sidebar-nav::-webkit-scrollbar-thumb {
+  background-color: rgba(255, 255, 255, 0.2);
+  border-radius: 3px;
+  transition: background-color var(--transition-normal);
+}
+
+.sidebar-nav::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(255, 255, 255, 0.3);
+}
+
+/* ─── Liens (boutons rectangulaires) avec contraste amélioré ── */
+.nav-link {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  padding: 11px 16px;
+  margin-bottom: 2px;
+  color: #ffffff;               /* blanc pur */
+  font-size: 16px;
+  font-weight: 500;
+  text-decoration: none;
+  border-radius: var(--border-radius-sm);
+  background: transparent;
+  transition: all var(--transition-fast) var(--transition-timing);
+  border: none;
+  position: relative;
+  user-select: none;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3); /* ombre pour améliorer la lisibilité */
+}
+
+/* Variante bouton (ex: bascule d'un module de la sidebar) : hérite du style
+   .nav-link mais neutralise le rendu natif des <button>. */
+.nav-link-action {
+  width: 100%;
+  font-family: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+/* ─── Modules dépliables (Administration, Académique, Finance, Paramètres…) ───
+   Se déplient en place dans la sidebar au lieu d'ouvrir une boîte de dialogue. */
+.nav-group-chevron {
+  width: 13px;
+  height: 13px;
+  flex-shrink: 0;
+  opacity: 0.7;
+  transition: transform var(--transition-fast) var(--transition-timing);
+}
+
+.nav-group-chevron-ouvert {
+  transform: rotate(180deg);
+}
+
+.nav-subgroup {
+  display: flex;
+  flex-direction: column;
+  margin: 2px 0 4px;
+  padding-left: 8px;
+  border-left: 2px solid rgba(255, 255, 255, 0.15);
+  margin-left: 14px;
+}
+
+.nav-sublink {
+  padding: 8px 8px;
+  font-size: 13px;
+  gap: 8px;
+}
+
+.nav-sublink .nav-icon {
+  font-size: 15px;
+  width: 17px;
+}
+
+.nav-sublink .nav-icon svg {
+  width: 15px;
+  height: 15px;
+}
+
+.sidebar.collapsed .nav-subgroup {
+  display: none;
+}
+
+.nav-link:hover {
+  background: var(--hover-bg);
+  color: #ffffff;
+  transform: translateX(4px);
+}
+
+.nav-link.active {
+  background: var(--active-bg);
+  color: var(--active-text);
+  box-shadow: inset 3px 0 0 var(--active-border-left);
+  font-weight: 600;
+  text-shadow: none;
+}
+
+.nav-link:focus-visible {
+  outline: 2px solid var(--accent-color);
+  outline-offset: -2px;
+}
+
+/* ─── Icônes ─────────────────────────────────────────────────── */
+.nav-icon {
+  font-size: 26px;
+  width: 30px;
+  text-align: center;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
+.nav-icon svg {
+  width: 26px;
+  height: 26px;
+  display: block;
+}
+
+.nav-label {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+  transition: opacity var(--transition-fast) var(--transition-timing);
+}
+
+/* ─── Pied de la sidebar (utilisateur, boutons) ────────────── */
+.sidebar-user {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-md);
+  padding: var(--spacing-lg) var(--spacing-xl);
+  border-top: 1px solid var(--sidebar-border);
+  flex-shrink: 0;
+  background-color: rgba(0, 0, 0, 0.1);
+}
+
+.sidebar-user-left {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  flex: 1;
+  min-width: 0;
+}
+
+.sidebar-user-right {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  flex-shrink: 0;
+}
+
+.user-avatar {
+  width: var(--user-avatar-size);
+  height: var(--user-avatar-size);
+  border-radius: var(--border-radius-lg);
+  background-color: var(--accent-light);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-tertiary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  flex-shrink: 0;
+  cursor: pointer;
+  transition: all var(--transition-normal) var(--transition-timing);
+}
+
+.user-avatar:hover {
+  background-color: var(--accent-color);
+  color: var(--text-primary);
+}
+
+.user-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.user-name {
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-normal);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.4;
+}
+
+.user-role {
+  color: var(--text-secondary);
+  font-size: var(--font-size-xs);
+  line-height: 1.4;
+}
+
+.theme-toggle,
+.logout-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--button-size);
+  height: var(--button-size);
+  border: none;
+  border-radius: var(--border-radius-sm);
+  cursor: pointer;
+  font-size: var(--font-size-xl);
+  transition: all var(--transition-normal) var(--transition-timing);
+  flex-shrink: 0;
+}
+
+.theme-toggle {
+  background-color: rgba(255, 255, 255, 0.08);
+  color: var(--text-secondary);
+}
+
+.theme-toggle:hover {
+  background-color: var(--hover-bg-strong);
+  color: var(--text-primary);
+  transform: scale(1.05);
+}
+
+.theme-toggle:active {
+  transform: scale(0.95);
+}
+
+.theme-toggle:focus-visible {
+  outline: 2px solid var(--accent-color);
+  outline-offset: 2px;
+}
+
+.dark-mode .theme-toggle {
+  color: var(--text-tertiary);
+}
+
+/* Déconnexion : toujours identifiable au premier regard (fond rouge translucide),
+   c'est le SEUL bouton de sortie de session pour les rôles sans top-bar (AppLayout). */
+.logout-btn {
+  background-color: rgba(220, 53, 69, 0.25);
+  color: #ffb4bc;
+}
+
+.logout-btn:hover {
+  color: #fff;
+  background-color: #dc3545;
+}
+
+.logout-btn:active {
+  transform: scale(0.95);
+}
+
+.logout-btn:focus-visible {
+  outline: 2px solid var(--error-color);
+  outline-offset: 2px;
+}
+
+/* ─── LIBELLÉS DE SECTION (modules du menu) ─────────────────── */
+.nav-section-label {
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: rgba(255, 255, 255, 0.45);
+  padding: 14px 16px 4px;
+  user-select: none;
+}
+
+.nav-section-label:first-child { padding-top: 4px; }
+
+/* ─── SIDEBAR REPLIÉE (collapsed) ───────────────────────────── */
+.sidebar.collapsed {
+  width: var(--sidebar-width-collapsed);
+}
+
+/* En mode replié, un simple séparateur remplace le libellé de section */
+.sidebar.collapsed .nav-section-label {
+  padding: 0;
+  margin: 8px 12px;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.18);
+  font-size: 0;
+  overflow: hidden;
+}
+
+/* En mode replié (68px), le logo n'a plus la place : on le masque pour que le
+   bouton déplier/replier occupe seul l'en-tête, centré et bien visible. */
+.sidebar.collapsed .sidebar-logo {
+  justify-content: center;
+  padding: 8px 0;
+}
+
+.sidebar.collapsed .logo-image {
+  display: none;
+}
+
+.sidebar.collapsed .sidebar-toggle {
+  width: 42px;
+  height: 42px;
+  font-size: 22px;
+  background: rgba(255, 255, 255, 0.22);
+}
+
+.sidebar.collapsed .nav-label,
+.sidebar.collapsed .user-info {
+  display: none;
+}
+
+.sidebar.collapsed .nav-link {
+  justify-content: center;
+  padding: 12px 8px;
+  gap: 0;
+}
+
+.sidebar.collapsed .nav-icon {
+  margin: 0;
+  font-size: 22px;
+  width: auto;
+}
+
+.sidebar.collapsed .nav-icon svg {
+  width: 22px;
+  height: 22px;
+}
+
+.sidebar.collapsed .sidebar-user {
+  flex-direction: column;
+  padding: var(--spacing-md);
+  gap: var(--spacing-sm);
+}
+
+.sidebar.collapsed .sidebar-user-left {
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-xs);
+}
+
+.sidebar.collapsed .sidebar-user-right {
+  flex-direction: column;
+  gap: var(--spacing-xs);
+  width: 100%;
+  justify-content: center;
+}
+
+.sidebar.collapsed .theme-toggle {
+  width: var(--button-size-mobile);
+  height: var(--button-size-mobile);
+  font-size: var(--font-size-lg);
+}
+
+/* La déconnexion garde une taille confortable même repliée : pour les rôles
+   sans top-bar, c'est l'unique sortie de session visible. */
+.sidebar.collapsed .logout-btn {
+  width: 36px;
+  height: 36px;
+  font-size: var(--font-size-lg);
+}
+
+.sidebar.collapsed .user-avatar {
+  width: var(--user-avatar-size-mobile);
+  height: var(--user-avatar-size-mobile);
+  font-size: var(--font-size-xs);
+}
+
+/* ─── Responsive ─────────────────────────────────────────────── */
+@media (max-width: 1024px) {
+  :root {
+    --sidebar-width: 212px;
+  }
+  .nav-link {
+    padding: 10px 14px;
+    font-size: var(--font-size-md);
+  }
+  .nav-icon {
+    font-size: 22px;
+    width: 26px;
+  }
+  .nav-icon svg {
+    width: 22px;
+    height: 22px;
+  }
+}
+
+/* ─── Bouton hamburger (mobile uniquement) ───────────────────── */
+.mobile-menu-toggle {
+  display: none;
+}
+
+/* ─── Overlay derrière le tiroir mobile ───────────────────────── */
+.sidebar-overlay {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  :root {
+    --sidebar-width: 260px;
+  }
+
+  .mobile-menu-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: fixed;
+    top: 12px;
+    left: 12px;
+    width: 40px;
+    height: 40px;
+    z-index: 1200;
+    background: var(--sidebar-bg);
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    font-size: 18px;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+  }
+
+  .sidebar-overlay {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 999;
+    animation: fadeInOverlay 0.2s ease;
+  }
+
+  @keyframes fadeInOverlay {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  /* Le tiroir reste hors-écran par défaut, quel que soit l'état "collapsed" desktop */
+  .sidebar,
+  .sidebar.collapsed {
+    width: var(--sidebar-width);
+    transform: translateX(-100%);
+    transition: transform var(--transition-normal) var(--transition-timing);
+  }
+
+  .sidebar.mobile-open,
+  .sidebar.collapsed.mobile-open {
+    transform: translateX(0);
+  }
+
+  .sidebar.collapsed .nav-label,
+  .sidebar.collapsed .user-info {
+    display: block;
+  }
+
+  .sidebar.collapsed .nav-link {
+    justify-content: flex-start;
+    padding: 10px 14px;
+    gap: var(--spacing-md);
+  }
+
+  .sidebar.collapsed .nav-icon {
+    font-size: 22px;
+    width: 28px;
+  }
+
+  .sidebar.collapsed .sidebar-user {
+    flex-direction: row;
+    padding: var(--spacing-lg) var(--spacing-xl);
+    gap: var(--spacing-md);
+  }
+
+  .sidebar.collapsed .sidebar-user-left {
+    flex-direction: row;
+    align-items: center;
+  }
+
+  .sidebar.collapsed .sidebar-user-right {
+    flex-direction: row;
+    width: auto;
+  }
+
+  .sidebar-logo {
+    justify-content: space-between;
+    padding: 4px 8px;
+    min-height: 36px;
+    padding-left: 56px; /* laisse la place au bouton hamburger fixe */
+  }
+
+  .logo-image {
+    height: 28px;
+  }
+
+  .sidebar-toggle {
+    display: none; /* le repli desktop n'a pas de sens sur le tiroir mobile plein écran */
+  }
+
+  .sidebar-nav {
+    padding: 2px 4px 4px 4px;
+  }
+
+  .sidebar-nav::-webkit-scrollbar {
+    width: 3px;
+  }
+}
+
+/* ─── Animations ─────────────────────────────────────────────── */
+@keyframes slideInNav {
+  from {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.nav-link {
+  animation: slideInNav 0.3s ease-out forwards;
+}
+
+.nav-link:nth-child(n) {
+  animation-delay: calc(0.02s * var(--index, 0));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sidebar,
+  .nav-link,
+  .theme-toggle,
+  .logout-btn,
+  .user-avatar {
+    transition: none;
+    animation: none;
+  }
+  .nav-link:hover {
+    transform: none;
+  }
+  .theme-toggle:hover {
+    transform: none;
+  }
+}
+
+@media print {
+  .sidebar {
+    display: none;
+  }
+}
+
+/* ============================================================
+   AMÉLIORATIONS ESTHÉTIQUES DES ICÔNES
+   ============================================================ */
+
+/* ─── Taille et espacement des icônes ────────────────────── */
+.nav-icon {
+  font-size: 22px;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: all 0.25s ease;
+  border-radius: 8px;
+}
+
+.nav-icon svg {
+  width: 22px;
+  height: 22px;
+  transition: transform 0.25s ease;
+}
+
+/* ─── Effet de survol ────────────────────────────────────── */
+.nav-link:hover .nav-icon {
+  transform: scale(1.15) rotate(-3deg);
+}
+
+.nav-link:hover .nav-icon svg {
+  transform: scale(1.1);
+}
+
+/* ─── Effet pour l'élément actif ────────────────────────── */
+.nav-link.active .nav-icon {
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  box-shadow: 0 0 0 2px rgba(29, 158, 117, 0.3);
+}
+
+/* ─── Ajout d'une pastille de couleur pour l'élément actif ─ */
+.nav-link.active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 4px;
+  height: 60%;
+  background: var(--active-border-left);
+  border-radius: 0 4px 4px 0;
+  transition: height 0.3s ease;
+}
+
+/* ─── Espacement entre les liens ─────────────────────────── */
+.nav-link {
+  margin-bottom: 6px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  transition: all 0.2s ease;
+  position: relative;
+}
+
+/* ─── Animation de survol ────────────────────────────────── */
+.nav-link:hover {
+  transform: translateX(6px);
+  background: var(--hover-bg);
+  border-radius: 10px;
+}
+
+/* ─── Couleur de l'icône au survol ───────────────────────── */
+.nav-link:hover .nav-icon {
+  filter: brightness(1.2) saturate(1.2);
+}
+
+/* ─── Responsive ───────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .nav-icon {
+    font-size: 20px;
+    width: 28px;
+    height: 28px;
+  }
+  .nav-icon svg {
+    width: 20px;
+    height: 20px;
+  }
+}
+
+@media (max-width: 480px) {
+  .nav-icon {
+    font-size: 18px;
+    width: 24px;
+    height: 24px;
+  }
+  .nav-icon svg {
+    width: 18px;
+    height: 18px;
+  }
+}
+
+/* ─── Modal Logout ───────────────────────────────────────────── */
+.logout-modal {
+  max-width: 380px;
+  width: 90vw;
+}
+
+.logout-modal-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #0B1F4A;
+  margin: 0 0 10px;
+}
+
+.logout-modal-body {
+  color: #555;
+  font-size: 14px;
+  margin-bottom: 20px;
+}
+
+.logout-modal-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+[data-theme="dark"] .logout-modal-title {
+  color: #f1f5f9;
+}
+
+[data-theme="dark"] .logout-modal-body {
+  color: #94a3b8;
+}
+
+/* ─── Barre d'onglets du module actif ───
+   Rendue par AppLayout, en flux normal, JUSTE SOUS la barre supérieure
+   (PortalTopbar). N'utilise que des variables sémantiques que ce fichier ne
+   redéfinit pas (bg-card, border-color, text-muted, color-accent) → s'adapte
+   au thème clair/sombre. */
+.module-topbar {
+  display: flex;
+  align-items: stretch;
+  min-width: 0;
+  max-width: 100%;
+  height: 46px;
+  background: var(--bg-card, #ffffff);
+  border-bottom: 1px solid var(--border-color, #e0e0e0);
+}
+.module-topbar-inner {
+  display: flex;
+  align-items: stretch;
+  gap: 2px;
+  min-width: 0;
+  width: 100%;
+  padding: 0 12px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(120, 120, 120, 0.4) transparent;
+}
+.module-topbar-inner::-webkit-scrollbar { height: 4px; }
+.module-topbar-inner::-webkit-scrollbar-thumb { background: rgba(120, 120, 120, 0.4); border-radius: 4px; }
+
+.module-tab {
+  display: inline-flex;
+  align-items: center;
+  white-space: nowrap;
+  padding: 0 15px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-muted, #6b7280);
+  background: transparent;
+  border: none;
+  border-bottom: 3px solid transparent;
+  cursor: pointer;
+  text-decoration: none;
+  transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+}
+.module-tab:hover { color: var(--color-accent, #185FA5); background: rgba(24, 95, 165, 0.06); }
+.module-tab.active {
+  color: var(--color-accent, #185FA5);
+  background: rgba(24, 95, 165, 0.08);
+  border-bottom-color: var(--color-accent, #185FA5);
+}

@@ -1,0 +1,284 @@
+================================================================================
+GENUC — PARTIE 8 : MODULES MÉTIER (RH, BIBLIOTHÈQUE, SOCIAL, COMMUNICATION,
+PRÉSENCES, MIGRATION, VIE UNIVERSITAIRE) — VERSION APPROFONDIE
+================================================================================
+Ces modules complètent le noyau admission/paiement/académique. Ils sont
+inégalement aboutis : RH, bibliothèque, migration et présences sont des
+workflows complets ; vie universitaire/alumni/stages/TFC sont des extras
+autonomes du portail étudiant (§7).
+
+
+1. RESSOURCES HUMAINES (RH)
+--------------------------------------------------------------------------------
+Backend  : RHService, CongeService (RHController /api/rh — 21 endpoints,
+           CongeController /api/conges, VacationController /api/vacations)
+Frontend : pages/rh/ (RHDashboard, GestionEmployes, GestionCongesRH,
+           GestionPaieRH), pages/admin/rh/ (EvaluationsEnseignants,
+           GestionEmploiEtudiant), pages/comptable/ValidationPaieComptable
+Rôle d'URL : /api/rh/** exige le rôle RH (partie 10 §2).
+
+Gère le cycle de vie complet du personnel (enseignant ET administratif).
+
+ENTITÉS ET LEUR LOGIQUE :
+  Personnel          fiche employé — type ENSEIGNANT/ADMINISTRATIF,
+                     grade, spécialité, statut. Distinct du COMPTE
+                     Utilisateur (même dualité que etudiants/utilisateurs,
+                     partie 04 §3).
+  Contrat            contrat de travail : salaire de base, dates, statut
+                     ACTIF/RESILIE — le salaire de référence de la paie.
+  PresencePersonnel  pointage du personnel — TABLE DISTINCTE des
+                     présences étudiantes (§5) : ne pas les confondre.
+  Paie               bulletin mensuel : salaire de base + prime + heures
+                     supplémentaires + indemnités − CNSS − impôt −
+                     mutuelle = net à payer (les retenues suivent le
+                     droit du travail congolais).
+  ValidationPaie     workflow d'approbation SÉPARÉ de la paie elle-même
+                     (EN_ATTENTE → VALIDE/REJETE) : c'est un COMPTABLE
+                     qui valide, pas le service RH — séparation des
+                     pouvoirs entre qui prépare et qui approuve.
+
+CIRCUIT PAIE : génération par employé/mois (RH) → validation comptable
+(ValidationPaieComptable.jsx) → statut PAYE → bulletin PDF (iText, comme
+tous les documents — partie 02 §3).
+
+CONGÉS (CongeService, service distinct) : l'employé demande → calcul
+automatique des JOURS OUVRÉS + vérification de CHEVAUCHEMENT avec ses
+congés existants → le RH valide/rejette → une tâche planifiée clôture
+automatiquement les congés arrivés à terme (EN_ATTENTE → VALIDE/REJETE →
+TERMINE). L'employé n'a donc rien à faire au retour.
+
+CONNEXES sous pages/admin/rh/ :
+  EvaluationsEnseignants.jsx  synthèse ADMIN des évaluations soumises par
+      les étudiants sur leurs professeurs (critères : clarté,
+      ponctualité, disponibilité, maîtrise, pédagogie), agrégées par
+      professeur, export CSV. Le dépôt étudiant passe par
+      EvaluationEnseignantController (/api/evaluations — attention à la
+      collision de préfixe avec EvaluationAcademiqueController,
+      partie 10 §1.6d).
+  GestionEmploiEtudiant.jsx   jobs étudiants sur campus (moniteur/
+      répétiteur, assistant labo/bibliothèque, technicien, animateur
+      culturel...) : offres, candidatures, rapport de salaire mensuel.
+      Circuit de paie VOLONTAIREMENT plus léger, distinct des bulletins
+      du personnel. Les offres publiques transitent par
+      EmploiUniversitaireController (routes /offres/publiques en
+      permitAll — partie 10 §2).
+
+
+2. BIBLIOTHÈQUE
+--------------------------------------------------------------------------------
+Backend  : BibliothequeService (BibliothequeController /api/bibliotheque —
+           29 endpoints, le plus gros contrôleur « campus »)
+Frontend : GestionBibliothequeAdmin, bibliotheque/BibliothequeDashboard,
+           bibliothecaire/BibliothecaireDashboard, etudiant/Bibliotheque,
+           BibliothequeAvancee, MesEmprunts
+
+DEUX COUCHES DE MODÈLE coexistent (compatibilité ascendante) : l'ancien
+couple Livre/Emprunt, et un modèle plus riche Ouvrage/CategorieOuvrage/
+Reservation — typage TypeOuvrage (LIVRE, REVUE, MEMOIRE, THESE — la
+bibliothèque archive aussi les mémoires soutenus), métadonnées (langue,
+pages, résumé), recherche par mot-clé titre/auteur. En cas d'évolution,
+vérifier QUELLE couche l'écran utilise avant de modifier une entité.
+
+RÈGLES MÉTIER (appliquées dans le service, pas seulement en UI) :
+  - PLAFOND D'EMPRUNTS : 5 prêts actifs simultanés par étudiant.
+  - RETOUR/PROLONGATION : prolongation BLOQUÉE si l'étudiant a un retard
+    avec pénalité impayée (l'incitation au retour passe par le blocage,
+    pas seulement par la pénalité).
+  - RÉSERVATIONS : plafond de 3 actives ; une réservation se transforme
+    en prêt quand l'ouvrage devient disponible, ou EXPIRE automatiquement
+    (pas de file d'attente infinie).
+  - PÉNALITÉS DE RETARD : calculées par la tâche gererRetards().
+
+NOTE D'AUDIT : malgré une icône FaBarcode décorative sur le tableau de
+bord bibliothécaire, il n'y a PAS de scan QR/code-barres réel dans ce
+module — sélection par formulaire/recherche uniquement. Le seul vrai
+scan caméra du projet est le module Présences (§5). Ne pas promettre de
+douchette à un bibliothécaire sans développement préalable.
+
+
+3. SERVICE SOCIAL
+--------------------------------------------------------------------------------
+Backend  : ServiceSocialService (ServiceSocialController /api/social —
+           rôle d'URL SERVICE_SOCIAL) ; entités DossierSocial, Bourse,
+           AideSociale
+Frontend : GestionSocialeAdmin, SocialDashboard,
+           etudiant/DossierSocialEtudiant, social/DossierDetailModal
+
+Gestion des cas sociaux étudiants — DISTINCT des dossiers d'admission et
+académiques (un « dossier » GENUC peut être trois choses : inscription,
+social, ou disciplinaire — vérifier le contexte).
+
+DOSSIER SOCIAL : situation familiale, personnes à charge, profession et
+revenu des parents, type de logement, situation de handicap/santé,
+pièces justificatives (attestation de scolarité, relevé de notes,
+justificatif de revenu, attestation de handicap, lettre de motivation).
+Le numerodossier suit le motif de traçabilité global (partie 04 §4).
+
+CIRCUIT BOURSE : depuis son dossier, l'étudiant fait une demandeBourse
+(type + montant). L'admin/service social valide ou rejette (EN_ATTENTE →
+VALIDE/REJETE + commentaire). VALIDER UN DOSSIER AVEC DEMANDE DE BOURSE
+GÉNÈRE AUTOMATIQUEMENT LA BOURSE : référence auto-numérotée, montant
+total RÉPARTI EN VERSEMENTS MENSUELS (10 mois par défaut = une année
+académique), cycle ACTIVE → SUSPENDUE/TERMINEE. La bourse interagit avec
+le domaine paiement (elle couvre des frais TachPay — partie 06 §8).
+
+AIDE SOCIALE : aide PONCTUELLE, indépendante du circuit bourse — peut
+être demandée/accordée sans validation complète du dossier.
+
+En résumé : intake social → décision bourse/aide → suivi des versements.
+
+
+4. COMMUNICATION / MESSAGERIE / NOTIFICATIONS
+--------------------------------------------------------------------------------
+Backend  : MessagerieService/Controller, ChatbotService/Controller,
+           NotificationController, DeviceTokenController ; entités
+           Notification/DeviceToken/ParametresNotification ;
+           FirebaseConfig
+Frontend : EtudiantMessagerie, professeur/messagerie/Messagerie,
+           components/ChatbotWidget, components/NotificationBell
+
+MESSAGERIE : asynchrone (PAS de chat temps réel — pas de WebSocket dans
+le projet). Les étudiants écrivent vers des « BOÎTES » fixes (Scolarité,
+Chef de Département, Caisse, Direction) ou vers un personnel/service
+précis ; admins/professeurs peuvent DIFFUSER à toute une promotion ou à
+tous les professeurs. D'autres services backend poussent des messages
+automatiques (ex : le circuit d'admission notifie un étudiant qu'un
+document manque — notifierEtudiantDocument) : la messagerie sert aussi de
+canal système.
+
+CHATBOT (« GENUC Cleverly ») : assistant FAQ à BASE DE RÈGLES —
+correspondance par mots-clés sur une carte statique (notes, frais,
+horaire, inscription, bibliothèque, bourse...) + branches par rôle +
+réponse de repli vers le support humain. AUCUN LLM : choix cohérent avec
+l'exigence « local/déterministe » du projet (même philosophie que l'OCR
+Tesseract, partie 01 §3). Côté front, le widget lit la config de
+navigation de Navbar.jsx pour proposer les bons liens au rôle connecté
+(partie 03 §4).
+
+NOTIFICATIONS IN-APP : NotificationBell.jsx interroge
+/api/notifications/non-lues/count toutes les 30 s (polling — pas de
+push serveur pour le badge).
+
+PUSH MOBILE (FCM) : câblé mais ENTIÈREMENT optionnel — FirebaseConfig
+n'initialise le SDK Admin que si firebase.enabled=true ET les
+identifiants de service sont présents ; sinon dégradation SILENCIEUSE
+(log au lieu d'envoi). Cohérent côté front : clés REACT_APP_FIREBASE_*
+vides par défaut → initialisation sautée proprement. Le front enregistre
+les tokens d'appareil via /api/notifications/push (DeviceTokenController).
+
+
+5. PRÉSENCES (SCAN QR CODE) — LE FLUX COMPLET
+--------------------------------------------------------------------------------
+Backend  : PresenceService/Controller (/api/presences — entité Presence,
+           QR généré par ZXing)
+Frontend : professeur/GenererQR.jsx, etudiant/ScannerPresence.jsx
+
+Fonctionnel de bout en bout :
+  1. GÉNÉRATION (professeur — rôles PROFESSEUR/CHEF_DEPARTEMENT/
+     ADMIN_UNIVERSITE) : GenererQR.jsx, choix du cours ; le backend
+     construit la charge utile « GENUC:PRESENCE:<coursId>:<seanceId>:
+     <uuid> » encodée en PNG (ZXing QRCodeWriter/MatrixToImageWriter).
+     L'UUID est RÉGÉNÉRÉ à chaque session : un ancien QR photographié ne
+     permet pas de pointer à la séance suivante.
+  2. SCAN (étudiant) : ScannerPresence.jsx — caméra via react-qr-reader
+     (chargé DÉFENSIVEMENT : require() dans un try/catch ; si le paquet
+     manque, repli sur une saisie manuelle du contenu — partie 01 §4).
+  3. ENREGISTREMENT (backend, enregistrerPresence) : parse la charge
+     utile, résout le Cours, VÉRIFIE que l'étudiant a une inscription
+     VALIDE (un non-inscrit ne peut pas pointer), résout éventuellement
+     la SeanceLive, BLOQUE LES DOUBLONS du même jour, enregistre la
+     Presence (heure d'arrivée, horodatage serveur — pas l'heure du
+     téléphone).
+  Compléments professeur : tableau de présences par cours/date
+  (GET /cours/{id}/tableau), saisie manuelle EN MASSE
+  (POST /cours/{id}/saisie — panne, étudiants sans téléphone),
+  justification d'absence (PATCH /{presenceId}/justifier).
+
+✅ POINT D'AUDIT CORRIGÉ (2026-07-16) : ScannerPresence.jsx attendait un
+format « COURS=(\d+) » alors que le backend émet « GENUC:PRESENCE:... » —
+et l'audit approfondi a montré que le bug était DOUBLE : le même parseur
+servait aussi le chemin caméra (donc les deux chemins étaient cassés), et
+l'appel au service passait coursId au lieu du payload brut attendu par
+POST /scanner ({ payload }). Corrigé : le parseur accepte
+/^GENUC:PRESENCE:(\d+):/ (avec tolérance pour l'ancien format COURS=),
+et le payload BRUT est transmis au backend, qui déduit l'étudiant du JWT.
+
+
+6. MIGRATION ASSISTÉE — L'OUTIL D'ONBOARDING DES UNIVERSITÉS
+--------------------------------------------------------------------------------
+Backend  : MigrationImportService/Controller (/api/migrations, rôles
+           ADMIN_UNIVERSITE/SUPER_ADMIN ; entités MigrationImport,
+           MigrationLigne)
+Frontend : admin/MigrationAssistee.jsx (+ composants import/* de
+           progression et d'anomalies — partie 03 §4)
+
+Import guidé de données existantes (Excel/CSV) : étudiants et historique
+de paiement d'une université qui rejoint GENUC. CHAQUE IMPORT EST UNE
+RESSOURCE PERSISTÉE qui avance étape par étape — fermer le navigateur ne
+perd rien, on reprend où on en était (endpoints du pipeline en partie 10
+§11.1). Les 8 étapes :
+
+  1. UPLOAD du fichier.
+  2. ANALYSE automatique : cellules vides, lignes incomplètes, doublons
+     INTERNES au fichier, départements/promotions non reconnus.
+  3. MAPPING intelligent des colonnes : détection PAR SYNONYMES des
+     champs canoniques (matricule, nom, filière, promotion,
+     montantPayé...), MÉMORISÉ par université — le deuxième import de la
+     même université est pré-mappé.
+  4. VALIDATION à trois niveaux de sévérité PAR CELLULE/LIGNE :
+     ROUGE bloquant (nom manquant), ORANGE avertissement (email/date
+     invalide), VERT informatif (département inconnu qui sera créé).
+  5. CORRECTION ligne par ligne avec revalidation instantanée (PUT/DELETE
+     /{id}/lignes/{ligneId}) — sans retoucher le fichier source.
+  6. SIMULATION à blanc (dry-run) : AUCUNE écriture ; estime lignes
+     importables/en erreur et structures à créer.
+  7-8. IMPORT RÉEL : exécuté en ARRIÈRE-PLAN (thread asynchrone), par
+     LOTS TRANSACTIONNELS DE 500 lignes avec repli automatique en
+     retraitement ligne à ligne si un lot échoue (une ligne pourrie ne
+     fait perdre que sa ligne, pas son lot) ; pause/reprise/annulation.
+     Crée ou RÉUTILISE Departement/Filiere/Promotion/Etudiant/
+     Inscription/Paiement. Doublons de matricule selon stratégie
+     configurable (mettre à jour / ignorer / créer). ANNULER défait
+     (rollback) les inscriptions/paiements/étudiants créés quand c'est
+     sûr de le faire.
+
+Un MODÈLE Excel pré-formaté (exemples + feuille d'instructions) est
+téléchargeable (GET /api/migrations/modele) pour préparer l'export côté
+université. C'est l'outil critique du déploiement national : la qualité
+de l'onboarding d'une université dépend de ce module.
+
+
+7. VIE UNIVERSITAIRE / ALUMNI / STAGES / TFC-MÉMOIRE
+--------------------------------------------------------------------------------
+Extras autonomes du portail étudiant (endpoints portail en partie 10
+§10) — moins critiques que le noyau, mais complets fonctionnellement :
+
+  VIE UNIVERSITAIRE (VieUniversitaire.jsx ; /api/vie-universitaire) :
+      parcourir/rejoindre des clubs et associations, en CRÉER un (soumis
+      à approbation admin), consulter les événements du campus. Entités :
+      Association/AssociationMembre/EvenementUniversitaire/
+      EvenementParticipant.
+
+  ALUMNI (AlumniDashboard.jsx ; /api/alumni) : portail post-diplôme —
+      profil alumni, annuaire des diplômés, candidatures aux offres
+      d'emploi ciblées alumni, et génération d'un DIPLÔME VÉRIFIABLE par
+      QR code (le diplôme étant une Deliberation — partie 07 §4.2, le
+      motif de vérification public s'applique tel quel).
+
+  STAGES (etudiant/stages/Stages.jsx ; professeur/stages/SuiviStages/
+      ValidationStages/RapportsStages ; /api/stages) : circuit complet —
+      l'étudiant parcourt les OffreStage OU déclare son propre stage
+      (entreprise, dates, convention/rapport en pièce jointe) ;
+      candidature (CandidatureStage) ; le professeur ENCADRANT valide/
+      rejette et suit les rapports. Deux portes d'entrée donc : bourse
+      aux offres, ou stage trouvé par l'étudiant lui-même.
+
+  TFC/MÉMOIRE (etudiant/tfc/TfcMemoire.jsx ; professeur/tfc/SuiviMemoire ;
+      /api/tfc) : le travail de fin de cycle est découpé en
+      CHAPITRES (Tfc/SujetTfc → ChapitreTfc) ; l'étudiant dépose chapitre
+      par chapitre (avec fichiers), le professeur commente PAR CHAPITRE
+      (CommentaireTfc), suivi de progression jusqu'à la soutenance. Le
+      dépôt final passe aussi par le portail (POST .../tfc/depot). La
+      structure par chapitres est reflétée en base (partie 04 §3) —
+      c'est un vrai suivi d'encadrement, pas un simple dépôt de fichier.
+================================================================================

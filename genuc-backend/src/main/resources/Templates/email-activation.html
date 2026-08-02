@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="fr">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Activez votre compte GENUC</title>
+</head>
+<body style="margin:0;padding:0;background:#f4f6fb;font-family:Arial,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f6fb;padding:40px 0;">
+  <tr>
+    <td align="center">
+      <table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.08);">
+
+        <!-- Header -->
+        <tr>
+          <td style="background:#0B1F4A;padding:32px 40px;text-align:center;">
+            <h1 style="color:#ffffff;margin:0;font-size:24px;letter-spacing:1px;">GENUC</h1>
+            <p style="color:#a8c0e8;margin:6px 0 0;font-size:13px;">Plateforme Nationale de Gestion Universitaire — RDC</p>
+          </td>
+        </tr>
+
+        <!-- Body -->
+        <tr>
+          <td style="padding:40px;">
+            <h2 style="color:#0B1F4A;margin:0 0 16px;">Bonjour, <span th:text="${nom}">Prénom Nom</span> !</h2>
+            <p style="color:#444;line-height:1.7;margin:0 0 20px;">
+              Votre compte étudiant a été créé sur la plateforme GENUC.<br/>
+              <span th:if="${matricule}">Votre matricule : <strong th:text="${matricule}">MAT-0000</strong></span>
+            </p>
+            <p style="color:#444;line-height:1.7;margin:0 0 28px;">
+              Cliquez sur le bouton ci-dessous pour activer votre compte. Ce lien expire dans
+              <strong th:text="${expiration}">48 heures</strong>.
+            </p>
+
+            <!-- Button -->
+            <table cellpadding="0" cellspacing="0" style="margin:0 auto 32px;">
+              <tr>
+                <td style="background:#1a56db;border-radius:6px;padding:14px 32px;text-align:center;">
+                  <a th:href="${lienActivation}" href="#"
+                     style="color:#ffffff;font-size:15px;font-weight:bold;text-decoration:none;">
+                    Activer mon compte
+                  </a>
+                </td>
+              </tr>
+            </table>
+
+            <p style="color:#888;font-size:12px;line-height:1.6;border-top:1px solid #eee;padding-top:20px;margin:0;">
+              Si vous n'avez pas créé ce compte, ignorez cet email.<br/>
+              Lien alternatif : <a th:href="${lienActivation}" style="color:#1a56db;word-break:break-all;" th:text="${lienActivation}">#</a>
+            </p>
+          </td>
+        </tr>
+
+        <!-- Footer -->
+        <tr>
+          <td style="background:#f0f4ff;padding:20px 40px;text-align:center;">
+            <p style="color:#888;font-size:12px;margin:0;">
+              © 2026 GENUC — République Démocratique du Congo<br/>
+              Ce message est généré automatiquement, merci de ne pas y répondre.
+            </p>
+          </td>
+        </tr>
+
+      </table>
+    </td>
+  </tr>
+</table>
+</body>
+</html>

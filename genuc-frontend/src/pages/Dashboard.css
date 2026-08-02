@@ -1,0 +1,626 @@
+/* Transparent : laisse voir le fond de marque (body::before, index.css) */
+.page {
+  padding: 24px;
+  min-height: 100vh;
+  background: transparent;
+}
+
+.page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 24px;
+}
+
+.page-title { font-size: 20px; font-weight: 700; color: var(--text-primary, #0B1F4A); margin: 0; }
+.page-sub   { font-size: 13px; color: var(--text-muted, #6b7280); margin: 4px 0 0; }
+
+.stats-grid {
+  display: grid;
+  /* Les cartes s'ajustent à la largeur disponible et restent compactes (au lieu
+     de s'étirer sur 4 colonnes figées quand il y en a moins) : min ~210px,
+     retour à la ligne automatique. Le !important neutralise les nombreuses
+     surcharges inline `gridTemplateColumns: repeat(4,1fr)` présentes dans les
+     dashboards, qui rendaient les cartes trop longues. */
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)) !important;
+  gap: 14px;
+  margin-bottom: 20px;
+}
+
+/* Ne jamais laisser une carte s'étirer démesurément en largeur. */
+.stat-card { min-width: 0; max-width: 420px; }
+
+.stat-card {
+  background: var(--bg-card, white);
+  border-radius: 12px;
+  padding: 16px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  box-shadow: 0 1px 4px var(--shadow-color, rgba(0,0,0,0.06));
+}
+
+.stat-icon {
+  width: 46px; height: 46px;
+  border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 20px; flex-shrink: 0;
+}
+
+.stat-value { font-size: 22px; font-weight: 700; color: var(--text-primary, #0B1F4A); }
+.stat-label { font-size: 12px; color: var(--text-muted, #6b7280); margin-top: 2px; }
+
+.dash-grid {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr;
+  gap: 16px;
+}
+
+.card {
+  background: var(--bg-card, white);
+  border-radius: 12px;
+  padding: 18px;
+  box-shadow: 0 1px 4px var(--shadow-color, rgba(0,0,0,0.06));
+}
+
+.card-head { margin-bottom: 14px; }
+.card-title { font-size: 14px; font-weight: 600; color: var(--text-primary, #0B1F4A); margin: 0; }
+
+.data-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.data-table th {
+  text-align: left; padding: 8px 10px;
+  border-bottom: 1.5px solid #f0f0f0;
+  color: #6b7280; font-weight: 500; font-size: 11px; text-transform: uppercase;
+}
+.data-table td { padding: 10px; border-bottom: 1px solid #f8f8f8; }
+.data-table tr:last-child td { border-bottom: none; }
+
+.uni-code { font-size: 11px; font-weight: 600; color: #185FA5; }
+.uni-nom  { font-size: 12px; color: var(--text-secondary, #333); }
+
+.badge {
+  font-size: 11px; padding: 3px 10px;
+  border-radius: 20px; font-weight: 500;
+}
+.badge-success { background: #E1F5EE; color: #0F6E56; }
+.badge-neutral { background: #f0f0f0; color: #6b7280; }
+.badge-warning { background: #FFF3CD; color: #856404; }
+.badge-danger  { background: #FAECE7; color: #993C1D; }
+
+.activity-list { display: flex; flex-direction: column; gap: 2px; }
+.activity-item {
+  display: flex; align-items: flex-start; gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid #f8f8f8;
+}
+.activity-item:last-child { border-bottom: none; }
+.activity-dot {
+  width: 9px; height: 9px; border-radius: 50%;
+  margin-top: 4px; flex-shrink: 0;
+}
+.activity-text { font-size: 13px; color: var(--text-secondary, #333); line-height: 1.4; }
+.activity-meta { font-size: 11px; color: var(--text-muted, #6b7280); margin-top: 2px; }
+
+.loading { text-align: center; padding: 30px; color: #6b7280; font-size: 13px; }
+
+.btn-primary {
+  background: #0B1F4A; color: white;
+  border: none; border-radius: 8px;
+  padding: 9px 16px; font-size: 13px;
+  cursor: pointer; font-weight: 500;
+  transition: background 0.2s;
+}
+.btn-primary:hover { background: #0d2458; }
+
+.btn-success {
+  background: #1D9E75; color: white;
+  border: none; border-radius: 8px;
+  padding: 9px 16px; font-size: 13px;
+  cursor: pointer; font-weight: 500;
+}
+
+.btn-danger {
+  background: #dc3545; color: white;
+  border: none; border-radius: 8px;
+  padding: 7px 14px; font-size: 12px;
+  cursor: pointer;
+}
+
+.btn-outline {
+  background: white; color: #0B1F4A;
+  border: 1.5px solid #0B1F4A;
+  border-radius: 8px; padding: 7px 14px;
+  font-size: 12px; cursor: pointer;
+}
+
+/* ==================== AJOUTS POUR BIBLIOTHÈQUE, QR CODE, GRAPHIQUES ==================== */
+
+/* Catalogue de livres */
+.livre-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+.livre-card h3 {
+  margin: 8px 0;
+  font-size: 16px;
+  color: #0B1F4A;
+}
+.livre-card .auteur {
+  font-size: 12px;
+  color: #666;
+  margin-bottom: 8px;
+}
+.livre-card .meta {
+  font-size: 12px;
+  color: #6b7280;
+  margin-top: 4px;
+}
+.livre-card .badge {
+  display: inline-block;
+  margin-top: 8px;
+}
+
+/* QR code */
+.qr-container {
+  text-align: center;
+  margin: 20px 0;
+}
+.qr-image {
+  max-width: 200px;
+  max-height: 200px;
+  border: 1px solid #e0e0e0;
+  border-radius: 12px;
+  padding: 8px;
+  background: white;
+}
+.qr-actions {
+  margin-top: 16px;
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+}
+
+/* Scanner (lecteur HTML5 QR) */
+#reader {
+  width: 100%;
+  max-width: 500px;
+  margin: 0 auto;
+  border-radius: 12px;
+  overflow: hidden;
+}
+#reader video {
+  border-radius: 12px;
+}
+.reader-error {
+  color: #dc3545;
+  font-size: 13px;
+  text-align: center;
+  margin-top: 12px;
+}
+.reader-success {
+  color: #1D9E75;
+  font-size: 13px;
+  text-align: center;
+  margin-top: 12px;
+}
+
+/* Graphiques Recharts */
+.recharts-wrapper {
+  width: 100% !important;
+  margin-top: 16px;
+}
+.recharts-default-tooltip {
+  background-color: white !important;
+  border: 1px solid #e0e0e0 !important;
+  border-radius: 8px !important;
+  font-size: 12px !important;
+  padding: 8px 12px !important;
+}
+.recharts-tooltip-label {
+  font-weight: 600;
+  color: #0B1F4A;
+}
+
+/* Sélecteur d'année dans le dashboard */
+.year-selector {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: white;
+  padding: 8px 16px;
+  border-radius: 8px;
+  border: 1px solid #e0e0e0;
+}
+.year-selector select {
+  border: none;
+  background: transparent;
+  font-size: 13px;
+  font-weight: 500;
+  outline: none;
+  cursor: pointer;
+}
+
+/* Tableau des présences (déjà partiellement stylé par .data-table) */
+.presence-justifier {
+  cursor: pointer;
+  color: #185FA5;
+  text-decoration: underline;
+}
+.presence-justifier:hover {
+  color: #0B1F4A;
+}
+
+/* ==================== STYLES POUR LE FORMULAIRE D'INSCRIPTION (10 étapes) ==================== */
+
+/* Indicateur de progression */
+.progress-indicator {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+}
+
+/* Badge d'étape */
+.etape-badge {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: #e9ecef;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  color: #495057;
+  font-size: 14px;
+  transition: all 0.2s;
+}
+
+.etape-badge.active {
+  background: #0B1F4A;
+  color: white;
+  box-shadow: 0 2px 8px rgba(11,31,74,0.2);
+}
+
+.etape-badge.completed {
+  background: #1D9E75;
+  color: white;
+}
+
+/* Grille pour les formulaires à deux colonnes */
+.form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+/* Section de confirmation finale */
+.confirmation {
+  text-align: center;
+  padding: 30px;
+}
+
+.confirmation h2 {
+  color: #0B1F4A;
+  margin-bottom: 16px;
+}
+
+.confirmation .btn-primary {
+  margin-top: 20px;
+}
+
+/* Alertes */
+.alert-success {
+  background: #E1F5EE;
+  border: 1px solid #b2dfdb;
+  color: #0F6E56;
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 13px;
+  margin-bottom: 16px;
+}
+
+.alert-erreur {
+  background: #fff0f0;
+  border: 1px solid #ffcccc;
+  color: #cc0000;
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 13px;
+  margin-bottom: 16px;
+}
+
+/* Désactiver l'effet hover sur les boutons désactivés */
+.btn-primary:disabled, .btn-outline:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .stats-grid {
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)) !important;
+  }
+  .dash-grid {
+    grid-template-columns: 1fr;
+  }
+  .page-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+  .qr-container .qr-image {
+    max-width: 150px;
+  }
+  #reader {
+    max-width: 100%;
+  }
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+  .progress-indicator {
+    gap: 8px;
+  }
+  .etape-badge {
+    width: 30px;
+    height: 30px;
+    font-size: 12px;
+  }
+}
+
+/* NOTE : ces règles étaient piégées à l'intérieur du @media (max-width: 768px)
+   ci-dessus faute d'accolade fermante — invisibles en desktop. Corrigé. */
+.alert {
+  padding: 12px 16px;
+  border-radius: 6px;
+  margin-bottom: 16px;
+  cursor: pointer;
+}
+.alert-error {
+  background-color: #f8d7da;
+  color: #721c24;
+  border: 1px solid #f5c6cb;
+}
+.empty-state {
+  text-align: center;
+  color: #6b7280;
+  padding: 24px 0;
+}
+
+/* Layout avec sidebar */
+/* Transparent : laisse voir le fond de marque (body::before, index.css) */
+.dashboard-layout {
+  display: flex;
+  min-height: 100vh;
+  background: transparent;
+}
+
+.dashboard-content {
+  flex: 1;
+  padding: 24px 32px;
+  overflow-x: hidden;
+  max-width: calc(100% - 240px);
+}
+
+/* Bouton rectangle "Ajouter une université" */
+.btn-ajout-universite {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  background: #0B1F4A;
+  color: #fff;
+  padding: 10px 24px;
+  border-radius: 12px;
+  font-weight: 600;
+  font-size: 15px;
+  text-decoration: none;
+  transition: all 0.25s ease;
+  box-shadow: 0 4px 12px rgba(11, 31, 74, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.btn-ajout-universite:hover {
+  background: #1a3a7a;
+  transform: translateY(-3px);
+  box-shadow: 0 8px 24px rgba(11, 31, 74, 0.35);
+  color: #fff;
+}
+
+/* Ajustement pour les petits écrans */
+@media (max-width: 768px) {
+  .dashboard-layout {
+    flex-direction: column;
+  }
+  .dashboard-content {
+    max-width: 100%;
+    padding: 16px;
+  }
+  .dashboard-layout > .sidebar {
+    width: 100%;
+    height: auto;
+    position: relative;
+    flex-direction: row;
+    flex-wrap: wrap;
+    padding: 8px 12px;
+  }
+  .dashboard-layout > .sidebar .sidebar-header {
+    padding: 12px 0;
+    border-bottom: none;
+    width: 100%;
+  }
+  .dashboard-layout > .sidebar .sidebar-nav {
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 0;
+  }
+  .dashboard-layout > .sidebar .sidebar-link {
+    padding: 8px 12px;
+    font-size: 13px;
+  }
+}
+
+/* ─── Gestion des frais : cartes détaillées (style maquette) ───
+   Grande carte par frais, thémée clair/sombre via variables. Icônes fines
+   (react-icons/fi) sur pastilles colorées, montant en hero, panneau méta à
+   lignes pointillées, bandeau échéance, rangée de boutons d'action riches. */
+.frais-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(420px, 1fr));
+  gap: 20px;
+}
+
+.frais-card {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 22px 24px 20px;
+  border-radius: 22px;
+  border: 1px solid var(--border-color, #e0e0e0);
+  background: var(--bg-card, #fff);
+  box-shadow: 0 4px 18px var(--shadow-color, rgba(0, 0, 0, 0.06));
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+.frais-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 16px 34px -12px rgba(0, 0, 0, 0.28);
+  border-color: var(--frais-accent, var(--color-accent, #185FA5));
+}
+.frais-card.is-inactif { opacity: 0.8; }
+.frais-card.is-archive { opacity: 0.66; }
+
+/* En-tête : logo + titre + puces / statut */
+.frais-head { display: flex; align-items: flex-start; gap: 16px; }
+.frais-head-main { display: flex; gap: 16px; min-width: 0; flex: 1; }
+.frais-logo {
+  flex-shrink: 0;
+  width: 60px; height: 60px;
+  border-radius: 16px;
+  display: flex; align-items: center; justify-content: center;
+  color: #fff;
+  background: linear-gradient(135deg, var(--color-accent, #185FA5), #7c3aed);
+  box-shadow: 0 8px 18px -8px rgba(124, 58, 237, 0.7);
+}
+.frais-logo svg { width: 28px; height: 28px; }
+.frais-titre {
+  margin: 0;
+  font-size: 22px; font-weight: 800;
+  color: var(--text-primary, #0B1F4A);
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+.frais-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.frais-chip {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 11px; font-weight: 700; letter-spacing: 0.03em;
+  text-transform: uppercase;
+  padding: 5px 11px; border-radius: 8px;
+}
+.frais-chip--type { background: var(--color-info-bg, rgba(24, 95, 165, 0.14)); color: var(--color-accent, #185FA5); }
+.frais-chip--std {
+  background: transparent;
+  border: 1px solid var(--border-color, #e0e0e0);
+  color: var(--text-secondary, #333);
+}
+.frais-chip svg { width: 13px; height: 13px; }
+.frais-chip--std svg { color: var(--color-accent, #185FA5); }
+
+.frais-statut {
+  display: inline-flex; align-items: center; gap: 7px;
+  font-size: 14px; font-weight: 700;
+  padding: 8px 16px; border-radius: 22px;
+  white-space: nowrap;
+}
+.frais-statut svg { width: 17px; height: 17px; }
+.frais-statut--actif   { background: linear-gradient(135deg, #16a34a, #15803d); color: #fff; }
+.frais-statut--inactif { background: var(--color-gray-200, #e2e8f0); color: var(--color-gray-600, #475569); }
+.frais-statut--archive { background: rgba(245, 158, 11, 0.16); color: #d97706; }
+
+/* Montant en hero */
+.frais-montant-row { display: flex; align-items: center; gap: 16px; }
+.frais-montant-ic {
+  flex-shrink: 0;
+  width: 54px; height: 54px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(124, 58, 237, 0.14); color: #7c3aed;
+}
+.frais-montant-ic svg { width: 24px; height: 24px; }
+.frais-montant { font-size: 44px; font-weight: 800; color: var(--text-primary, #0B1F4A); line-height: 1; letter-spacing: -0.02em; }
+.frais-montant .frais-devise { font-size: 18px; font-weight: 700; color: var(--text-muted, #6b7280); margin-left: 8px; }
+.frais-sub { margin: 6px 0 0; font-size: 14px; color: var(--text-muted, #6b7280); line-height: 1.4; }
+
+/* Panneau méta */
+.frais-meta {
+  display: flex; flex-direction: column;
+  border: 1px solid var(--border-color, #e0e0e0);
+  border-radius: 16px;
+  padding: 6px 18px;
+  background: var(--bg-secondary, rgba(0, 0, 0, 0.02));
+}
+.frais-meta-row { display: flex; align-items: center; gap: 12px; padding: 11px 0; }
+.frais-ic {
+  flex-shrink: 0;
+  width: 38px; height: 38px; border-radius: 11px;
+  display: flex; align-items: center; justify-content: center;
+}
+.frais-ic svg { width: 18px; height: 18px; }
+.frais-ic--promo { background: rgba(124, 58, 237, 0.15); color: #7c3aed; }
+.frais-ic--cat   { background: rgba(217, 119, 6, 0.15);  color: #d97706; }
+.frais-ic--year  { background: rgba(24, 95, 165, 0.15);  color: var(--color-accent, #185FA5); }
+.frais-ic--date  { background: rgba(22, 163, 74, 0.15);  color: #16a34a; }
+.frais-meta-label { font-size: 15px; color: var(--text-secondary, #333); white-space: nowrap; }
+.frais-leader { flex: 1; border-bottom: 2px dotted var(--border-color, #cbd5e1); margin: 0 8px; transform: translateY(-4px); min-width: 16px; }
+.frais-meta-value {
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--text-primary, #0B1F4A);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 55%;
+  text-align: right;
+}
+.frais-meta-value.is-depassee { color: var(--color-danger-text, #cc0000); }
+
+/* Bandeau échéance / note */
+.frais-note {
+  display: flex; align-items: center; gap: 12px;
+  padding: 14px 16px; border-radius: 14px;
+  font-size: 14px;
+  background: rgba(24, 95, 165, 0.1);
+  color: var(--text-secondary, #333);
+}
+.frais-note svg { flex-shrink: 0; width: 20px; height: 20px; color: var(--color-accent, #185FA5); }
+.frais-note--warn { background: rgba(220, 53, 69, 0.12); }
+.frais-note--warn svg { color: var(--color-danger-text, #cc0000); }
+
+/* Boutons d'action */
+.frais-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: auto; }
+.frais-btn {
+  flex: 1 1 auto;
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  min-width: 118px;
+  padding: 12px 16px; border-radius: 14px;
+  font-size: 14px; font-weight: 600;
+  cursor: pointer;
+  border: 1px solid var(--border-color, #e0e0e0);
+  background: var(--bg-card, #fff);
+  color: var(--text-secondary, #333);
+  transition: transform 0.1s ease, border-color 0.15s ease, background 0.15s ease;
+}
+.frais-btn:hover { transform: translateY(-1px); border-color: var(--frais-accent, var(--color-accent, #185FA5)); }
+.frais-btn svg { width: 17px; height: 17px; }
+.frais-btn--primary {
+  border: none; color: #fff;
+  background: linear-gradient(135deg, var(--color-accent, #185FA5), #3b82f6);
+  box-shadow: 0 8px 18px -8px rgba(24, 95, 165, 0.7);
+}
+.frais-btn--promo svg  { color: #7c3aed; }
+.frais-btn--go svg     { color: var(--color-success-text, #1D9E75); }
+.frais-btn--archive svg { color: #d97706; }
+
+@media (max-width: 540px) {
+  .frais-grid { grid-template-columns: 1fr; }
+  .frais-montant { font-size: 36px; }
+}

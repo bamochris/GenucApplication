@@ -1,0 +1,252 @@
+/* src/layouts/EtudiantLayout.css */
+:root {
+  --color-primary: #0B1F4A;
+  --color-bg-light: #f4f6fb;
+  --top-bar-height: 70px;
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.05);
+  --color-border: #e0e0e0;
+  --color-danger: #f44336;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  color: var(--text-primary, var(--color-primary));
+}
+
+/* Transparent : laisse voir le fond de marque (body::before, index.css) */
+.etudiant-layout {
+  display: flex;
+  height: 100vh;
+  background-color: transparent;
+}
+
+.main-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  margin-left: var(--sidebar-width);
+  transition: margin-left 0.3s ease;
+  min-width: 0;
+}
+
+[data-sidebar-collapsed="true"] .main-content {
+  margin-left: var(--sidebar-width-collapsed);
+}
+
+@media (max-width: 1024px) {
+  .main-content {
+    margin-left: var(--sidebar-width, 212px);
+  }
+}
+
+@media (max-width: 768px) {
+  .main-content {
+    margin-left: 0 !important;
+  }
+}
+
+.top-bar {
+  height: var(--top-bar-height);
+  /* Translucide : le fond de marque transparaît, le contenu reste lisible */
+  background: rgba(255, 255, 255, 0.86);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--border-color, var(--color-border));
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 30px;
+  box-shadow: var(--shadow-sm);
+  z-index: 100;
+  flex-shrink: 0;
+}
+
+.top-bar-left .page-title {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--color-primary);
+  margin: 0;
+}
+
+.breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+}
+
+.breadcrumb-link {
+  color: #185FA5;
+  text-decoration: none;
+  display: flex;
+  align-items: center;
+  transition: color 0.2s;
+}
+
+.breadcrumb-link:hover { color: #0B1F4A; }
+
+.breadcrumb-home {
+  font-size: 16px;
+}
+
+.breadcrumb-sep {
+  font-size: 10px;
+  color: var(--text-muted, #ccc);
+}
+
+.breadcrumb-current {
+  font-weight: 600;
+  color: var(--text-primary, var(--color-primary));
+}
+
+.top-bar .icon-button {
+  background: none;
+  border: none;
+  font-size: 22px;
+  cursor: pointer;
+  position: relative;
+  padding: 8px;
+  border-radius: 8px;
+  transition: background 0.3s;
+  color: var(--text-secondary, #555);
+  text-decoration: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.top-bar-right {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.top-bar .icon-button:hover {
+  background: var(--color-bg-light);
+}
+.top-bar .badge {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  background: var(--color-danger);
+  color: white;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.user-profile {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  background: var(--color-bg-light);
+  border-radius: 12px;
+}
+.profile-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  overflow: hidden;
+  border: 2px solid #185FA5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #185FA5;
+  color: white;
+  font-weight: 700;
+  font-size: 14px;
+  text-decoration: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.profile-avatar:hover {
+  border-color: #1D9E75;
+  box-shadow: 0 0 0 3px rgba(29, 158, 117, 0.2);
+}
+.avatar-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.profile-info .profile-name {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--text-primary, var(--color-primary));
+}
+.profile-info .profile-role {
+  font-size: 12px;
+  color: var(--text-muted, #666);
+}
+
+.logout-button {
+  background: #fff0f0;
+  border: 1.5px solid #ffcccc;
+  color: #cc0000;
+  font-size: 16px;
+  cursor: pointer;
+  padding: 6px 12px;
+  border-radius: 8px;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.logout-button:hover {
+  background: #cc0000;
+  border-color: #cc0000;
+  color: white;
+  transform: translateY(-1px);
+  box-shadow: 0 3px 10px rgba(204, 0, 0, 0.25);
+}
+
+@media (max-width: 768px) {
+  .logout-button .logout-label {
+    display: none;
+  }
+  .logout-button {
+    padding: 6px 8px;
+  }
+}
+
+.page-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 30px;
+  /* Transparent : le fond de marque apparaît entre les cartes */
+  background-color: transparent;
+}
+
+@media (max-width: 768px) {
+  .top-bar {
+    padding: 0 16px 0 60px;
+  }
+  .page-title {
+    font-size: 16px;
+  }
+  .page-content {
+    padding: 16px;
+  }
+  .profile-info {
+    display: none;
+  }
+  .top-bar-right {
+    gap: 10px;
+  }
+}

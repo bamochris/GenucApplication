@@ -1,0 +1,289 @@
+================================================================================
+GENUC — PARTIE 11 : TESTS ET QUALITÉ DE CODE (VERSION APPROFONDIE)
+================================================================================
+État des lieux factuel au 2026-07-16. Cette partie documente ce qui EXISTE,
+pas ce qui est visé — plusieurs affirmations de CLAUDE.md sur les tests ne
+correspondent pas au code réel (démonstration point par point en §6).
+
+
+1. TESTS BACKEND — INVENTAIRE ET CONTENU RÉEL DE CHAQUE CLASSE
+--------------------------------------------------------------------------------
+13 classes de test, 84 méthodes @Test, toutes sous src/test/java/cd/genuc/.
+La couverture est concentrée sur le noyau authentification/sécurité et
+cinq services critiques. Détail classe par classe :
+
+ActivationControllerTest (controller/, Mockito, 13 tests)
+  Couvre le cycle de vie COMPLET de l'activation de compte :
+  - GET /verifier : 200 si token valide + compte inactif ; 400 si token
+    inconnu, expiré, ou compte déjà actif (chaque cas a son test) ;
+  - POST /creer-mot-de-passe : active le compte quand tout est valide ;
+    400 si mots de passe différents, trop courts, ou champs manquants ;
+  - POST /renvoyer : envoie l'email si compte existant non activé ;
+    renvoie la MÊME réponse si l'email n'existe pas (test explicite du
+    comportement anti-énumération — on ne doit pas pouvoir sonder quels
+    emails ont un compte) ; n'envoie RIEN si déjà activé ;
+  - GET /statut : vrai/faux selon l'état, faux si email inconnu.
+  C'est la classe la plus aboutie du projet : elle teste un contrat, pas
+  une implémentation — bon modèle à imiter.
+
+AuthControllerTest (controller/, @SpringBootTest, 2 tests)
+  Deux tests de fumée sur le login : identifiants valides → token ;
+  invalides → 401. Charge le contexte Spring COMPLET sur un PostgreSQL
+  Testcontainers depuis le 2026-07-16 (voir §3).
+
+UtilisateurSerializationTest (model/, JUnit pur, 2 tests)
+  Vérifie que la sérialisation JSON de l'entité Utilisateur ne FUIT AUCUN
+  SECRET (mot de passe haché, etc. absents de la sortie) et que la
+  désérialisation accepte encore le champ mot de passe (write-only,
+  probablement @JsonProperty(access = WRITE_ONLY)). Petit test, grosse
+  valeur : il protège contre une régression qui exposerait les hashes via
+  n'importe quel endpoint renvoyant un utilisateur.
+
+UtilisateurRepositoryTest (repository/, @DataJpaTest, 2 tests)
+  findByEmail et existsByEmail — les deux requêtes au cœur du login et de
+  l'anti-doublon d'inscription. @DataJpaTest remplace automatiquement la
+  datasource par H2 embarqué (voir §3 pourquoi celui-ci fonctionne partout
+  alors que les @SpringBootTest sont fragiles).
+
+JwtServiceTest (security/, JUnit pur, 14 tests)
+  La classe la plus fournie. Documente le CONTRAT du token GENUC :
+  - le service REFUSE de s'initialiser si le secret est trop court ou
+    vide (pas de JWT signé avec un secret faible) ;
+  - claims embarqués : email en subject, rôle, universiteId (peut être
+    null — cas testé), compteActive ;
+  - estValide : vrai pour un token valide dont le user correspond ; FAUX
+    si le username ne correspond pas, si le token est EXPIRÉ, ou s'il a
+    été FALSIFIÉ (tampered — la signature est bien vérifiée) ;
+  - extraireAuthorites renvoie le rôle avec le préfixe ROLE_ attendu par
+    Spring Security.
+  Ces tests sont la meilleure documentation du contenu du JWT.
+
+RateLimitFilterTest (security/, Mockito, 8 tests)
+  Teste le filtre de rate limiting (partie 05) : comptage des requêtes et
+  déclenchement de la limite. 8 tests dont les noms n'apparaissent pas ici
+  car écrits avec une signature différente — se référer au fichier.
+
+SecurityConfigTest (@SpringBootTest, 2 tests)
+  Un endpoint public répond sans token ; un endpoint protégé sans token
+  renvoie 401. Smoke test de la chaîne de filtres complète.
+
+AuthServiceTest (service/, Mockito, 9 tests)
+  Règles métier du compte :
+  - inscrire : succès → map de tokens ; email déjà pris → EmailAlready-
+    ExistsException ; universiteId MANQUANT pour un rôle admin →
+    BusinessException ; departementId MANQUANT pour un enseignant →
+    BusinessException (ces deux règles matérialisent le rattachement
+    multi-tenant obligatoire) ;
+  - connecter : succès → tokens ; compte VERROUILLÉ → InvalidCredentials ;
+    mauvais mot de passe → InvalidCredentials ; compte NON ACTIVÉ →
+    BusinessException (le fameux piège actif=false, ici prouvé par test) ;
+    l'email est NORMALISÉ EN MINUSCULES (un login avec « Jean@X.cd »
+    retrouve le compte « jean@x.cd »).
+
+DeliberationServiceTest (service/, Mockito, 6 tests)
+  Invariants de délibération : préparer exige des notes existantes (sinon
+  exception) ; en dernière année avec moyenne suffisante, le système
+  PROPOSE le diplôme ; publier exige que la délibération soit TENUE (jury
+  enregistré) sinon exception ; stats d'université correctes.
+
+InscriptionServiceTest (service/, Mockito, 6 tests)
+  soumettre : crée l'inscription si les données sont valides ; université
+  inexistante → UniversiteNotFound ; inscriptions FERMÉES pour
+  l'université → BusinessException (le toggle d'ouverture des inscriptions
+  testé côté UniversiteService est donc réellement contraignant).
+  valider : uniquement depuis l'état EN_ATTENTE (déjà validée → exception).
+  rejeter : met à jour statut ET motif.
+
+PaiementServiceTest (service/, Mockito, 9 tests)
+  soumettre : exige que l'inscription EXISTE et soit VALIDÉE (pas de
+  paiement sur une inscription en attente) ; valider : transition unique
+  depuis EN_ATTENTE ; obtenir : 404 typé si absent ; situationFinanciere :
+  agrégat complet ; pagination des paiements par inscription.
+
+UniversiteServiceTest (service/, Mockito, 5 tests)
+  Création (code d'université UNIQUE — exception sinon), lecture (+404),
+  et toggle ouverture/fermeture des inscriptions.
+
+WebhookSecurityServiceTest (service/tachpay/, JUnit pur, 6 tests)
+  Contrat de sécurité des webhooks mobile money (partie 10 §7.5) :
+  HMAC correct → accepté ; mauvaise signature → rejeté ; en-tête absent →
+  rejeté ; secret obligatoire manquant → rejeté ; mode DEV sans secret →
+  accepté (tolérance locale) ; repli sur le secret GLOBAL si le secret
+  par opérateur n'est pas configuré.
+
+LECTURE D'ENSEMBLE : rapporté à la taille du code principal (105
+contrôleurs, 110 services, 128 repositories), l'essentiel des modules n'a
+AUCUN test : tout TachPay (sauf la signature webhook), le workflow de
+délibération (seul l'ancien service est testé), RH, bibliothèque, social,
+migration, présences, palmarès, attestations... Les tests existants sont
+en revanche bien choisis : ils gardent les invariants de sécurité (JWT,
+sérialisation, rate limit, activation) et les règles d'argent/de scolarité
+les plus sensibles.
+
+
+2. CE QUE LES TESTS RÉVÈLENT DU MÉTIER (INVARIANTS GARANTIS)
+--------------------------------------------------------------------------------
+Synthèse des règles métier qu'une régression ferait échouer en CI — utile
+pour savoir ce qu'on peut modifier sans risque et ce qui est contractuel :
+  - Un compte non activé NE PEUT PAS se connecter (BusinessException).
+  - Un rôle admin DOIT être rattaché à une université ; un enseignant à un
+    département.
+  - Les emails de login sont insensibles à la casse.
+  - Un JWT falsifié, expiré, ou d'un autre utilisateur est rejeté.
+  - L'entité Utilisateur ne sérialise jamais ses secrets.
+  - L'endpoint de renvoi d'activation ne révèle pas l'existence d'un email.
+  - Un paiement exige une inscription validée ; une validation de paiement
+    ou d'inscription ne peut partir que de EN_ATTENTE.
+  - On ne délibère pas sans notes ; on ne publie pas une délibération non
+    tenue ; le diplôme n'est que PROPOSÉ par le calcul.
+  - Une inscription est refusée si l'université a fermé les siennes.
+  - Un webhook non signé ou mal signé est rejeté (sauf mode dev explicite).
+
+
+3. CONFIGURATION DE TEST BACKEND — MÉCANIQUE ET PIÈGE DU PROFIL
+--------------------------------------------------------------------------------
+Commandes :
+  mvn test                                    tous les tests
+  mvn test -Dtest=AuthServiceTest             une classe
+  mvn test -Dtest=AuthServiceTest#loginTest   une méthode
+
+Surefire n'inclut que **/*Test.java. Il n'y a PAS de maven-failsafe-plugin
+ni de convention *IT.java : le projet n'a aucune phase de tests
+d'intégration séparée — tout passe dans « mvn test ».
+
+Dépendances de test du pom : spring-boot-starter-test (JUnit 5, Mockito,
+AssertJ, MockMvc), junit-jupiter, mockito-core, H2, et depuis le
+2026-07-16 : org.testcontainers:postgresql + junit-jupiter (réellement
+utilisés — voir ci-dessous).
+
+LE PIÈGE HISTORIQUE DU PROFIL DE TEST — RÉSOLU LE 2026-07-16 :
+Jusqu'à cette date, AUCUN test n'activait le profil « test » ;
+application-test.properties n'était donc jamais chargé et les deux
+@SpringBootTest dépendaient du PostgreSQL local de la machine. La
+tentative de correctif « @ActiveProfiles + H2 » a échoué de façon
+instructive : les entités utilisent des types PostgreSQL (JSONB) que H2
+ne sait pas créer — H2 ne PEUT PAS héberger ce schéma.
+Solution en place désormais :
+  - cd.genuc.IntegrationTestBase : classe de base des tests d'intégration
+    qui démarre UN conteneur Testcontainers postgres:15 partagé (pattern
+    singleton container), active @ActiveProfiles("test"), et route les
+    DEUX pools (primaire + réplica du RoutingDataSource) vers le
+    conteneur via @DynamicPropertySource ; ddl-auto=create-drop.
+  - @Testcontainers(disabledWithoutDocker = true) : sans Docker, ces
+    tests sont SKIPPÉS (mvn test reste vert), jamais en échec
+    d'environnement.
+  - AuthControllerTest et SecurityConfigTest étendent cette base —
+    vérifié : 84/84 tests verts, seeds DataInitializer exécutés dans le
+    conteneur (le login admin@genuc.cd fonctionne).
+  - Correctif induit : DataSourceConfig ne code plus le driver JDBC en
+    dur (spring.datasource.driverClassName, défaut PostgreSQL) et
+    application-test.properties définit aussi les propriétés réplica
+    (l'application.yml contenait un placeholder ${REPLICA_PASSWORD:
+    ${DB_PASSWORD}} insoluble sans variables d'environnement).
+Par type de test, l'état est donc :
+  - Tests Mockito purs (la majorité) : aucun contexte Spring — inchangés.
+  - @DataJpaTest (UtilisateurRepositoryTest) : H2 embarqué auto-substitué
+    (@AutoConfigureTestDatabase) — inchangé.
+  - @SpringBootTest : PostgreSQL 15 Testcontainers, hermétique (Docker
+    requis, sinon skip). Dépendance résiduelle : Redis local pour le
+    rate limiting (présent sur le poste de dev ; à conteneuriser aussi si
+    un jour ça gêne une CI).
+
+
+4. JACOCO — POURQUOI LE SEUIL DE 70 % EST AUJOURD'HUI THÉORIQUE
+--------------------------------------------------------------------------------
+Le pom déclare trois exécutions du jacoco-maven-plugin :
+  1. prepare-agent : attache l'agent JaCoCo à la JVM de test (instrumente
+     le bytecode pour compter les lignes exécutées) ;
+  2. report (lié à la phase test) : génère le rapport HTML dans
+     target/site/jacoco/index.html après chaque mvn test — ce rapport-là
+     fonctionne et est consultable dès aujourd'hui ;
+  3. check : évalue la règle BUNDLE / LINE / COVEREDRATIO ≥ 0.70 — au
+     moins 70 % des LIGNES de TOUT le jar (bundle = le module entier, pas
+     par classe) doivent être couvertes.
+
+Deux raisons font que ce seuil ne bloque rien en pratique :
+  a) PHASE : l'exécution check n'a pas de <phase> explicite ; le goal
+     jacoco:check se lie par défaut à la phase VERIFY du cycle Maven. Or le
+     cycle s'exécute dans l'ordre ... test → package → VERIFY → install.
+     « mvn test » s'arrête avant package ; « mvn clean package » s'arrête
+     avant verify. Aucune des commandes documentées (CLAUDE.md, scripts)
+     n'atteint verify — la règle n'est donc JAMAIS évaluée.
+  b) RÉALITÉ : 84 tests pour ~480 classes principales laissent la
+     couverture bundle très loin de 70 %. Si quelqu'un lançait
+     « mvn verify », le build ÉCHOUERAIT sur la règle. Le seuil est un
+     objectif déclaré, pas une contrainte appliquée — et c'est PIÉGEUX :
+     brancher naïvement « mvn verify » dans une CI casserait le pipeline.
+Pour rendre la contrainte réelle un jour : voir §7 point 4.
+
+
+5. TESTS ET QUALITÉ FRONTEND — NÉANT MESURABLE
+--------------------------------------------------------------------------------
+Tests : ZÉRO fichier *.test.js / *.test.jsx / *.spec.* dans src/, pas de
+setupTests.js, pas de dossier __tests__. L'OUTILLAGE, lui, est installé :
+@testing-library/dom, /react, /jest-dom et /user-event figurent dans les
+dependencies (placement CRA classique) et Jest est fourni par
+react-scripts. Le script « npm test » lancerait donc Jest correctement…
+sur un projet sans aucun test : « No tests found ». Les commandes de test
+documentées dans CLAUDE.md (--watchAll=false, --testPathPattern) sont
+inopérantes faute de matière, pas faute d'outillage.
+
+Lint : uniquement l'eslintConfig par défaut de Create React App, déclaré
+dans package.json : {"extends": ["react-app", "react-app/jest"]}. Ce lint
+s'exécute automatiquement pendant npm start / npm run build (warnings dans
+la console CRA), mais il n'y a PAS de commande lint dédiée, pas de
+.eslintrc personnalisé, pas de Prettier (chacun formate comme il veut),
+pas de husky/lint-staged (rien ne s'exécute au commit). Autrement dit :
+la seule barrière de qualité frontend est le compilateur CRA lui-même.
+
+
+6. ÉCARTS HISTORIQUES AVEC CLAUDE.md — ÉTAT APRÈS CORRECTIONS (2026-07-16)
+--------------------------------------------------------------------------------
+CLAUDE.md a été réécrit le 2026-07-16. Bilan par affirmation :
+  - « JaCoCo enforces 70% coverage » → toujours THÉORIQUE : règle liée à
+    la phase verify que les commandes documentées n'atteignent pas (§4a),
+    et qui échouerait (§4b). CLAUDE.md le dit désormais explicitement.
+  - « integration tests use TestContainers with real PostgreSQL » →
+    DEVENU VRAI le 2026-07-16 : IntegrationTestBase + postgres:15 pour
+    les deux @SpringBootTest (§3).
+  - « Backend test DB: H2 in-memory » → précisé : H2 pour @DataJpaTest
+    uniquement ; Testcontainers PostgreSQL pour les @SpringBootTest.
+  - « npm test — Jest tests (watch mode) » → la commande existe, AUCUN
+    test n'existe (§5) — toujours vrai, CLAUDE.md le précise.
+  - « All REST responses use a standardized ApiResponse<T> wrapper » →
+    la classe a été CRÉÉE le 2026-07-16 et gouverne toutes les ERREURS
+    (GlobalExceptionHandler) + les nouveaux endpoints ; les endpoints
+    existants gardent leurs formes ad hoc (partie 10 §1.2).
+
+
+7. PISTES DE RENFORCEMENT, PAR ORDRE DE RENDEMENT
+--------------------------------------------------------------------------------
+  1. ✅ FAIT (2026-07-16) — FIABILISER L'EXISTANT : les @SpringBootTest
+     tournent sur Testcontainers PostgreSQL via IntegrationTestBase et
+     sont skippés sans Docker ; « mvn test » passe sur toute machine
+     (84/84 vérifiés).
+  2. COUVRIR LES FLUX D'ARGENT (effort : jours ; rendement maximal) —
+     TachPayPaiementService (initiation, transitions d'état),
+     TachPayWebhookService (traitement des callbacks — la SIGNATURE est
+     testée, pas ce qu'on FAIT du webhook), ReconciliationService
+     (rattrapage des webhooks perdus). Ce sont les endroits où un bug
+     coûte de l'argent réel et où les tests Mockito à la
+     PaiementServiceTest s'écrivent facilement. Et surtout : corriger PUIS
+     tester le paiement public des frais de dossier (partie 06 §4).
+  3. ✅ FAIT (2026-07-16) — TRANCHER TESTCONTAINERS : réellement branché
+     (base des tests d'intégration) ; bucket4j, l'autre dépendance morte,
+     a été retirée du pom.
+  4. RENDRE JACOCO HONNÊTE (effort : minutes) — mesurer la couverture
+     réelle (target/site/jacoco après mvn test), fixer le seuil JUSTE EN
+     DESSOUS (ex. si la réalité est 12 %, seuil à 10 %), et lier
+     l'exécution check à la phase test pour qu'elle tourne à chaque build.
+     Le seuil ne peut alors plus DESCENDRE (cliquet anti-régression) et on
+     le remonte au fil des ajouts — plus efficace qu'un 70 % décoratif.
+  5. AMORCER LE FRONTEND (effort : heures) — l'outillage est DÉJÀ installé
+     (@testing-library/*, Jest via react-scripts) : il suffit d'écrire un
+     premier fichier. Commencer par src/utils/ (validators, formatters) :
+     fonctions pures, zéro mock, rendement immédiat. Les tests de
+     composants viendront ensuite.
+  6. FORMATAGE (optionnel) — Prettier + lint-staged si l'équipe grossit ;
+     inutile tant qu'un seul développeur travaille sur le front.
+================================================================================

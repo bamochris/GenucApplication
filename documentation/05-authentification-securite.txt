@@ -1,0 +1,267 @@
+================================================================================
+GENUC — PARTIE 5 : AUTHENTIFICATION ET SÉCURITÉ (VERSION APPROFONDIE)
+================================================================================
+Vue d'ensemble : sessions STATELESS à base de JWT signés, autorisation en
+deux étages (règles d'URL + @PreAuthorize), anti-brute-force à deux
+niveaux (verrouillage de compte + rate limiting distribué), 2FA TOTP
+optionnelle, signature électronique et vérification publique des
+documents officiels. Le tableau complet URL → rôle est en partie 10 §2.
+
+
+1. FLUX D'AUTHENTIFICATION (JWT), ÉTAPE PAR ÉTAPE
+--------------------------------------------------------------------------------
+  1. POST /api/auth/connecter (alias /login — les deux chemins sont
+     déclarés sur la même méthode) → AuthController →
+     AuthService.connecter(). Corps LoginRequest validé @Valid.
+  2. L'identifiant peut être un EMAIL ou un MATRICULE étudiant (au Congo,
+     beaucoup d'étudiants n'ont pas d'email — le matricule est leur
+     identifiant naturel). AuthService.resoudreIdentifiant() :
+       - contient « @ » → traité comme email (normalisé en MINUSCULES —
+         comportement vérifié par test : « Jean@X.cd » retrouve
+         « jean@x.cd ») ;
+       - sinon → mis en MAJUSCULES et résolu vers l'email du compte via
+         InscriptionRepository.findByMatricule() puis, en repli,
+         EtudiantRepository.findByMatriculePermanent() ;
+       - introuvable → l'identifiant original continue tel quel et
+         échoue plus loin en « identifiants invalides » GÉNÉRIQUE :
+         aucune fuite sur l'existence ou non d'un matricule.
+  3. Vérification du verrouillage (LoginAttemptService, §3) puis
+     authenticationManager.authenticate() (BCrypt). Compte verrouillé ou
+     mauvais mot de passe → InvalidCredentialsException (401) ; compte
+     NON ACTIVÉ → BusinessException (400) distincte (voir §2).
+  4. Si la 2FA est active (isTwoFactorEnabled) : la réponse ne contient
+     PAS de token d'accès mais un mfaChallengeToken éphémère — voir §4.
+  5. Sinon : access token JWT (JwtService) + RefreshToken PERSISTANT en
+     base (RefreshTokenService — révocable, purgé à 03h00), réponse
+     construireReponse() avec id/nomComplet/email/role/universiteId/
+     departementId/compteActive/inscriptionId/photoProfil.
+  6. Le frontend stocke JWT + refresh token dans localStorage (clé
+     REACT_APP_JWT_TOKEN_KEY) ; l'intercepteur Axios attache
+     « Authorization: Bearer <token> » partout et, sur 401, appelle
+     POST /api/auth/refresh puis REJOUE la requête d'origine. Si le
+     refresh échoue, l'événement window « genuc:session-expired » force
+     la déconnexion propre (partie 03 §3.4).
+
+CONTENU DU TOKEN (contrat vérifié par les 14 tests de JwtServiceTest) :
+  subject = email ; claims = rôle, universiteId (nullable — SUPER_ADMIN
+  n'est rattaché à aucune université), compteActive. Les authorities
+  extraites portent le préfixe ROLE_ (voir §5). Le service REFUSE de
+  s'initialiser avec un secret trop court ou vide ; un token expiré,
+  falsifié, ou présenté par un autre utilisateur est rejeté.
+  L'universiteId embarqué est la clé du FILTRAGE MULTI-TENANT : les
+  listes « admin » (ex. dossiers d'inscription) sont filtrées par
+  l'université du token, jamais par un paramètre fourni par le client.
+
+Bug frontend corrigé (juillet 2026) : la validation du formulaire de
+connexion imposait un format email strict et rejetait tout matricule
+(« Email invalide ») AVANT l'envoi au serveur, alors que le backend
+supportait la connexion par matricule. Corrigé : contrôle email seulement
+si l'identifiant contient « @ », sinon simple format matricule
+(alphanumérique sans espace) — même logique de branchement que le backend.
+
+
+2. COMPTE UTILISATEUR — CONDITIONS DE CONNEXION (LE PIÈGE actif=false)
+--------------------------------------------------------------------------------
+Sur l'entité Utilisateur :
+  isEnabled()          = actif && compteActive
+  isAccountNonLocked() = actif
+Un compte actif=false est rejeté AVANT la vérification du mot de passe.
+Origine habituelle : le circuit d'inscription crée les comptes INACTIFS ;
+l'activation passe par un email avec token (ActivationController —
+partie 10 §5, dont le contrat complet est couvert par 13 tests : token
+inconnu/expiré/déjà utilisé → 400, réponse identique que l'email existe
+ou non sur /renvoyer, anti-énumération).
+Premier réflexe si « un compte fraîchement créé ne peut pas se
+connecter » :
+  SELECT actif, compte_active FROM utilisateurs WHERE email=...
+Remèdes propres : POST /api/public/admin/dossiers/{id}/renvoyer-activation
+ou le circuit /api/activation/creer-mot-de-passe ; en dev brut : UPDATE.
+(Diagnostic outillé : GET /api/auth/diagnostiquer/{email}, réservé
+SUPER_ADMIN.)
+
+
+3. PROTECTION ANTI-BRUTE-FORCE — DEUX NIVEAUX COMPLÉMENTAIRES
+--------------------------------------------------------------------------------
+NIVEAU COMPTE — LoginAttemptService (Redis) : après 10 échecs consécutifs
+(MAX_ATTEMPTS), verrouillage 5 minutes (LOCKOUT_DURATION) ; clés Redis
+login:attempts:/login:locked: par email ; compteur remis à zéro sur
+succès. Protège UN compte ciblé, même si l'attaquant change d'IP.
+
+NIVEAU TRAFIC — RateLimitFilter (Redis, donc DISTRIBUÉ : les compteurs
+sont partagés entre instances backend) : limitation par IP via script Lua
+ATOMIQUE (INCR + EXPIRE en une opération — pas de fenêtre de course),
+fenêtre glissante de 60 s. Deux seuils :
+  genuc.ratelimit.api-per-minute    défaut 300 (la SPA fait beaucoup
+                                    d'appels parallèles — seuil large)
+  genuc.ratelimit.login-per-minute  défaut 20 (strict sur /auth/login et
+                                    /auth/register — anti-brute-force et
+                                    anti-énumération de comptes)
+Dépassement → 429. NOTE : la dépendance bucket4j du pom n'est PAS
+utilisée — le rate limiting réel est ce script Lua (écart documenté).
+
+CAPTCHA : un captcha mathématique simple côté frontend sur le formulaire
+de connexion (dissuade les scripts naïfs), INDÉPENDANT du reCAPTCHA
+Google utilisé sur les formulaires publics (dépôt de dossier). Défense en
+profondeur : captcha (front) + rate limit (IP) + verrouillage (compte).
+
+
+4. DOUBLE AUTHENTIFICATION (2FA / TOTP)
+--------------------------------------------------------------------------------
+TwoFactorService (dev.samstevens.totp — TOTP standard, compatible Google
+Authenticator/Authy), accessible à TOUT rôle authentifié via
+pages/securite/Securite2FA.jsx (route /securite/2fa).
+
+ENRÔLEMENT : POST /api/auth/2fa/setup génère secret + URI (QR à scanner)
+→ POST /2fa/confirm avec un premier code valide → activé. GET /2fa/status
+pour l'état ; POST /2fa/disable (avec code) pour désactiver.
+
+CONNEXION EN DEUX TEMPS quand la 2FA est active :
+  1. POST /api/auth/connecter → { mfaRequired: true, mfaChallengeToken }.
+     Le challenge token est un JWT SPÉCIAL à courte durée de vie qui ne
+     donne accès à RIEN d'autre qu'à l'étape 2.
+  2. POST /api/auth/2fa/login-verify (challenge + code à 6 chiffres) →
+     AuthService.verifierMfaEtConnecter() vérifie que le token est bien
+     un défi MFA (jwtService.estDefiMfa) ET le code TOTP
+     (twoFactorService.verifierCode) → délivre alors les vrais tokens.
+Côté front, AuthContext garde l'état intermédiaire entre les deux étapes
+(completeMfaLogin — partie 03 §3.4).
+
+
+5. RÔLES ET AUTORISATION — MÉCANIQUE ET BUGS VÉCUS
+--------------------------------------------------------------------------------
+15+ rôles (RoleEnum) : SUPER_ADMIN, ADMIN_SYSTEME, ADMIN_UNIVERSITE,
+SECRETAIRE_ACADEMIQUE, RECTEUR, DOYEN, CHEF_DEPARTEMENT, PROFESSEUR/
+ENSEIGNANT, ETUDIANT, CAISSIER, COMPTABLE, RH, BIBLIOTHECAIRE,
+APPARITEUR, SERVICE_SOCIAL, ALUMNI, AUDITEUR, INVITE...
+
+DEUX ÉTAGES D'AUTORISATION (détaillés en partie 10 §2) :
+  1. règles d'URL dans SecurityConfig — premier match gagne, tout ce qui
+     n'est pas listé exige une authentification (fermé par défaut) ;
+  2. @PreAuthorize sur les méthodes — AFFINE l'étage 1, et surtout :
+     permitAll à l'étage URL n'annule PAS un @PreAuthorize de méthode.
+     Exemple : /api/auth/** est permitAll, mais les endpoints de
+     diagnostic d'AuthController exigent SUPER_ADMIN par annotation — qui
+     est alors leur SEULE protection (vigilance en revue de code).
+
+PIÈGE ROLE_ (bug vécu) : hasRole("X")/hasAnyRole comparent avec
+l'authority « ROLE_X » (préfixe implicite), alors que hasAnyAuthority("X")
+compare LITTÉRALEMENT. JwtService produit des authorities préfixées
+ROLE_ (vérifié par test) — donc hasAnyAuthority('ETUDIANT') ne matche
+JAMAIS et casse l'autorisation en silence (403 systématique).
+PresenceController a eu ce bug. Règle : hasRole/hasAnyRole toujours, ou
+hasAuthority('ROLE_X') en forme longue.
+
+PIÈGE PUBLIC_PATHS (incident vécu, juillet 2026) : JwtAuthFilter
+court-circuite le décodage du token pour les chemins listés dans
+PUBLIC_PATHS. Le préfixe global « /api/public/ » y figurait, ce qui
+faisait sauter le filtre pour TOUT /api/public/**, Y COMPRIS les routes
+protégées /api/public/admin/** (instruction des dossiers) → l'utilisateur
+restait ANONYME → tous les @PreAuthorize échouaient en 403, quel que
+soit le rôle réel. Corrigé en ne listant que des préfixes précis et
+volontairement publics (/api/public/inscription,
+/api/universites/public/...). RÈGLE GÉNÉRALE : jamais de startsWith()
+sur un chemin « conteneur » dont un sous-chemin est protégé. En cas de
+403 « impossible » : vérifier d'abord si la requête a bien traversé le
+filtre JWT (l'utilisateur est-il anonyme ?), ensuite seulement les rôles.
+
+FRONTEND : PrivateRoute lit hasRole() depuis AuthContext (/login si non
+authentifié, /forbidden si mauvais rôle) ; RoleRedirect mappe chaque rôle
+vers son tableau de bord post-connexion. Rappel : contrôle d'ergonomie
+uniquement — la barrière réelle est le backend.
+
+
+6. SÉCURITÉ TECHNIQUE (SecurityConfig) — CHOIX ET JUSTIFICATIONS
+--------------------------------------------------------------------------------
+  - Mots de passe : BCryptPasswordEncoder (hachage adaptatif, salt
+    intégré). L'entité Utilisateur ne SÉRIALISE jamais le hash (garanti
+    par UtilisateurSerializationTest — le champ est write-only).
+  - Sessions : STATELESS — aucune session serveur ; chaque requête est
+    ré-authentifiée par son JWT. C'est ce qui permet de répliquer le
+    backend sans sticky sessions.
+  - CSRF : désactivé — cohérent pour une API stateless consommée avec un
+    JWT dans un EN-TÊTE (pas de cookie de session que le navigateur
+    enverrait à l'insu de l'utilisateur ; le vecteur CSRF n'existe pas).
+  - CORS : origines autorisées configurables (app.cors.allowed-origins,
+    défaut http://localhost:3000) ; OPTIONS /** est permitAll pour les
+    preflights.
+  - Ordre des filtres : RateLimitFilter puis JwtAuthFilter, avant les
+    règles d'autorisation — on rejette le trafic abusif AVANT de payer le
+    coût de validation du token.
+  - Webhooks paiement : permitAll par nécessité (l'opérateur n'a pas de
+    JWT) ; la sécurité y est la signature HMAC-SHA256 vérifiée par
+    WebhookSecurityService (secret par opérateur, repli secret global,
+    tolérance dev sans secret — contrat testé, partie 11 §1).
+
+
+7. SIGNATURE ÉLECTRONIQUE — LE CIRCUIT COMPLET
+--------------------------------------------------------------------------------
+SignatureElectroniqueService signe les documents officiels (lettres
+d'acceptation, attestations...) :
+  - CONFIGURATION par université : des Signataires (nom, fonction, image
+    de signature, actif/inactif — SignataireUniversiteController) et des
+    Règles par type de document (TypeDocumentSignable → qui signe quoi,
+    table regles_signature_document).
+  - resoudreSignataire() détermine automatiquement le signataire d'un
+    document donné (avec possibilité de forcer un signataire précis).
+  - WORKFLOW D'APPROBATION : les demandes passent par
+    DemandeSignatureController (/api/signature/demandes — créer, lister
+    « mes » demandes, valider, refuser) ; la SignatureBanner du front
+    (montée sur chaque page privée) rend les demandes en attente
+    impossibles à manquer pour le signataire.
+  - signer() enregistre une SignatureElectronique liée au document :
+    contenu canonique signé + code de vérification (le MÊME UUID public
+    que porte déjà le document — cohérence avec le motif global §8).
+  - verifier(code) / revoquer(code, motif) : une signature révoquée (avec
+    motif) invalide la mention « signé électroniquement » affichée lors
+    de la vérification publique — le document reste consultable mais
+    n'est plus attesté.
+
+
+8. VÉRIFICATION PUBLIQUE DE DOCUMENTS — LE MOTIF ANTI-FRAUDE
+--------------------------------------------------------------------------------
+Chaque document officiel généré (lettre d'acceptation/admission,
+attestation, diplôme, carte étudiant, bon de paiement) porte un UUID de
+vérification public encodé en QR code. Le QR pointe vers une ROUTE
+FRONTEND dédiée (jamais /api/... direct — justification en partie 01 §2),
+qui appelle un endpoint public (permitAll) répondant « authentique /
+inconnu » SANS jamais révéler d'information sur un identifiant
+inexistant (pas d'oracle d'énumération). Endpoints :
+  GET /api/lettres-acceptation/verifier/{uuid}
+  GET /api/attestations/verifier/{uuid}
+  GET /api/signatures/verifier/{code}
+  GET /api/deliberation/verifier/{uuid}     (diplômes ; l'ancien
+      GET /api/verifier/{uuid} de DeliberationController coexiste)
+  GET /api/public/admission/verifier?...    (lettres d'admission par
+      dossier — résolu par numeroDossier+matricule+universiteCode)
+Côté base, le motif s'appuie sur les colonnes uuid_verification uniques
+(partie 04 §4). Tout NOUVEAU document officiel doit reproduire ce motif
+de bout en bout : colonne UUID → QR sur le PDF → route front → endpoint
+public permitAll.
+
+
+9. RÉCUPÉRATION DE MOT DE PASSE — DEUX CIRCUITS
+--------------------------------------------------------------------------------
+  - MOT DE PASSE OUBLIÉ PAR MATRICULE (étudiants sans email fiable) :
+    pages/MotDePasseOublie.jsx → POST /api/auth/mot-de-passe-oublie
+    { matricule, email }. Règle de sécurité importante : si le compte
+    possède DÉJÀ un email enregistré, le mot de passe temporaire part
+    vers CET email-là — jamais vers l'adresse saisie dans le formulaire
+    (sinon n'importe qui connaissant un matricule détournerait le
+    compte) ; l'adresse fournie n'est rattachée au compte QUE s'il n'en
+    avait pas. Réponse toujours identique, compte existant ou non (pas
+    d'énumération).
+  - CHANGEMENT DE MOT DE PASSE (connecté) : PasswordPanel/PasswordDialog
+    → POST /api/auth/changer-mot-de-passe { ancien, nouveau } — exige
+    l'ancien mot de passe et DÉCONNECTE les autres sessions actives
+    (révocation des refresh tokens).
+
+
+10. AUDIT ET TRAÇABILITÉ
+--------------------------------------------------------------------------------
+  - audit_logs (+ AuditLogController /api/audit/logs) : qui a fait quoi.
+  - security_events / connexion_logs : événements de sécurité et
+    historique de connexions.
+  - GET /api/deliberation/audit : trace dédiée aux délibérations (qui a
+    préparé/publié quoi — sensible par nature).
+  - sms_logs : chaque SMS envoyé est tracé (coût + preuve d'envoi).
+================================================================================

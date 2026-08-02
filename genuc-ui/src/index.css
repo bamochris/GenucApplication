@@ -1,0 +1,123 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* ── Thème premium : bleu nuit profond + or ─────────────────── */
+    --background: 222 47% 6%;
+    --foreground: 210 40% 96%;
+
+    --card: 221 44% 12%;
+    --card-foreground: 210 40% 96%;
+
+    --primary: 41 84% 60%; /* or */
+    --primary-foreground: 222 47% 9%;
+
+    --secondary: 213 65% 20%; /* bleu royal profond */
+    --secondary-foreground: 210 40% 96%;
+
+    --muted: 221 32% 16%;
+    --muted-foreground: 214 20% 68%;
+
+    --accent: 41 84% 60%;
+    --accent-foreground: 222 47% 9%;
+
+    --destructive: 0 72% 55%;
+    --destructive-foreground: 210 40% 98%;
+
+    --success: 152 55% 45%;
+    --success-foreground: 152 60% 12%;
+
+    --border: 214 33% 22%;
+    --input: 214 33% 20%;
+    --ring: 41 84% 60%;
+
+    --gold: 41 84% 60%;
+    --gold-soft: 41 70% 72%;
+
+    --radius: 1rem;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply text-foreground font-sans antialiased;
+    background-color: hsl(var(--background));
+    min-height: 100vh;
+  }
+
+  /* ── Fond de marque GENUC (conservé) : body::before + surfaces transparentes ──
+     Superpose un dégradé nuit lisible au visuel de marque des universités. */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    background-image:
+      radial-gradient(1200px 600px at 80% -10%, hsl(41 84% 60% / 0.10), transparent 60%),
+      radial-gradient(1000px 700px at -10% 20%, hsl(213 90% 55% / 0.14), transparent 55%),
+      linear-gradient(180deg, hsl(222 47% 7% / 0.86), hsl(222 47% 5% / 0.94)),
+      url('/assets/background/bg-universites-dark-desktop.svg');
+    background-size: cover, cover, cover, cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    background-attachment: fixed;
+  }
+
+  ::selection {
+    background: hsl(var(--gold) / 0.28);
+    color: hsl(var(--foreground));
+  }
+
+  /* Scrollbar raffinée */
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: hsl(214 33% 26% / 0.7);
+    border-radius: 999px;
+    border: 2px solid transparent;
+    background-clip: content-box;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: hsl(41 84% 60% / 0.5);
+    background-clip: content-box;
+  }
+}
+
+@layer components {
+  /* Surface en verre translucide — laisse transparaître le fond de marque */
+  .glass {
+    background: hsl(221 44% 12% / 0.55);
+    backdrop-filter: blur(16px) saturate(140%);
+    -webkit-backdrop-filter: blur(16px) saturate(140%);
+    border: 1px solid hsl(210 40% 92% / 0.08);
+  }
+  .glass-strong {
+    background: hsl(221 46% 11% / 0.72);
+    backdrop-filter: blur(20px) saturate(150%);
+    -webkit-backdrop-filter: blur(20px) saturate(150%);
+    border: 1px solid hsl(210 40% 92% / 0.09);
+  }
+  .text-gradient-gold {
+    background: linear-gradient(100deg, hsl(41 90% 70%), hsl(41 84% 56%));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  .ring-focus {
+    @apply outline-none ring-2 ring-ring/70 ring-offset-2 ring-offset-background;
+  }
+}
