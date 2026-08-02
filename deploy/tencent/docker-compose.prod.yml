@@ -90,6 +90,11 @@ services:
       # Cookies : le site est servi en HTTPS derrière le Nginx du frontend.
       GENUC_COOKIE_SECURE: "true"
 
+      # Mode pilote : à true tant que les opérateurs mobile money ne sont pas
+      # contractualisés. Sans lui, le démarrage échoue volontairement sur
+      # « Configuration TachPay production incomplete ».
+      PAYMENT_MODE_PILOTE: ${PAYMENT_MODE_PILOTE:-true}
+
       MAIL_USERNAME: ${MAIL_USERNAME:-}
       MAIL_PASSWORD: ${MAIL_PASSWORD:-}
 

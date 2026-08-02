@@ -168,6 +168,44 @@ Tencent Cloud Observability Platform ou un Prometheus sur le réseau privé.
 
 ---
 
+## Mode pilote (paiements en ligne fermés)
+
+Par défaut, `PAYMENT_MODE_PILOTE=true`. La plateforme démarre sans les
+identifiants des opérateurs mobile money, qui ne sont pas encore
+contractualisés.
+
+Ce que cela change, concrètement :
+
+| Flux | En mode pilote |
+|---|---|
+| Mobile money (`/api/payments/mobile/**`) | **503** |
+| API paiement v1 (`/api/v1/payments/**`) | **503** |
+| Portail TachPay (`/api/tachpay/**`, `/api/tachfee/**`) | **503** |
+| Frais de dossier en ligne (`/api/dossiers/*/payer`) | **503** |
+| Callbacks opérateurs (`/api/payments/callback/**`) | **503** |
+| Caisse : espèces, virement, dépôt (`/api/paiements`, `/api/caisse/**`) | **ouvert** |
+| Dépôt et suivi de dossier, scolarité, notes, bibliothèque… | **ouvert** |
+
+Le refus est explicite côté client :
+
+```json
+{"success":false,"code":"PAIEMENT_INDISPONIBLE",
+ "message":"Le paiement en ligne n'est pas encore disponible. Veuillez vous adresser à la caisse de votre établissement.",
+ "status":503}
+```
+
+Ce mode **ferme** les encaissements externes, il ne les assouplit pas :
+`MobileMoneyService` simule encore les appels opérateurs, et laisser passer ces
+requêtes enregistrerait des paiements fictifs comme réels. Les deux garde-fous
+qui comptent restent vérifiés au démarrage — aucune simulation activée,
+signature de webhook toujours exigée.
+
+**Pour ouvrir les paiements** : renseigner les identifiants des quatre
+opérateurs et de Stripe dans `.env`, puis passer `PAYMENT_MODE_PILOTE=false`.
+Le démarrage échouera tant qu'il manquera une valeur — c'est voulu.
+
+---
+
 ## Points de vigilance
 
 - **Comptes de démonstration** : les seeds (`DataInitializer`,
@@ -177,6 +215,6 @@ Tencent Cloud Observability Platform ou un Prometheus sur le réseau privé.
   `CLAUDE.md` seraient créés.
 - **Opérateurs mobile money** : `MobileMoneyService` simule encore les appels
   (identifiants locaux `VOD_`/`AIR_`/`ORA_`). Le branchement des API réelles
-  reste à faire avant d'encaisser de vrais paiements.
+  reste à faire avant de sortir du mode pilote.
 - **Secrets exposés** : les 9 valeurs de l'ancien `k8s/02-secrets.yaml` ont été
   publiées sur un dépôt GitHub public. Ne pas les réutiliser ici.

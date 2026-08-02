@@ -293,6 +293,16 @@ genuc:
     afrimoney:
       secret: ${WEBHOOK_AFRIMONEY_SECRET:}
   payment:
+    # Mode pilote : permet d'exploiter la partie académique avant d'avoir
+    # contractualisé avec les opérateurs mobile money. TachPayProductionReadinessCheck
+    # cesse d'exiger leurs identifiants, et ModePiloteFilter refuse en 503 tout
+    # endpoint d'encaissement externe (mobile money, carte, TachPay, frais de
+    # dossier). Les paiements saisis en caisse restent opérationnels.
+    #
+    # Ce n'est PAS un mode dégradé permissif : il ferme les encaissements au lieu
+    # de les laisser passer par le simulateur. Repasser à false dès que les
+    # opérateurs sont branchés.
+    mode-pilote: ${PAYMENT_MODE_PILOTE:false}
     mobile-money:
       # false par défaut : en production, un opérateur mal configuré échoue
       # au lieu de générer un faux identifiant local.

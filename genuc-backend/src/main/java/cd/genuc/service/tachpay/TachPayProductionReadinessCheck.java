@@ -25,6 +25,35 @@ public class TachPayProductionReadinessCheck {
         }
 
         List<String> erreurs = new ArrayList<>();
+
+        // Mode pilote : l'établissement exploite la plateforme académique avant
+        // d'avoir signé avec les opérateurs mobile money. Les identifiants ne sont
+        // donc pas exigés — mais les encaissements externes ne sont pas pour autant
+        // « tolérés » : ModePiloteFilter refuse franchement les endpoints concernés
+        // (503), de sorte qu'aucun paiement ne peut être ni simulé ni accepté.
+        //
+        // Les deux garde-fous qui comptent restent vérifiés : aucune simulation
+        // activée, et signature de webhook toujours exigée. Ils empêchent qu'un
+        // « pilote » serve de porte dérobée à un encaissement fictif.
+        if (modePiloteActif()) {
+            exigerFalse("genuc.payment.mobile-money.simulation-enabled", erreurs);
+            exigerFalse("genuc.payment.card.simulation-enabled", erreurs);
+            exigerTrue("genuc.webhook.require-signature", erreurs);
+            exigerTrue("stripe.webhook.require-signature", erreurs);
+            if (!erreurs.isEmpty()) {
+                throw new IllegalStateException("Mode pilote mal configure : "
+                    + String.join(" ; ", erreurs));
+            }
+            log.warn("╔══════════════════════════════════════════════════════════════════╗");
+            log.warn("║  MODE PILOTE ACTIF — genuc.payment.mode-pilote=true              ║");
+            log.warn("║  Les paiements mobile money et carte sont REFUSES (HTTP 503).    ║");
+            log.warn("║  Aucun encaissement externe n'est possible. Les paiements en     ║");
+            log.warn("║  especes et par virement saisis en caisse restent operationnels. ║");
+            log.warn("║  Repasser a false des que les operateurs sont contractualises.   ║");
+            log.warn("╚══════════════════════════════════════════════════════════════════╝");
+            return;
+        }
+
         exigerFalse("genuc.payment.mobile-money.simulation-enabled", erreurs);
         exigerFalse("genuc.payment.card.simulation-enabled", erreurs);
         exigerTrue("genuc.webhook.require-signature", erreurs);
@@ -70,6 +99,10 @@ public class TachPayProductionReadinessCheck {
     private boolean profilProductionActif() {
         return Arrays.stream(environment.getActiveProfiles())
             .anyMatch(profile -> "prod".equalsIgnoreCase(profile));
+    }
+
+    private boolean modePiloteActif() {
+        return environment.getProperty("genuc.payment.mode-pilote", Boolean.class, Boolean.FALSE);
     }
 
     private void exiger(String key, List<String> erreurs) {
