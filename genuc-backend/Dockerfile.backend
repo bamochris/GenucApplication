@@ -25,8 +25,9 @@ RUN java -Djarmode=layertools -jar app.jar extract
 # ─── Étape 4 : Image finale minimale ─────────────────────────────────────────
 FROM eclipse-temurin:21-jre-alpine AS runtime
 
-# Sécurité : utilisateur non-root
-RUN addgroup -S genuc && adduser -S genuc -G genuc
+# Sécurité : utilisateur non-root. su-exec sert à abandonner les privilèges
+# dans l'entrypoint, après avoir ajusté le propriétaire du volume d'uploads.
+RUN apk add --no-cache su-exec &&     addgroup -S genuc && adduser -S genuc -G genuc
 WORKDIR /app
 
 # Layers copiées dans l'ordre de fréquence de changement (cache Docker optimal)
@@ -35,7 +36,17 @@ COPY --from=extractor --chown=genuc:genuc /extract/spring-boot-loader/ ./
 COPY --from=extractor --chown=genuc:genuc /extract/snapshot-dependencies/ ./
 COPY --from=extractor --chown=genuc:genuc /extract/application/ ./
 
-USER genuc
+# Répertoire des pièces jointes préparé dès l'image : sans lui, genuc ne peut
+# pas le créer, /app appartenant à root en 0755.
+RUN mkdir -p /app/uploads && chown genuc:genuc /app/uploads
+
+COPY docker-entrypoint-backend.sh /docker-entrypoint-backend.sh
+RUN chmod +x /docker-entrypoint-backend.sh
+
+# Pas de « USER genuc » ici : l'entrypoint doit démarrer root pour pouvoir
+# reprendre le propriétaire d'un volume monté (monté root:root par Railway,
+# Kubernetes ou « docker -v »), puis il bascule sur genuc via su-exec. Le
+# processus Java ne tourne donc jamais en root.
 
 EXPOSE 8082
 
@@ -55,11 +66,4 @@ ENV SPRING_PROFILES_ACTIVE=prod
 #   -XX:+UseG1GC             → GC adapté aux longues durées de vie
 #   -XX:+UseContainerSupport → détecte correctement les limites cgroup
 #   -Djava.security.egd      → démarrage rapide (entropie)
-ENTRYPOINT ["java", \
-  "-XX:+UseContainerSupport", \
-  "-XX:MaxRAMPercentage=75.0", \
-  "-XX:+UseG1GC", \
-  "-XX:G1HeapRegionSize=16m", \
-  "-XX:+ExitOnOutOfMemoryError", \
-  "-Djava.security.egd=file:/dev/./urandom", \
-  "org.springframework.boot.loader.launch.JarLauncher"]
+ENTRYPOINT ["/docker-entrypoint-backend.sh"]
