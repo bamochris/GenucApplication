@@ -7,6 +7,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 
 import java.util.Map;
+import org.springframework.scheduling.annotation.Async;
 
 /**
  * WhatsApp Business Cloud API (Meta) — notifications des résultats, infos inscriptions.
@@ -62,6 +63,7 @@ public class WhatsAppService {
      * Envoie un message texte libre — uniquement valide si le destinataire a interagi avec
      * le compte WhatsApp Business dans les dernières 24h (fenêtre de service client Meta).
      */
+    @Async
     public void envoyerMessage(String telephone, String message) {
         if (!whatsappEnabled) {
             log.info("WhatsApp désactivé. Message non envoyé à {} : {}", telephone, message);
@@ -100,6 +102,7 @@ public class WhatsAppService {
      * Envoie un message basé sur un template pré-approuvé Meta — seul moyen d'initier une
      * conversation en dehors de la fenêtre de 24h (ex: notification de résultats).
      */
+    @Async
     public void envoyerTemplate(String telephone, String nomTemplate, String langue, java.util.List<String> parametres) {
         if (!whatsappEnabled) {
             log.info("WhatsApp désactivé. Template '{}' non envoyé à {}", nomTemplate, telephone);

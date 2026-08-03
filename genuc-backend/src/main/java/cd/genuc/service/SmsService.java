@@ -7,6 +7,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 
 import java.util.Map;
+import org.springframework.scheduling.annotation.Async;
 
 @Service
 @Slf4j
@@ -38,6 +39,7 @@ public class SmsService {
         return webClient;
     }
 
+    @Async
     public void envoyerSms(String telephone, String message) {
         if (!smsEnabled) {
             log.info("SMS désactivé. Message non envoyé à {} : {}", telephone, message);

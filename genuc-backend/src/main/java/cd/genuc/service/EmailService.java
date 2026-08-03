@@ -52,6 +52,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Base64;
 import java.util.Locale;
+import org.springframework.scheduling.annotation.Async;
 
 @Slf4j
 @Service
@@ -71,6 +72,7 @@ public class EmailService {
     /**
      * Envoie un email simple (texte brut)
      */
+    @Async
     public void envoyerEmail(String destinataire, String sujet, String message) {
         try {
             MimeMessage mimeMessage = mailSender.createMimeMessage();
@@ -89,6 +91,7 @@ public class EmailService {
     /**
      * Envoie un email avec une pièce jointe (PDF, etc.)
      */
+    @Async
     public void envoyerAvecPieceJointe(String destinataire, String sujet, String corps,
                                        byte[] pieceJointe, String nomFichier) {
         try {
@@ -110,6 +113,7 @@ public class EmailService {
         }
     }
 
+    @Async
     public void envoyerAvecPieceJointe(String destinataire, String sujet, String corps,
                                        byte[] pieceJointe, String nomFichier,
                                        Universite universite) {
@@ -133,6 +137,7 @@ public class EmailService {
         }
     }
 
+        @Async
         public void envoyerAccuseReceptionDossier(DossierInscription dossier,
                                                                                             Universite universite,
                                                                                             String lienPaiement,
@@ -204,6 +209,7 @@ public class EmailService {
     /**
      * Envoie un email d'activation de compte (HTML)
      */
+    @Async
     public void envoyerEmailActivation(Utilisateur utilisateur, String token, String matricule) {
         try {
             String lienActivation = baseUrl + "/activer-compte?token=" + token;
@@ -234,6 +240,7 @@ public class EmailService {
     /**
      * Envoie un email de bienvenue (HTML). Échec non bloquant : le compte est déjà activé.
      */
+    @Async
     public void envoyerEmailBienvenue(Utilisateur utilisateur) {
         try {
             MimeMessage message = mailSender.createMimeMessage();
@@ -259,6 +266,7 @@ public class EmailService {
      * Email de bienvenue pour un membre du personnel créé par un administrateur.
      * Inclut les identifiants et le rôle. Non bloquant.
      */
+    @Async
     public void envoyerEmailBienvenueStaff(Utilisateur utilisateur, String motDePasseClair) {
         try {
             MimeMessage message = mailSender.createMimeMessage();
@@ -401,6 +409,7 @@ public class EmailService {
     /**
      * Envoie la lettre d'admission par email (non bloquant — l'activation a déjà été envoyée).
      */
+    @Async
     public void envoyerLettreAcceptation(DossierInscription dossier, Universite universite,
                                           Departement departement, Filiere filiere,
                                           String matricule, String anneeAcademique,
@@ -1137,6 +1146,7 @@ public class EmailService {
     }
 
     /** Convocation au test d'admission (candidat < 60% au diplôme). Non bloquant. */
+    @Async
     public void envoyerConvocationTest(DossierInscription dossier, Universite universite, String messageSecretaire) {
         try {
             String nomUni = universite != null ? universite.getNom() : "l'université";
@@ -1168,6 +1178,7 @@ public class EmailService {
     }
 
     /** Message libre du secrétariat à un candidat (info pendant la période d'inscription). Non bloquant. */
+    @Async
     public void envoyerMessageSecretariat(String email, String nomCandidat, String sujet, String message, Universite universite) {
         try {
             String nomUni = universite != null ? universite.getNom() : "l'université";
@@ -1204,11 +1215,13 @@ public class EmailService {
     /**
      * Envoie le relevé de notes par email (fusion avec MailService)
      */
+    @Async
     public void envoyerReleveParEmail(String destinataire, String nomEtudiant,
                                       byte[] pdfContent, String anneeAcademique) {
         envoyerReleveParEmail(destinataire, nomEtudiant, pdfContent, anneeAcademique, null);
     }
 
+    @Async
     public void envoyerReleveParEmail(String destinataire, String nomEtudiant,
                                       byte[] pdfContent, String anneeAcademique,
                                       Universite universite) {
