@@ -68,7 +68,18 @@ public class TransitionAnneeService {
         int erreurs = 0;
         int bloquesPromotionManquante = 0;
         java.util.Set<String> promotionsManquantes = new java.util.TreeSet<>();
+        // Détail borné : un passage de classe porte sur toutes les inscriptions
+        // validées d'un établissement. Si la campagne est lancée avant que les
+        // délibérations ne soient publiées, CHAQUE inscription produit une ligne
+        // — la réponse HTTP enflerait à la taille de l'effectif. Le compteur
+        // « erreurs » reste exact ; seul l'échantillon affiché est plafonné.
+        final int MAX_DETAILS = 100;
         java.util.List<String> erreursDetails = new java.util.ArrayList<>();
+        java.util.function.Consumer<String> noter = message -> {
+            if (erreursDetails.size() < MAX_DETAILS) {
+                erreursDetails.add(message);
+            }
+        };
 
         for (Inscription ins : inscriptions) {
             try {
@@ -77,14 +88,14 @@ public class TransitionAnneeService {
                         .orElse(null);
                 if (delib == null) {
                     log.warn("Pas de délibération pour l'inscription {}", ins.getId());
-                    erreursDetails.add("Inscription " + ins.getId() + " : pas de délibération");
+                    noter.accept("Inscription " + ins.getId() + " : pas de délibération");
                     erreurs++;
                     continue;
                 }
 
                 if (delib.getStatut() != StatutDeliberation.PUBLIEE) {
                     log.warn("Délibération non publiée pour inscription {} (statut: {})", ins.getId(), delib.getStatut());
-                    erreursDetails.add("Inscription " + ins.getId() + " : délibération non publiée (statut: " + delib.getStatut() + ")");
+                    noter.accept("Inscription " + ins.getId() + " : délibération non publiée (statut: " + delib.getStatut() + ")");
                     erreurs++;
                     continue;
                 }
@@ -122,7 +133,7 @@ public class TransitionAnneeService {
 
             } catch (Exception e) {
                 log.error("Erreur pour l'inscription {} : {}", ins.getId(), e.getMessage());
-                erreursDetails.add("Inscription " + ins.getId() + " : " + e.getMessage());
+                noter.accept("Inscription " + ins.getId() + " : " + e.getMessage());
                 erreurs++;
             }
         }

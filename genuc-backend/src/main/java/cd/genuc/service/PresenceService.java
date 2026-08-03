@@ -16,6 +16,7 @@ import java.io.IOException;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.ZoneOffset;
 import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -32,8 +33,12 @@ public class PresenceService {
 
     public byte[] genererQrCode(Long coursId, Long seanceId) throws WriterException, IOException {
         String uuid = UUID.randomUUID().toString();
-        LocalDateTime expiration = LocalDateTime.now().plusMinutes(5);
-        String payload = String.format("GENUC:PRESENCE:%d:%d:%s:%s", coursId, seanceId != null ? seanceId : 0, uuid, expiration.toString());
+        // Expiration en secondes epoch, et non en LocalDateTime.toString() :
+        // cette représentation contient elle-même des « : », qui décalaient tous
+        // les champs au découpage du payload. Le lecteur tombait alors sur l'UUID
+        // à la place de la date et chaque scan échouait.
+        long expiration = LocalDateTime.now().plusMinutes(5).toEpochSecond(ZoneOffset.UTC);
+        String payload = String.format("GENUC:PRESENCE:%d:%d:%s:%d", coursId, seanceId != null ? seanceId : 0, uuid, expiration);
         QRCodeWriter qrWriter = new QRCodeWriter();
         BitMatrix bitMatrix = qrWriter.encode(payload, BarcodeFormat.QR_CODE, 300, 300);
         ByteArrayOutputStream pngOutputStream = new ByteArrayOutputStream();
@@ -43,15 +48,27 @@ public class PresenceService {
 
     @Transactional
     public Presence enregistrerPresence(String payload, Long etudiantId) {
+        // Format : GENUC:PRESENCE:<coursId>:<seanceId>:<uuid>:<expirationEpochSecondes>
         String[] parts = payload.split(":");
-        if (parts.length < 5 || !parts[0].equals("GENUC") || !parts[1].equals("PRESENCE")) {
+        if (parts.length < 6 || !parts[0].equals("GENUC") || !parts[1].equals("PRESENCE")) {
             throw new RuntimeException("QR code invalide");
         }
-        Long coursId = Long.parseLong(parts[2]);
-        Long seanceId = parts[3].equals("0") ? null : Long.parseLong(parts[3]);
-        LocalDateTime expiration = LocalDateTime.parse(parts[4]);
+        long coursIdBrut;
+        long seanceIdBrut;
+        long expiration;
+        try {
+            coursIdBrut  = Long.parseLong(parts[2]);
+            seanceIdBrut = Long.parseLong(parts[3]);
+            expiration   = Long.parseLong(parts[5]);
+        } catch (NumberFormatException e) {
+            // Un QR d'un autre système, ou tronqué, doit être rejeté comme
+            // invalide et non remonter en erreur 500.
+            throw new RuntimeException("QR code invalide");
+        }
+        Long coursId = coursIdBrut;
+        Long seanceId = seanceIdBrut == 0L ? null : seanceIdBrut;
 
-        if (LocalDateTime.now().isAfter(expiration)) {
+        if (LocalDateTime.now().toEpochSecond(ZoneOffset.UTC) > expiration) {
             throw new RuntimeException("QR code expiré");
         }
 

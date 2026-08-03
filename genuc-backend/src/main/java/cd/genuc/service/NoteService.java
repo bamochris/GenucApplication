@@ -9,6 +9,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.cache.annotation.Caching;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -27,6 +29,37 @@ public class NoteService {
     private final InscriptionRepository inscriptionRepo;
     private final CoursRepository coursRepo;
     private final UniversiteRepository universiteRepo;
+
+    /**
+     * Rôles habilités à saisir une note pour un cours dont ils ne sont pas le
+     * titulaire : encadrement pédagogique et administration.
+     */
+    private static final Set<RoleEnum> ROLES_SAISIE_DELEGUEE = EnumSet.of(
+            RoleEnum.CHEF_DEPARTEMENT, RoleEnum.ADMIN_UNIVERSITE, RoleEnum.SUPER_ADMIN);
+
+    /**
+     * Un professeur ne saisit que les notes de ses propres cours.
+     *
+     * <p>L'identité est lue dans le contexte de sécurité, et non dans le corps
+     * de la requête : un {@code professeurId} fourni par l'appelant se falsifie
+     * en changeant un nombre, et ne constitue donc aucun contrôle.</p>
+     *
+     * <p>Les rôles d'encadrement restent autorisés — {@code @PreAuthorize} les
+     * admet sur l'endpoint, et un chef de département doit pouvoir corriger la
+     * note d'un cours dont il n'est pas titulaire.</p>
+     */
+    private void verifierDroitDeSaisie(Cours cours) {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !(authentication.getPrincipal() instanceof Utilisateur appelant)) {
+            throw new RuntimeException("Authentification requise pour saisir une note");
+        }
+        if (ROLES_SAISIE_DELEGUEE.contains(appelant.getRole())) {
+            return;
+        }
+        if (cours.getProfesseurId() == null || !cours.getProfesseurId().equals(appelant.getId())) {
+            throw new RuntimeException("Vous n'êtes pas autorisé à saisir des notes pour ce cours");
+        }
+    }
 
     // ══════════════════════════════════════════
     // SAISIE DES NOTES (Professeur)
@@ -55,16 +88,7 @@ public class NoteService {
         Cours cours = coursRepo.findById(coursId)
             .orElseThrow(() -> new CoursNotFoundException(coursId));
 
-        Long demandeurId = data.get("professeurId") != null
-            ? Long.valueOf(data.get("professeurId").toString()) : null;
-
-        if (demandeurId == null) {
-            throw new RuntimeException("professeurId est requis pour saisir une note");
-        }
-
-        if (!demandeurId.equals(cours.getProfesseurId())) {
-            throw new RuntimeException("Vous n'êtes pas autorisé à saisir des notes pour ce cours");
-        }
+        verifierDroitDeSaisie(cours);
 
         // Récupérer la note existante ou en créer une nouvelle
         Note note = noteRepo.findByInscriptionIdAndCoursIdAndAnneeAcademiqueAndSession(

@@ -149,7 +149,10 @@ class DeliberationServiceTest {
         // Act & Assert
         assertThatThrownBy(() -> deliberationService.preparer(1L, annee))
                 .isInstanceOf(RuntimeException.class)
-                .hasMessageContaining("Aucune note validee pour cet etudiant cette annee");
+                // La délibération se fonde désormais sur les notes PUBLIEE, et
+                // non plus VALIDEE : c'est le critère qu'appliquaient déjà
+                // DeliberationWorkflowService et le portail étudiant.
+                .hasMessageContaining("Aucune note publiee pour cet etudiant cette annee");
     }
 
     @Test
@@ -239,5 +242,85 @@ class DeliberationServiceTest {
         assertThat(result.get("diplomes")).isEqualTo(0);
         assertThat(result.get("redoublants")).isEqualTo(1);
         assertThat(result.get("tauxReussite")).isEqualTo(33); // 1/3 = 33%
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    // Enchaînement des statuts
+    //
+    // preparer() pose PRÊTE, tenuePar() est le SEUL chemin vers TENUE, et
+    // publier() exige TENUE. Une garde qui refuse PRÊTE dans tenuePar() rend
+    // donc TENUE inatteignable et verrouille toute la fin d'année : plus de
+    // publication, plus de passage de classe (qui exige PUBLIEE), plus de
+    // diplôme. Ces tests fixent la chaîne pour que le blocage ne revienne pas.
+    // ══════════════════════════════════════════════════════════════
+
+    private Deliberation deliberationAuStatut(Deliberation.StatutDeliberation statut) {
+        return Deliberation.builder()
+                .id(10L)
+                .inscription(inscription)
+                .universite(universite)
+                .departement(departement)
+                .anneeAcademique("2025-2026")
+                .statut(statut)
+                .decision(Deliberation.DecisionJury.ADMIS)
+                .moyenneGenerale(12.0)
+                .build();
+    }
+
+    @Test
+    void tenuePar_ShouldAccept_WhenDeliberationPrete() {
+        Deliberation prete = deliberationAuStatut(Deliberation.StatutDeliberation.PRÊTE);
+        when(deliberationRepo.findById(10L)).thenReturn(Optional.of(prete));
+        when(deliberationRepo.save(any(Deliberation.class))).thenAnswer(i -> i.getArgument(0));
+
+        Deliberation tenue = deliberationService.tenuePar(10L, Map.of());
+
+        assertThat(tenue.getStatut()).isEqualTo(Deliberation.StatutDeliberation.TENUE);
+    }
+
+    @Test
+    void tenuePar_ShouldThrow_WhenDeliberationPubliee() {
+        when(deliberationRepo.findById(10L))
+                .thenReturn(Optional.of(deliberationAuStatut(Deliberation.StatutDeliberation.PUBLIEE)));
+
+        assertThatThrownBy(() -> deliberationService.tenuePar(10L, Map.of()))
+                .hasMessageContaining("publiee");
+    }
+
+    @Test
+    void publier_ShouldSucceed_WhenDeliberationTenue() {
+        Deliberation tenue = deliberationAuStatut(Deliberation.StatutDeliberation.TENUE);
+        when(deliberationRepo.findById(10L)).thenReturn(Optional.of(tenue));
+        when(deliberationRepo.save(any(Deliberation.class))).thenAnswer(i -> i.getArgument(0));
+
+        assertThat(deliberationService.publier(10L).getStatut())
+                .isEqualTo(Deliberation.StatutDeliberation.PUBLIEE);
+    }
+
+    @Test
+    void preparer_ShouldThrow_WhenJuryADejaStatue() {
+        when(inscriptionRepo.findById(1L)).thenReturn(Optional.of(inscription));
+        when(deliberationRepo.findByInscriptionIdAndAnneeAcademique(1L, "2025-2026"))
+                .thenReturn(Optional.of(deliberationAuStatut(Deliberation.StatutDeliberation.TENUE)));
+
+        assertThatThrownBy(() -> deliberationService.preparer(1L, "2025-2026"))
+                .hasMessageContaining("jury a deja statue");
+    }
+
+    @Test
+    void preparer_ShouldRecalculer_WhenBrouillonPrete() {
+        // Un brouillon doit rester recalculable : sans cela, une note corrigée
+        // après la préparation ne pourrait plus être prise en compte.
+        when(inscriptionRepo.findById(1L)).thenReturn(Optional.of(inscription));
+        when(deliberationRepo.findByInscriptionIdAndAnneeAcademique(1L, "2025-2026"))
+                .thenReturn(Optional.of(deliberationAuStatut(Deliberation.StatutDeliberation.PRÊTE)));
+        when(noteRepo.notesValideesPourDeliberation(1L, "2025-2026"))
+                .thenReturn(List.of(note1, note2));
+        when(deliberationRepo.save(any(Deliberation.class))).thenAnswer(i -> i.getArgument(0));
+
+        Deliberation recalculee = deliberationService.preparer(1L, "2025-2026");
+
+        assertThat(recalculee.getId()).isEqualTo(10L); // mise à jour en place
+        assertThat(recalculee.getStatut()).isEqualTo(Deliberation.StatutDeliberation.PRÊTE);
     }
 }

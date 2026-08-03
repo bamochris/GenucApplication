@@ -54,7 +54,10 @@ public class Presence {
 
     private String codeQrScanne;
     private LocalDateTime scanTimestamp;
-    private LocalDateTime qrExpiration;
+    // Pas de champ qrExpiration : l'expiration est portée par le payload du QR
+    // lui-même et vérifiée au scan. La persister n'apportait rien et ajoutait
+    // une colonne qui, faute de migration Flyway correspondante, aurait fait
+    // échouer le démarrage en production (ddl-auto=validate).
 
     @PrePersist
     protected void onCreate() {

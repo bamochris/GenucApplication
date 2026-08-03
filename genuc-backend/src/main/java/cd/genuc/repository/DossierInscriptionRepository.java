@@ -18,9 +18,13 @@ public interface DossierInscriptionRepository extends JpaRepository<DossierInscr
 
     boolean existsByEmail(String email);
 
-    boolean existsByTelephone(String telephone);
+    boolean existsByTelephoneAndUniversiteId(String telephone, Long universiteId);
 
-    boolean existsByMatricule(String matricule);
+    // Pas de existsByMatricule ici : un dossier est déposé par un candidat qui
+    // n'a pas encore de matricule — celui-ci n'est attribué qu'à la validation,
+    // sur l'Inscription. DossierInscription ne porte donc aucun champ matricule
+    // et une telle requête dérivée fait échouer le démarrage du contexte Spring
+    // (« No property 'matricule' found »), sans que la compilation ne bronche.
 
     long countByUniversiteId(Long universiteId);
 

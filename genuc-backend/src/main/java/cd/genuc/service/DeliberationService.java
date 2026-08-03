@@ -77,13 +77,19 @@ public class DeliberationService {
 
         Optional<Deliberation> existante = deliberationRepo
                 .findByInscriptionIdAndAnneeAcademique(inscriptionId, anneeAcademique);
+        // Une délibération déjà soumise au jury ne se recalcule pas : la
+        // décision rendue, ou publiée, prime sur le calcul automatique.
+        // En revanche un brouillon (EN_PREPARATION, PRÊTE) doit rester
+        // recalculable — c'est le seul moyen de tenir compte d'une note
+        // corrigée après coup, et la méthode est écrite pour cela
+        // (« existante.orElse(new Deliberation()) » met à jour en place).
         if (existante.isPresent()) {
             StatutDeliberation statut = existante.get().getStatut();
             if (statut == StatutDeliberation.PUBLIEE) {
                 throw new RuntimeException("Une deliberation publiee existe deja pour cet etudiant");
             }
-            if (statut == StatutDeliberation.EN_PREPARATION || statut == StatutDeliberation.PRÊTE) {
-                throw new RuntimeException("Une deliberation est deja en cours pour cet etudiant (statut: " + statut + ")");
+            if (statut == StatutDeliberation.TENUE) {
+                throw new RuntimeException("Le jury a deja statue pour cet etudiant : deliberation non recalculable");
             }
         }
 
@@ -270,8 +276,15 @@ public class DeliberationService {
         if (delib.getStatut() == StatutDeliberation.PUBLIEE) {
             throw new RuntimeException("Impossible de modifier une deliberation publiee");
         }
-        if (delib.getStatut() == StatutDeliberation.EN_PREPARATION || delib.getStatut() == StatutDeliberation.PRÊTE) {
-            throw new RuntimeException("Impossible de modifier une deliberation en cours de preparation ou prete");
+        // PRÊTE doit être ACCEPTÉ : c'est le statut que pose preparer(), et
+        // cette méthode est justement celle qui fait siéger le jury (statut
+        // TENUE, plus bas). La refuser rendait TENUE inatteignable, et avec
+        // elle publier() — qui l'exige —, le passage d'année et la délivrance
+        // des diplômes, qui exigent tous deux une délibération PUBLIEE.
+        // Seule une délibération jamais préparée n'a rien à soumettre au jury.
+        if (delib.getStatut() == StatutDeliberation.EN_PREPARATION) {
+            throw new RuntimeException(
+                    "Deliberation non preparee : lancer la preparation avant de reunir le jury");
         }
 
         String ancienStatut = delib.getStatut().name();

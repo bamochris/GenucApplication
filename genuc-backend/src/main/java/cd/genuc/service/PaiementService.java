@@ -79,9 +79,18 @@ public class PaiementService {
             data.getOrDefault("modePaiement", "ESPECES").toString()
         );
 
-        // Vérifier le solde total dû pour ce type de paiement
-        Double totalDu = baremeRepo.findByUniversiteIdAndAnneeAcademiqueAndNiveauAndTypePaiement(
-                universiteId, inscription.getAnneeAcademique().getLibelle(), inscription.getNiveau(), type)
+        // Vérifier le solde total dû pour ce type de paiement.
+        // L'année académique peut manquer sur d'anciennes inscriptions : la
+        // déréférencer sans précaution transformait un versement en 500. Sans
+        // année, aucun barème n'est identifiable — on laisse alors passer le
+        // versement (totalDu = 0 neutralise le plafond ci-dessous) plutôt que
+        // de bloquer la caisse sur une donnée historique incomplète.
+        String anneeBareme = inscription.getAnneeAcademique() != null
+                ? inscription.getAnneeAcademique().getLibelle()
+                : null;
+        Double totalDu = anneeBareme == null ? 0.0
+                : baremeRepo.findByUniversiteIdAndAnneeAcademiqueAndNiveauAndTypePaiement(
+                        universiteId, anneeBareme, inscription.getNiveau(), type)
                 .map(BaremePaiement::getMontantAttendu)
                 .orElse(0.0);
 
@@ -97,9 +106,15 @@ public class PaiementService {
             );
         }
 
-        // Générer la référence unique et vérifier l'unicité
+        // Générer la référence unique et vérifier l'unicité. Une seule
+        // regénération, non revérifiée, ne garantissait rien : on retente
+        // jusqu'à obtenir une référence libre, et on échoue franchement plutôt
+        // que d'enregistrer un doublon que la caisse ne saurait plus rapprocher.
         String reference = genererReference();
-        if (paiementRepo.existsByReference(reference)) {
+        for (int essai = 0; paiementRepo.existsByReference(reference); essai++) {
+            if (essai >= 5) {
+                throw new RuntimeException("Impossible de generer une reference de paiement unique");
+            }
             reference = genererReference();
         }
 

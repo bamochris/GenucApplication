@@ -123,13 +123,19 @@ public class InscriptionPubliqueService {
         if (etudiantRepo.existsByEmail(req.getEmail())) {
             throw new RuntimeException("Un étudiant est déjà inscrit avec cet email");
         }
-        if (req.getTelephone1() != null && !req.getTelephone1().isBlank() && dossierRepo.existsByTelephone(req.getTelephone1())) {
-            throw new RuntimeException("Un dossier existe déjà avec ce numéro de téléphone");
-        }
-
         if (req.getUniversiteId() == null)      throw new RuntimeException("L'université est obligatoire.");
         if (req.getDepartementId() == null)     throw new RuntimeException("Le département est obligatoire.");
         if (req.getFiliereId() == null)         throw new RuntimeException("La filière est obligatoire.");
+
+        // Unicité du téléphone limitée à l'établissement visé, et non nationale.
+        // Un numéro est couramment partagé au sein d'un foyer, et un candidat
+        // peut légitimement déposer un dossier dans plusieurs établissements :
+        // un contrôle global bloquerait ces deux cas parfaitement normaux.
+        // Ce contrôle est placé après la validation de universiteId, dont il dépend.
+        if (req.getTelephone1() != null && !req.getTelephone1().isBlank()
+                && dossierRepo.existsByTelephoneAndUniversiteId(req.getTelephone1(), req.getUniversiteId())) {
+            throw new RuntimeException("Un dossier existe déjà avec ce numéro de téléphone dans cet établissement");
+        }
         if (req.getAnneeAcademiqueId() == null) throw new RuntimeException("L'année académique est obligatoire.");
 
         // Règle d'admission : le code EXETAT est obligatoire pour un Diplôme d'État

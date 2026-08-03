@@ -62,7 +62,12 @@ public class AttestationService {
         verifierFraisDocumentaire(inscriptionId, type);
 
         if (type == Attestation.TypeAttestation.DIPLOME) {
-            Deliberation delib = deliberationRepo.findByInscriptionIdAndAnneeAcademique(inscriptionId, inscription.getAnneeAcademique().getLibelle())
+            // Sans année académique, aucune délibération n'est identifiable : le
+            // refus métier est la bonne réponse, alors que déréférencer l'année
+            // directement produisait un 500 sur les inscriptions incomplètes.
+            Deliberation delib = inscription.getAnneeAcademique() == null ? null
+                    : deliberationRepo.findByInscriptionIdAndAnneeAcademique(
+                            inscriptionId, inscription.getAnneeAcademique().getLibelle())
                     .orElse(null);
             if (delib == null || delib.getDecision() != Deliberation.DecisionJury.DIPLOME || delib.getStatut() != Deliberation.StatutDeliberation.PUBLIEE) {
                 throw new BusinessException("DIPLOME_NON_DISPONIBLE",
