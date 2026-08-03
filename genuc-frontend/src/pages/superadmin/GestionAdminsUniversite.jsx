@@ -1,16 +1,23 @@
 import { useEffect, useState } from 'react';
 import api from '../../api/axios';
 import { resolveFileUrl } from '../../utils/fileUrl';
-import SidebarSuperAdmin from '../../components/SidebarSuperAdmin';
 
 const S = {
-  // `flexWrap` permet au contenu de passer SOUS la barre latérale une fois
-  // celle-ci repliée en bandeau pleine largeur sur téléphone (voir la media
-  // query ≤768px de SidebarSuperAdmin.css) ; sans lui, il restait coincé à
-  // côté sur une colonne de quelques dizaines de pixels.
-  layout: { display: 'flex', flexWrap: 'wrap', minHeight: '100vh', background: 'transparent', fontFamily: 'Inter,Arial,sans-serif' },
+  // ⚠️ Pas de barre latérale ici.
+  //
+  // Cette page rendait son propre <SidebarSuperAdmin /> — vestige de l'époque
+  // où elle n'était pas encapsulée. Elle passe désormais par `PrivatePage`, donc
+  // par `AppLayout`, qui pose déjà la <Navbar /> : le portail super admin
+  // affichait DEUX barres latérales côte à côte, celle du layout puis celle de
+  // la page, avec des entrées différentes. Constaté le 03/08/2026 sur
+  // /super-admin/admins-universites — la seule page du dépôt qui importait
+  // encore ce composant.
+  //
+  // La disposition redevient donc un simple bloc : le `display:flex` n'existait
+  // que pour placer la barre à côté du contenu.
+  layout: { background: 'transparent', fontFamily: 'Inter,Arial,sans-serif' },
   // Marge fluide : 32px sur grand écran, 12px sur téléphone.
-  main:   { flex: '1 1 320px', padding: 'clamp(12px, 4vw, 32px)', overflowY: 'auto' },
+  main:   { padding: 'clamp(12px, 4vw, 32px)' },
 
   // Header
   pageHeader: { marginBottom: 28 },
@@ -226,12 +233,10 @@ export default function GestionAdminsUniversite() {
 
   const adminDeUni = (uniId) => admins.find(a => a.universiteId === uniId && a.actif);
 
-  if (loading) return <div style={S.layout}><SidebarSuperAdmin /><div style={S.main}>Chargement…</div></div>;
+  if (loading) return <div style={S.layout}><div style={S.main}>Chargement…</div></div>;
 
   return (
     <div style={S.layout}>
-      <SidebarSuperAdmin />
-
       {feedback && <div style={S.feedback(feedback.ok)}>{feedback.msg}</div>}
 
       <div style={S.main}>

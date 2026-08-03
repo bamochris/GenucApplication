@@ -222,6 +222,12 @@ export const LINKS_CONFIG = {
   SUPER_ADMIN: [
     { to: '/super-admin/dashboard', icon: 'home', label: 'Dashboard national', ariaLabel: 'Aller au Dashboard national' },
     { to: '/universites', icon: 'university', label: 'Universités', ariaLabel: 'Gérer les universités' },
+    // Reprise de la barre latérale propre au super admin, supprimée le
+    // 03/08/2026 (elle faisait doublon avec celle-ci). C'était sa seule entrée
+    // absente d'ici ; les sept autres avaient déjà leur équivalent, directement
+    // ou dans le sous-menu Paramètres. Le formulaire reste également accessible
+    // depuis le Dashboard national, mais il n'avait plus d'accès permanent.
+    { to: '/superadmin/enregistrement-universite', icon: 'university', label: 'Enregistrer une université', ariaLabel: 'Enregistrer une nouvelle université' },
     // Ni « Dossiers » ni « Inscriptions » ici : /admin/dossiers est réservée à
     // ADMIN_UNIVERSITE + SECRETAIRE_ACADEMIQUE (le SUPER_ADMIN tombait sur
     // « Accès refusé »), et /inscriptions est le formulaire PUBLIC de dépôt de
