@@ -132,10 +132,13 @@ répondent 503, la caisse et toute la scolarité fonctionnent. Détail dans
 
 ## Limites connues
 
-- **Pas de volume pour les pièces jointes.** Les uploads vont dans le système de
-  fichiers du conteneur et **disparaissent à chaque redéploiement**. Pour
-  conserver dossiers, TFC et photos, il faut attacher un volume Railway sur
-  `/app/uploads`, ou basculer le stockage sur S3.
+- **Volume attaché sur `/app/uploads`** (`genucapplication-volume`) : dossiers,
+  TFC et photos survivent aux redéploiements. Il n'est PAS sauvegardé
+  automatiquement — voir l'onglet Backups du service.
+- Le conteneur backend tourne en utilisateur non-root ; l'entrypoint reprend le
+  propriétaire du point de montage au démarrage avant d'abandonner les
+  privilèges. Sans cela, un volume monté root:root rend les téléversements
+  impossibles.
 - Le plan d'essai limite la mémoire ; le backend démarre à environ 1 Go.
 
 ---
