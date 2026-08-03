@@ -43,7 +43,21 @@ server {
     }
 
     # ─── Proxy API vers le backend Spring Boot ─────────────────────────
-    location /api/ {
+    #
+    # « ^~ » est indispensable, pas décoratif. Nginx évalue les locations
+    # REGEX avant les locations préfixe : sans ce modificateur, la règle de
+    # cache des assets ci-dessus (~* \.(js|css|png|jpg|…)$) capturait toute
+    # requête /api/ se terminant par une extension d'image, et Nginx la
+    # cherchait dans sa racine statique au lieu de la proxifier.
+    #
+    # Conséquence constatée en production le 02/08/2026 : les fichiers
+    # téléversés servis par GET /api/fichiers/<dossier>/<nom> répondaient 404
+    # dès que leur nom finissait en .jpg ou .png — logos d'établissement,
+    # sceaux, photos d'identité, pièces de dossier scannées. Les mêmes chemins
+    # en .pdf fonctionnaient, ce qui rendait le diagnostic contre-intuitif.
+    #
+    # « ^~ » fait gagner la location préfixe et court-circuite les regex.
+    location ^~ /api/ {
         # Résolution DNS à CHAQUE requête, et non une seule fois au démarrage.
         #
         # Avec un nom d'hôte littéral dans proxy_pass, Nginx résout l'adresse au
@@ -79,6 +93,41 @@ server {
         proxy_buffering on;
         proxy_buffer_size 8k;
         proxy_buffers 16 8k;
+    }
+
+    # ─── Identité visuelle téléversée : logos, sceaux, certificats ─────
+    #
+    # Le backend sert /uploads/** en statique, mais UNIQUEMENT pour les trois
+    # dossiers d'identité visuelle (universites, logos, certificats) : voir
+    # WebConfig et SecurityConfig, qui refusent tout le reste en 403. Ces
+    # fichiers doivent rester joignables sans jeton, parce qu'un <img src="…">
+    # sur une page publique ne transmet aucun en-tête d'authentification.
+    #
+    # Sans cette location, Nginx ne proxifiait que /api/ : une requête
+    # /uploads/universites/<logo>.jpg tombait sur la règle SPA et renvoyait
+    # index.html. Le logo d'établissement ne s'affichait donc nulle part —
+    # constaté en production le 02/08/2026.
+    #
+    # « ^~ » pour la même raison que /api/ : sans lui, la règle regex des
+    # assets statiques capturerait ces .jpg/.png avant d'arriver ici.
+    location ^~ /uploads/ {
+        resolver __RESOLVER__ valid=10s;
+        set $genuc_uploads "__BACKEND_HOSTPORT__";
+        proxy_pass __BACKEND_SCHEME__://$genuc_uploads$request_uri;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Connection "";
+
+        proxy_connect_timeout 10s;
+        proxy_read_timeout    30s;
+
+        # Ces fichiers portent un nom en UUID : leur contenu ne change jamais.
+        # C'est le chemin qui change quand le logo est remplacé.
+        expires 7d;
+        add_header Cache-Control "public";
     }
 
     # ─── Health check (pour load balancer / K8s) ───────────────────────
