@@ -17,6 +17,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * Parcours académique complet d'un étudiant, de la première année au diplôme.
@@ -242,6 +243,50 @@ class ParcoursAcademiqueCompletTest extends IntegrationTestBase {
                 // La délibération se fonde sur les notes PUBLIEE.
                 .statut(StatutNote.PUBLIEE)
                 .build());
+    }
+
+    @Test
+    @DisplayName("Un second établissement ouvrant la même année ne bloque pas le premier")
+    void deuxEtablissementsPeuventOuvrirLaMemeAnnee() {
+        // « 2024-2025 » existe une fois PAR établissement : l'unicité porte sur
+        // (libelle, universite_id). Les recherches menées sur le seul libellé
+        // rendaient plusieurs lignes dès ce second établissement et échouaient,
+        // typées pour un résultat unique. Le défaut restait donc invisible tant
+        // qu'une seule université était raccordée — puis cassait délibération,
+        // passage de classe et réinscription pour tout le monde à la fois.
+        Universite autre = universiteRepo.save(Universite.builder()
+                .nom("Université concurrente " + uid)
+                .code("UC" + uid)
+                .ville("Lubumbashi")
+                .typeEtablissement("Université")
+                .actif(true)
+                .build());
+        anneeRepo.save(new AnneeAcademique("2024-2025", true, autre));
+        anneeRepo.save(new AnneeAcademique("2025-2026", true, autre));
+
+        AnneeAcademique annee1 = annee("2024-2025");
+        assertThat(annee1.getUniversite().getId())
+                .as("chaque établissement a bien SON année 2024-2025")
+                .isEqualTo(universite.getId());
+
+        Inscription inscription = inscrire(etudiant, promotion("G1", "2024-2025"), annee1);
+        deroulerFinDAnnee(inscription, "2024-2025", 14.0);
+
+        Map<String, Object> passage = passerLaClasse(annee1, annee("2025-2026"));
+        assertThat(passage.get("erreurs")).isEqualTo(0);
+        assertThat(passage.get("reinscrits")).isEqualTo(1);
+        assertThat(niveau(derniereInscription())).isEqualTo("G2");
+    }
+
+    @Test
+    @DisplayName("Le passage de classe exige un établissement")
+    void passageExigeUnEtablissement() {
+        // Années et promotions appartenant chacune à un établissement, un passage
+        // « toutes universités » ne désigne rien : mieux vaut le refuser
+        // franchement que de traiter la première ligne venue.
+        assertThatThrownBy(() -> transitionService.executerPassageClasse(
+                        null, "2024-2025", "2025-2026", 1.0))
+                .hasMessageContaining("établissement est obligatoire");
     }
 
     private Map<String, Object> passerLaClasse(AnneeAcademique courante, AnneeAcademique suivante) {

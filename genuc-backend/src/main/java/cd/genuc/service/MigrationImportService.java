@@ -754,8 +754,11 @@ public class MigrationImportService {
     }
 
     private AnneeAcademique resoudreAnnee(String libelle, Universite universite) {
+        // Pas de repli sur le seul libellé : il rendait l'année d'un AUTRE
+        // établissement, à laquelle les données importées se seraient rattachées
+        // — et il échouait de toute façon dès que plusieurs lignes portaient ce
+        // libellé. Absente, l'année est créée pour cet établissement, juste après.
         return anneeRepo.findByLibelleAndUniversite(libelle.trim(), universite)
-            .or(() -> anneeRepo.findByLibelle(libelle.trim()))
             .orElseGet(() -> {
                 AnneeAcademique a = new AnneeAcademique();
                 a.setLibelle(libelle.trim());

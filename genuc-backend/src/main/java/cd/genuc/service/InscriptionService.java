@@ -209,8 +209,16 @@ public class InscriptionService {
     }
 
     public Map<String, Object> statistiquesParUniversite(Long universiteId, String anneeLibelle) {
-        AnneeAcademique annee = anneeRepository.findByLibelle(anneeLibelle)
-            .orElseThrow(() -> new BusinessException("Année académique introuvable : " + anneeLibelle));
+        // L'année est cherchée DANS cet établissement : l'unicité porte sur
+        // (libelle, universite_id). Sur le seul libellé, la requête rendait
+        // plusieurs lignes dès le deuxième établissement raccordé — et, avant
+        // d'échouer, aurait pu retenir l'année d'autrui, dont l'identifiant
+        // sert juste après à compter les inscriptions.
+        Universite universite = universiteRepository.findById(universiteId)
+            .orElseThrow(() -> new BusinessException("Établissement introuvable : " + universiteId));
+        AnneeAcademique annee = anneeRepository.findByLibelleAndUniversite(anneeLibelle, universite)
+            .orElseThrow(() -> new BusinessException(
+                "Année académique introuvable pour cet établissement : " + anneeLibelle));
         
         long total = inscriptionRepo.countByUniversite_IdAndAnneeAcademique_Id(universiteId, annee.getId());
         long validees = inscriptionRepo.findByUniversiteIdAndStatut(universiteId, StatutInscription.VALIDE).size();

@@ -72,13 +72,23 @@ public class DeliberationWorkflowController {
 
     @PostMapping("/cloturer")
     @PreAuthorize("hasAnyRole('ADMIN_UNIVERSITE', 'SUPER_ADMIN')")
-    public ResponseEntity<?> cloturer(@RequestBody Map<String, Object> body) {
+    public ResponseEntity<?> cloturer(@RequestBody Map<String, Object> body,
+                                      @AuthenticationPrincipal Utilisateur utilisateur) {
         try {
             if (!body.containsKey("anneeAcademique")) {
                 return ResponseEntity.badRequest().body(Map.of("erreur", "anneeAcademique est requis"));
             }
             String annee = (String) body.get("anneeAcademique");
-            return ResponseEntity.ok(workflow.cloturerAnnee(annee));
+            // L'établissement vient du compte appelant ; un SUPER_ADMIN, qui n'en a
+            // pas, doit désigner explicitement celui qu'il clôture.
+            Long universiteId = body.get("universiteId") != null
+                    ? Long.valueOf(body.get("universiteId").toString())
+                    : (utilisateur != null ? utilisateur.getUniversiteId() : null);
+            if (universiteId == null) {
+                return ResponseEntity.badRequest()
+                        .body(Map.of("erreur", "universiteId est requis pour clôturer une année"));
+            }
+            return ResponseEntity.ok(workflow.cloturerAnnee(annee, universiteId));
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().body(Map.of("erreur", e.getMessage()));
         }

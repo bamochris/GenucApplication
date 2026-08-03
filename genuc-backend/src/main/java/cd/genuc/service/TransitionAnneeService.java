@@ -52,9 +52,18 @@ public class TransitionAnneeService {
         // — cas normal d'une plateforme nationale — et l'appel, typé pour un
         // resultat unique, levait une exception. De plus l'année créée ici l'était
         // sans université, en violation d'une contrainte NOT NULL.
-        Universite universite = universiteId == null ? null
-                : universiteRepository.findById(universiteId).orElseThrow(
-                        () -> new RuntimeException("Établissement introuvable : " + universiteId));
+        // L'établissement est OBLIGATOIRE. Un passage « toutes universités » ne
+        // veut rien dire ici : années académiques ET promotions appartiennent
+        // chacune à un établissement, il en existe autant de « 2025-2026 » et de
+        // « G2 » que d'établissements raccordés. Le traitement global tel qu'il
+        // était écrit échouait donc dès le deuxième. Une campagne nationale se
+        // conduit établissement par établissement.
+        if (universiteId == null) {
+            throw new RuntimeException(
+                    "L'établissement est obligatoire : le passage de classe se conduit établissement par établissement.");
+        }
+        Universite universite = universiteRepository.findById(universiteId).orElseThrow(
+                () -> new RuntimeException("Établissement introuvable : " + universiteId));
 
         AnneeAcademique anneeCourante = trouverAnnee(anneeActuelle, universite)
                 .orElseThrow(() -> new RuntimeException("Année actuelle introuvable"));
@@ -167,14 +176,9 @@ public class TransitionAnneeService {
         );
     }
 
-    /**
-     * Année académique de CET établissement. Sans établissement (passage
-     * national, réservé aux rôles globaux), on retombe sur le libellé seul.
-     */
+    /** Année académique de CET établissement. */
     private java.util.Optional<AnneeAcademique> trouverAnnee(String libelle, Universite universite) {
-        return universite == null
-                ? anneeRepository.findByLibelle(libelle)
-                : anneeRepository.findByLibelleAndUniversite(libelle, universite);
+        return anneeRepository.findByLibelleAndUniversite(libelle, universite);
     }
 
     /**

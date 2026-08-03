@@ -18,14 +18,47 @@ public class DeliberationWorkflowService {
     private final DeliberationRepository deliberationRepo;
     private final AnneeAcademiqueRepository anneeRepo;
     private final PromotionRepository promotionRepo;
+    private final UniversiteRepository universiteRepo;
+
+    /**
+     * Année académique de l'établissement d'une promotion.
+     *
+     * <p>Une année est propre à un établissement : l'unicité porte sur
+     * (libelle, universite_id). Chercher sur le seul libellé rendait plusieurs
+     * lignes dès qu'un deuxième établissement ouvrait « 2025-2026 », et l'appel,
+     * typé pour un résultat unique, échouait — panne certaine sur une plateforme
+     * nationale, invisible tant qu'un seul établissement était raccordé.</p>
+     */
+    private AnneeAcademique anneeDeLaPromotion(Long promotionId, String anneeLibelle) {
+        Promotion promotion = promotionRepo.findById(promotionId)
+                .orElseThrow(() -> new RuntimeException("Promotion introuvable : " + promotionId));
+        Universite universite = universiteDe(promotion);
+        return anneeRepo.findByLibelleAndUniversite(anneeLibelle, universite)
+                .orElseThrow(() -> new RuntimeException(
+                        "Année académique introuvable pour cet établissement : " + anneeLibelle));
+    }
+
+    /** Remonte la chaîne filière → département → faculté → établissement. */
+    private Universite universiteDe(Promotion promotion) {
+        if (promotion.getFiliere() == null || promotion.getFiliere().getDepartement() == null) {
+            throw new RuntimeException("Promotion sans filière ni département : établissement indéterminable");
+        }
+        Departement departement = promotion.getFiliere().getDepartement();
+        if (departement.getUniversite() != null) {
+            return departement.getUniversite();
+        }
+        if (departement.getFaculte() != null && departement.getFaculte().getUniversite() != null) {
+            return departement.getFaculte().getUniversite();
+        }
+        throw new RuntimeException("Établissement introuvable pour la promotion " + promotion.getId());
+    }
 
     // ─────────────────────────────────────────────────────────────────
     // 1. PREMIÈRE DÉLIBÉRATION (session 1)
     // ─────────────────────────────────────────────────────────────────
     @Transactional
     public List<Map<String, Object>> premiereDeliberation(Long promotionId, String anneeLibelle) {
-        AnneeAcademique annee = anneeRepo.findByLibelle(anneeLibelle)
-                .orElseThrow(() -> new RuntimeException("Année académique introuvable"));
+        AnneeAcademique annee = anneeDeLaPromotion(promotionId, anneeLibelle);
         if (annee.isCloturee()) throw new RuntimeException("Cette année est clôturée – aucune modification possible");
 
         List<Inscription> inscriptions = inscriptionRepo.findByPromotionId(promotionId);
@@ -49,8 +82,7 @@ public class DeliberationWorkflowService {
     // ─────────────────────────────────────────────────────────────────
     @Transactional
     public List<Map<String, Object>> rattrapageDeliberation(Long promotionId, String anneeLibelle) {
-        AnneeAcademique annee = anneeRepo.findByLibelle(anneeLibelle)
-                .orElseThrow(() -> new RuntimeException("Année académique introuvable"));
+        AnneeAcademique annee = anneeDeLaPromotion(promotionId, anneeLibelle);
         if (annee.isCloturee()) throw new RuntimeException("Année clôturée");
 
         List<Inscription> inscriptions = inscriptionRepo.findByPromotionId(promotionId);
@@ -77,19 +109,39 @@ public class DeliberationWorkflowService {
     // ─────────────────────────────────────────────────────────────────
     // 3. CLÔTURE DE L'ANNÉE
     // ─────────────────────────────────────────────────────────────────
+    /**
+     * Clôture définitive d'une année POUR UN ÉTABLISSEMENT.
+     *
+     * <p>L'établissement est devenu un paramètre : sans lui, la méthode clôturait
+     * « l'année 2025-2026 » sans préciser laquelle — alors qu'il en existe une par
+     * établissement — et publiait ensuite <b>toutes</b> les délibérations portant
+     * ce libellé, y compris celles d'établissements tiers. Un recteur figeait donc
+     * les résultats de ses confrères en clôturant les siens.</p>
+     */
     @Transactional
-    public Map<String, Object> cloturerAnnee(String anneeLibelle) {
-        AnneeAcademique annee = anneeRepo.findByLibelle(anneeLibelle)
-                .orElseThrow(() -> new RuntimeException("Année académique introuvable"));
+    public Map<String, Object> cloturerAnnee(String anneeLibelle, Long universiteId) {
+        if (universiteId == null) {
+            throw new RuntimeException("L'établissement est obligatoire pour clôturer une année.");
+        }
+        Universite universite = universiteRepo.findById(universiteId)
+                .orElseThrow(() -> new RuntimeException("Établissement introuvable : " + universiteId));
+        AnneeAcademique annee = anneeRepo.findByLibelleAndUniversite(anneeLibelle, universite)
+                .orElseThrow(() -> new RuntimeException(
+                        "Année académique introuvable pour cet établissement : " + anneeLibelle));
         annee.setCloturee(true);
         anneeRepo.save(annee);
 
-        // Marquer toutes les délibérations comme "PUBLIEE"
-        List<Deliberation> delibs = deliberationRepo.findByAnneeAcademique(anneeLibelle);
+        // Publication limitée aux délibérations de CET établissement.
+        List<Deliberation> delibs = deliberationRepo.findByAnneeAcademique(anneeLibelle).stream()
+                .filter(d -> d.getUniversite() != null
+                          && universiteId.equals(d.getUniversite().getId()))
+                .toList();
         delibs.forEach(d -> d.setPhase(Deliberation.PhaseDeliberation.PUBLIEE));
         deliberationRepo.saveAll(delibs);
 
-        return Map.of("message", "Année " + anneeLibelle + " clôturée – résultats définitifs.");
+        return Map.of(
+                "message", "Année " + anneeLibelle + " clôturée – résultats définitifs.",
+                "deliberationsPubliees", delibs.size());
     }
 
     // ─────────────────────────────────────────────────────────────────
