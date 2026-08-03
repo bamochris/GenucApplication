@@ -1,118 +1,144 @@
-/* src/components/TachPayLoadingDialog.css */
+/* src/components/TachPayLoadingDialog.css
+ *
+ * Écran d'attente affiché avant l'ouverture du module de paiement TachPay.
+ *
+ * Deux principes, hérités des défauts corrigés le 03/08/2026 :
+ *
+ *   1. Le FOND est fixe et sombre ; seule la variable `--tachpay-accent`,
+ *      posée par le composant, change au fil de l'attente. La version
+ *      précédente faisait varier le fond du dialogue entre blanc, bleu et
+ *      ambre alors que le message, l'anneau, la flèche et le repli textuel du
+ *      logo étaient tous blancs : la phase blanche affichait une boîte vide.
+ *
+ *   2. Aucune dimension n'est fixée en pixels par le JavaScript. L'ancienne
+ *      version recevait `size = 180` en propriété et s'en servait pour la
+ *      largeur du SVG, le rayon du cercle ET une marge haute calculée
+ *      (`size / 2 - (size - 40) / 2 - 2`). Rien ne pouvait s'adapter à
+ *      l'écran, et la carte dépassait 360px de large — le message seul
+ *      réservait 320px, plus 2 × 32px de marge intérieure — donc débordait
+ *      latéralement sur un téléphone courant.
+ */
 
 .tachpay-loading-dialog {
+  --tachpay-accent: #4f9cf9;
+
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 24px;
-  min-height: 260px;
-  padding: 32px;
-  border-radius: 24px;
-  transition: background-color 0.6s ease;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  gap: clamp(16px, 4vw, 24px);
+
+  /* `min()` plutôt qu'une largeur fixe : au plus 380px, sinon toute la place
+     disponible. On mesure le CONTENEUR (100%) et non la fenêtre (100vw) :
+     `100vw` ignore la barre de défilement et déborderait de sa largeur.
+     La respiration latérale vient de la marge de l'enveloppe.
+
+     `margin: auto` fait deux choses : il centre la carte quand elle n'est pas
+     dans un conteneur déjà centré (cas de TachPayPage, où la marge verticale
+     retombe simplement à zéro), et dans l'enveloppe en flex il centre SANS
+     risque de rognage. Un `align-items: center` seul, face à une carte plus
+     haute que l'écran — téléphone en paysage —, déborde des deux côtés et
+     rend le haut inatteignable, même avec `overflow-y: auto` ; les marges
+     automatiques, elles, retombent à zéro dès que l'espace libre devient
+     négatif. */
+  width: min(380px, 100%);
+  margin: auto;
+  padding: clamp(22px, 6vw, 34px) clamp(18px, 5vw, 30px);
+  box-sizing: border-box;
+
+  border-radius: 26px;
+  /* Fond fixe, aux teintes de la marque GENUC (#0B1F4A → #185FA5). */
+  background:
+    radial-gradient(120% 90% at 50% 0%, rgba(24, 95, 165, 0.55) 0%, transparent 60%),
+    linear-gradient(160deg, #0d2450 0%, #081735 100%);
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  box-shadow:
+    0 24px 60px rgba(2, 8, 23, 0.55),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+
   position: relative;
   overflow: hidden;
 }
 
+/* Halo d'ambiance : il reprend l'accent courant, ce qui donne la respiration
+   colorée que cherchait la version précédente, sans toucher au contraste du
+   texte. La transition longue rend le changement de teinte progressif. */
 .tachpay-loading-dialog::before {
   content: '';
   position: absolute;
-  top: -50px;
-  left: -50px;
-  width: 120px;
-  height: 120px;
-  background: radial-gradient(circle, rgba(255, 255, 255, 0.3) 0%, transparent 70%);
-  border-radius: 50%;
-  animation: pulse-glow 3s infinite ease-in-out;
+  top: -70px;
+  left: 50%;
+  width: 220px;
+  height: 220px;
+  transform: translateX(-50%);
+  background: radial-gradient(circle, var(--tachpay-accent) 0%, transparent 68%);
+  opacity: 0.28;
+  transition: background 1.4s ease;
+  pointer-events: none;
+  animation: tachpay-glow 3.6s ease-in-out infinite;
 }
 
-.tachpay-loading-dialog::after {
-  content: '';
-  position: absolute;
-  bottom: -40px;
-  right: -40px;
-  width: 80px;
-  height: 80px;
-  background: radial-gradient(circle, rgba(255, 255, 255, 0.2) 0%, transparent 70%);
-  border-radius: 50%;
-  animation: pulse-glow 3s infinite ease-in-out;
-  animation-delay: 0.8s;
+@keyframes tachpay-glow {
+  0%, 100% { opacity: 0.20; }
+  50%      { opacity: 0.34; }
 }
 
-@keyframes pulse-glow {
-  0% { opacity: 0.3; transform: scale(0.8); }
-  50% { opacity: 0.6; transform: scale(1.2); }
-  100% { opacity: 0.3; transform: scale(0.8); }
-}
+/* ─── Anneau + logo ──────────────────────────────────────────── */
 
 .tachpay-loading-circle {
   position: relative;
+  /* Taille fluide : 132px sur le plus petit téléphone, 180px dès 470px de
+     large. C'est ce que la propriété `size` empêchait de faire. */
+  width: clamp(132px, 38vw, 180px);
+  aspect-ratio: 1;
   display: flex;
   align-items: center;
   justify-content: center;
   border-radius: 50%;
-  background: rgba(15, 23, 42, 0.12);
-  box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.15);
-  backdrop-filter: blur(4px);
-  animation: gentle-pulse 4s infinite ease-in-out;
+  background: rgba(2, 8, 23, 0.35);
+  box-shadow: inset 0 0 26px rgba(2, 8, 23, 0.55);
 }
 
-@keyframes gentle-pulse {
-  0%, 100% { box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.15); }
-  50% { box-shadow: inset 0 0 30px rgba(0, 0, 0, 0.25); }
+.tachpay-loading-progress {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
 }
 
 .tachpay-progress-track {
   fill: none;
-  stroke: rgba(255, 255, 255, 0.15);
-  stroke-width: 3;
-  vector-effect: non-scaling-stroke;
+  stroke: rgba(148, 163, 184, 0.22);
+  stroke-width: 4;
 }
 
 .tachpay-progress-fill {
   fill: none;
-  stroke-width: 3;
+  stroke: var(--tachpay-accent);
+  stroke-width: 4;
   stroke-linecap: round;
-  vector-effect: non-scaling-stroke;
-  filter: drop-shadow(0 0 4px rgba(255, 255, 255, 0.5));
+  filter: drop-shadow(0 0 6px var(--tachpay-accent));
+  /* L'arc part du haut plutôt que de la droite. */
+  transform: rotate(-90deg);
+  transform-origin: center;
+  transition: stroke 1.4s ease, stroke-dashoffset 0.4s ease;
 }
 
-.tachpay-progress-arrow {
-  fill: #ffffff;
-  filter: drop-shadow(0 0 6px rgba(255, 255, 255, 0.7));
+/* Mode indéterminé : plutôt que d'animer le pointillé ET une flèche dont le
+   repère de rotation était calculé à la main, l'anneau entier tourne. Un seul
+   mouvement, aucune arithmétique. */
+.tachpay-load-anim {
+  animation: tachpay-spin 1.5s linear infinite;
 }
 
-.tachpay-load-anim .tachpay-progress-fill {
-  stroke-dasharray: 1000;
-  stroke-dashoffset: 1000;
-  animation: spin-progress 1.5s linear infinite;
-}
-
-.tachpay-load-anim .tachpay-progress-arrow {
-  transform-origin: 0 0;
-  animation: spin-arrow 1.5s linear infinite;
-}
-
-@keyframes spin-progress {
-  0% {
-    stroke-dashoffset: 1000;
-  }
-  100% {
-    stroke-dashoffset: 0;
-  }
-}
-
-@keyframes spin-arrow {
-  0% {
-    transform: rotate(0deg);
-  }
-  100% {
-    transform: rotate(360deg);
-  }
+@keyframes tachpay-spin {
+  to { transform: rotate(360deg); }
 }
 
 .tachpay-loading-logo {
+  /* Centrage par la grille du conteneur, non par une marge calculée. */
+  width: 58%;
+  height: 58%;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -121,65 +147,101 @@
 }
 
 .tachpay-logo-img {
-  height: 100%;
   width: 100%;
+  height: 100%;
   object-fit: contain;
-  filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.3));
-  animation: logo-breathe 3s infinite ease-in-out;
+  filter: drop-shadow(0 2px 10px rgba(2, 8, 23, 0.55));
+  animation: tachpay-breathe 3s ease-in-out infinite;
 }
 
-@keyframes logo-breathe {
-  0%, 100% { filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.3)) brightness(1); }
-  50% { filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.4)) brightness(1.05); }
+@keyframes tachpay-breathe {
+  0%, 100% { transform: scale(1); }
+  50%      { transform: scale(1.04); }
 }
 
 .tachpay-logo-fallback {
   font-weight: 800;
-  font-size: 24px;
-  color: white;
-  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
+  font-size: clamp(18px, 5vw, 24px);
+  color: #ffffff;
   letter-spacing: 2px;
-  animation: logo-breathe 3s infinite ease-in-out;
+  text-shadow: 0 2px 6px rgba(2, 8, 23, 0.6);
 }
 
+/* Pourcentage, affiché uniquement quand la progression est connue. */
+.tachpay-loading-percent {
+  position: absolute;
+  bottom: 12%;
+  font-size: 13px;
+  font-weight: 700;
+  color: #ffffff;
+  letter-spacing: 0.04em;
+  text-shadow: 0 1px 3px rgba(2, 8, 23, 0.7);
+}
+
+/* ─── Textes ─────────────────────────────────────────────────── */
+
 .tachpay-loading-message {
-  color: rgba(226, 232, 240, 0.9);
-  font-size: 15px;
+  /* `#e2e8f0` sur le fond sombre fixe : contraste constant, quel que soit
+     l'accent en cours. */
+  color: #e2e8f0;
+  font-size: clamp(14px, 3.6vw, 15px);
   font-weight: 500;
   margin: 0;
   text-align: center;
-  max-width: 320px;
+  /* 100% et non 320px : la largeur vient désormais de la carte, qui est
+     elle-même bornée par la fenêtre. */
+  max-width: 100%;
   line-height: 1.5;
+  overflow-wrap: break-word;
+}
+
+.tachpay-loading-hint {
+  margin: 0;
+  font-size: clamp(11px, 3vw, 12px);
+  color: rgba(148, 163, 184, 0.85);
+  text-align: center;
   letter-spacing: 0.02em;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
 }
 
 .tachpay-loading-dots {
   display: inline-flex;
   gap: 4px;
   margin-left: 8px;
+  vertical-align: middle;
 }
 
 .tachpay-loading-dots span {
   display: inline-block;
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
   background: currentColor;
   border-radius: 50%;
-  animation: loading-dots 1.4s infinite both;
+  animation: tachpay-dots 1.4s infinite both;
 }
 
 .tachpay-loading-dots span:nth-child(1) { animation-delay: -0.32s; }
 .tachpay-loading-dots span:nth-child(2) { animation-delay: -0.16s; }
 .tachpay-loading-dots span:nth-child(3) { animation-delay: 0s; }
 
-@keyframes loading-dots {
-  0%, 80%, 100% {
-    transform: scale(0.8);
-    opacity: 0.5;
+@keyframes tachpay-dots {
+  0%, 80%, 100% { transform: scale(0.7); opacity: 0.45; }
+  40%           { transform: scale(1);   opacity: 1; }
+}
+
+/* ─── Mouvement réduit ───────────────────────────────────────── */
+/* Cinq animations perpétuelles se superposaient sans que ce réglage système
+   ne soit consulté. Il est respecté par les navigateurs de bureau comme par
+   iOS et Android, et concerne des personnes que le mouvement rend nauséeuses.
+   L'anneau garde une rotation, seule indication que l'attente progresse, mais
+   quatre fois plus lente. */
+@media (prefers-reduced-motion: reduce) {
+  .tachpay-loading-dialog::before,
+  .tachpay-logo-img,
+  .tachpay-loading-dots span {
+    animation: none;
   }
-  40% {
-    transform: scale(1);
-    opacity: 1;
+
+  .tachpay-load-anim {
+    animation-duration: 6s;
   }
 }

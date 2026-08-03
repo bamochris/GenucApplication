@@ -58,6 +58,13 @@
   justify-content: center;
   z-index: 10000;
   backdrop-filter: blur(4px);
+  /* Sans cette marge, la carte touchait les bords sur un petit téléphone.
+     C'est elle, et non une largeur en `vw` calculée dans la carte, qui donne
+     la respiration latérale — voir TachPayLoadingDialog.css.
+     `overflow-y` : en paysage sur un téléphone, la hauteur utile tombe sous
+     360px et la carte doit rester atteignable dans son intégralité. */
+  padding: 16px;
+  overflow-y: auto;
 }
 
 .loader-circle {
