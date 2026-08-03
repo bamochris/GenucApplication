@@ -847,7 +847,11 @@ const EnregistrementUniversite = () => {
                       ×
                     </button>
 
-                    <div style={{ marginLeft: 30, marginTop: 6 }}>
+                    {/* Ce bloc est un FRÈRE du nom dans la même ligne flex
+                        (.tree-leaf). Sans `tree-leaf-controls`, qui le force à
+                        occuper une ligne entière, il se plaçait À CÔTÉ du nom
+                        et le comprimait jusqu'à le rendre illisible. */}
+                    <div className="tree-leaf-controls" style={{ marginLeft: 30, marginTop: 6 }}>
                       {/* Sélecteur de promotion + vacation + bouton Ajouter */}
                       <div className="promotion-add">
                         <select

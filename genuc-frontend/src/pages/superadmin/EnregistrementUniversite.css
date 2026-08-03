@@ -443,12 +443,23 @@
 .tree-leaf {
   display: flex;
   align-items: center;
+  /* Le bloc des promotions est un frère du nom dans cette ligne : sans
+     `flex-wrap`, il restait sur la MÊME ligne et écrasait le libellé. */
+  flex-wrap: wrap;
   gap: 8px;
   padding: 4px 8px;
   margin: 4px 0;
   border-radius: 6px;
   background: #f9fafb;
   transition: background 0.2s;
+}
+
+/* Occupe une ligne entière : les contrôles de promotions passent SOUS le nom
+   de l'option, ce que la marge intérieure gauche de 30 px laissait déjà
+   supposer. `flex-basis: 100%` force le passage à la ligne. */
+.tree-leaf-controls {
+  flex: 1 0 100%;
+  min-width: 0;
 }
 .tree-leaf:hover {
   background: #f3f4f6;
@@ -783,11 +794,19 @@
 
 /* Les chaînes sans espace (courriels, URL, noms de fichiers) doivent pouvoir
    être coupées plutôt que d'imposer leur largeur. */
+/* ⚠️ `break-word` et NON `anywhere`. La différence est décisive :
+   `anywhere` entre dans le calcul de la largeur MIN-CONTENT de la boîte, qui
+   tombe alors à un seul caractère. Placée dans un conteneur flex, la boîte
+   s'effondre à cette largeur et le texte s'écrit verticalement, une lettre par
+   ligne (« S c i e n c e s d e l' É d u c a t i o n »). C'est exactement ce
+   qu'avait produit la version précédente de cette règle.
+   `break-word` ne modifie pas le dimensionnement intrinsèque : il ne coupe un
+   mot qu'au moment du rendu, lorsque ce mot dépasserait réellement la ligne. */
 .champ label,
 .validation-item,
 .file-name,
 .tree-node {
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 
 /* Un champ ne dépasse jamais sa colonne, quelle que soit sa largeur
