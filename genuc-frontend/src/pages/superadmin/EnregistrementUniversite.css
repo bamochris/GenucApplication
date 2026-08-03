@@ -643,11 +643,17 @@
   .form-container {
     padding: 14px 10px;
     border-radius: 12px;
-    /* La poignée de redimensionnement horizontal n'est pas manipulable au
-       doigt, et l'`overflow: auto` qu'elle impose enfermait le formulaire dans
-       un conteneur de défilement interne au lieu de le laisser suivre la page. */
+    /* La poignée de redimensionnement n'est pas manipulable au doigt. */
     resize: none;
-    overflow: visible;
+    /* `overflow: visible` laissait un éventuel dépassement se faire COUPER par
+       le conteneur d'AppLayout (`overflow-x: hidden`) : le contenu décalé
+       devenait invisible et inatteignable. Un `overflow-x: auto` ici crée un
+       conteneur de défilement propre au formulaire — la barre du bas permet
+       d'aller voir ce qui dépasse, même si l'ancêtre écrête.
+       `overflow-y` est laissé libre : la hauteur étant automatique, aucun
+       défilement vertical interne n'apparaît. */
+    overflow-x: auto;
+    overflow-y: visible;
   }
 
   .champs {
@@ -700,6 +706,65 @@
 @media (pointer: coarse) {
   .form-container {
     resize: none;
-    overflow: visible;
+    overflow-x: auto;
+    overflow-y: visible;
   }
+}
+
+/* ===== BARRE DE DÉFILEMENT HORIZONTALE VISIBLE =====
+   Par défaut, Chrome mobile n'affiche la barre qu'au moment du geste : on ne
+   sait donc pas qu'il reste quelque chose à droite. On la rend permanente et
+   contrastée, en bas du formulaire, pour repérer ce qui dépasse. */
+.form-container {
+  scrollbar-width: thin;
+  scrollbar-color: #185FA5 #e2e8f0;
+}
+
+.form-container::-webkit-scrollbar {
+  height: 10px;
+}
+
+.form-container::-webkit-scrollbar-track {
+  background: #e2e8f0;
+  border-radius: 6px;
+}
+
+.form-container::-webkit-scrollbar-thumb {
+  background: #185FA5;
+  border-radius: 6px;
+}
+
+.form-container::-webkit-scrollbar-thumb:hover {
+  background: #0B1F4A;
+}
+
+/* ===== CAUSES STRUCTURELLES DE DÉPASSEMENT =====
+   Ce que le formulaire d'inscription évite par construction et qui manquait
+   ici. Dans une grille CSS, un élément vaut `min-width: auto` : sa piste ne
+   peut pas devenir plus étroite que son contenu insécable. Un intitulé long,
+   un courriel, un nom de fichier ou un champ à largeur intrinsèque élargit
+   donc la grille au-delà du conteneur — c'est le décalage constaté. */
+.champs > *,
+.autorite-grid > *,
+.champ {
+  min-width: 0;
+}
+
+/* Les chaînes sans espace (courriels, URL, noms de fichiers) doivent pouvoir
+   être coupées plutôt que d'imposer leur largeur. */
+.champ label,
+.validation-item,
+.file-name,
+.tree-node {
+  overflow-wrap: anywhere;
+}
+
+/* Un champ ne dépasse jamais sa colonne, quelle que soit sa largeur
+   intrinsèque (un `input` vaut ~180 px par défaut). */
+.champ input,
+.champ select,
+.champ textarea,
+.file-input {
+  width: 100%;
+  max-width: 100%;
 }

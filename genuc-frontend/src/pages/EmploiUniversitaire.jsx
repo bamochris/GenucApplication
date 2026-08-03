@@ -169,10 +169,16 @@ export default function EmploiUniversitaire() {
       <section style={{ background: 'var(--bg-card)', padding: '40px 24px', borderBottom: '1px solid var(--border-color)' }}>
         <div style={{ maxWidth: 1000, margin: '0 auto', display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 24 }}>
           {[
-            { value: stats.universites, label: 'Universités partenaires', icon: <FaUniversity />, color: '#185FA5' },
-            { value: stats.etudiants.toLocaleString() + '+', label: 'Étudiants inscrits sur GENUC', icon: <FaGraduationCap />, color: '#1D9E75' },
-            { value: offres.length || '—', label: 'Postes disponibles', icon: <FaBriefcase />, color: '#854F0B' },
-            { value: '2 000+', label: 'Étudiants ont déjà bénéficié', icon: <FaStar />, color: '#6B21A8' },
+            // Trois compteurs reels. Le « + » accole aux effectifs est retire : il
+            // suggerait un arrondi par le bas alors que la valeur est exacte, et
+            // donnait « 0+ » sur une plateforme qui demarre.
+            { value: stats.universites, label: 'Établissements partenaires', icon: <FaUniversity />, color: '#185FA5' },
+            { value: stats.etudiants.toLocaleString(), label: 'Étudiants inscrits sur GENUC', icon: <FaGraduationCap />, color: '#1D9E75' },
+            { value: offres.length, label: 'Postes disponibles', icon: <FaBriefcase />, color: '#854F0B' },
+            // Le quatrieme compteur affichait « 2 000+ Etudiants ont deja beneficie »,
+            // chiffre invente sans source. Remplace par le total de postes ouverts,
+            // reellement calcule a partir des offres publiees.
+            { value: stats.etudiantsEmployes, label: 'Postes ouverts au total', icon: <FaStar />, color: '#6B21A8' },
           ].map(s => (
             <div key={s.label} style={{ textAlign: 'center', padding: '20px 12px' }}>
               <div style={{ fontSize: 28, color: s.color, marginBottom: 8 }}>{s.icon}</div>

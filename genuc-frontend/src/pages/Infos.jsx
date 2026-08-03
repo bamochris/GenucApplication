@@ -1,8 +1,28 @@
 // src/pages/Infos.jsx
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import api from '../api/axios';
 import './Dashboard.css';
 
 export default function Infos() {
+  // Ces chiffres etaient ecrits en dur : « 14 universites », « 48 000+
+  // etudiants », « 1 204 cours en ligne », « 850+ professeurs ». Aucun ne
+  // correspondait a la base. Les deux qui ont une source publique sont
+  // desormais calcules ; les deux autres ont ete retires plutot qu'inventes.
+  const [chiffres, setChiffres] = useState(null);
+
+  useEffect(() => {
+    api.get('/api/universites/public')
+      .then(r => {
+        const unis = r.data || [];
+        setChiffres({
+          etablissements: unis.length,
+          etudiants: unis.reduce((acc, u) => acc + (u.nbEtudiants || 0), 0),
+        });
+      })
+      .catch(() => setChiffres(null));
+  }, []);
+
   return (
     <div className="page">
       <div className="page-header">
@@ -33,20 +53,12 @@ export default function Infos() {
           <h2 className="card-title">📊 Chiffres clés</h2>
           <div style={{ marginTop: 12 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid var(--border-color)' }}>
-              <span>🏛️ Universités connectées</span>
-              <strong>14</strong>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid var(--border-color)' }}>
-              <span>👨‍🎓 Étudiants inscrits</span>
-              <strong>48 000+</strong>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid var(--border-color)' }}>
-              <span>📚 Cours en ligne</span>
-              <strong>1 204</strong>
+              <span>🏛️ Établissements connectés</span>
+              <strong>{chiffres ? chiffres.etablissements : '—'}</strong>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0' }}>
-              <span>👨‍🏫 Professeurs et encadreurs</span>
-              <strong>850+</strong>
+              <span>👨‍🎓 Étudiants inscrits</span>
+              <strong>{chiffres ? chiffres.etudiants.toLocaleString() : '—'}</strong>
             </div>
           </div>
         </div>
