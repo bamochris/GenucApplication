@@ -75,7 +75,8 @@ public class EcheanceController {
     }
 
     @GetMapping("/universite/{universiteId}/a-recouvrer")
-    @PreAuthorize("hasAnyRole('AGENT', 'CAISSIER', 'ADMIN_UNIVERSITE', 'SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('AGENT', 'CAISSIER', 'ADMIN_UNIVERSITE', 'SUPER_ADMIN')"
+            + " and @securityService.peutAccederUniversite(#universiteId, authentication)")
     public ResponseEntity<?> getEcheancesARecouvrer(@PathVariable Long universiteId) {
         return ResponseEntity.ok(echeancePaiementService.echeancesARecouvrer(universiteId));
     }

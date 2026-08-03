@@ -193,7 +193,14 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.GET, "/api/annees-academiques/public").permitAll()
                 // Lecture des vacations (Jour/Soir) : consultée par le formulaire
                 // d'inscription public (candidat anonyme, avant tout compte).
-                .requestMatchers(HttpMethod.GET, "/api/vacations/**").permitAll()
+                //
+                // Restreint aux vacations d'un ÉTABLISSEMENT, seul besoin du
+                // formulaire. Le « /api/vacations/** » d'origine couvrait aussi
+                // /etudiant/{id}/inscriptions, qui rend nom, prénom, matricule et
+                // promotion : en énumérant l'identifiant, n'importe qui listait
+                // les étudiants de la plateforme. Ces routes ne sont appelées par
+                // aucun écran et retombent désormais sur anyRequest().authenticated().
+                .requestMatchers(HttpMethod.GET, "/api/vacations/universite/**").permitAll()
                 // ── Nouvelles routes publiques ──
                 .requestMatchers(HttpMethod.GET,  "/api/emploi-universitaire/offres/publiques").permitAll()
                 .requestMatchers(HttpMethod.GET,  "/api/emploi-universitaire/offres/{id}").permitAll()
@@ -202,7 +209,14 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.GET,  "/api/emploi/offres/publiques").permitAll()
 
                 // ═══ Routes par rôle ═══
-                .requestMatchers("/api/recteur/**").hasRole("RECTEUR")
+                //
+                // Règle générale, apprise du correctif « /api/rh/paie/** » plus bas :
+                // ces règles d'URL sont évaluées AVANT les @PreAuthorize et ne
+                // doivent donc JAMAIS être plus étroites qu'eux, sous peine de
+                // rendre inatteignables les rôles que le contrôleur autorise.
+                // Elles restent un filtre grossier ; le filtrage fin appartient
+                // aux annotations, présentes sur 100 % des méthodes concernées.
+                .requestMatchers("/api/recteur/**").hasAnyRole("RECTEUR", "ADMIN_UNIVERSITE", "SUPER_ADMIN")
                 .requestMatchers("/api/doyen/**").hasRole("DOYEN")
                 .requestMatchers("/api/secretaire/**").hasRole("SECRETAIRE_ACADEMIQUE")
                 .requestMatchers("/api/appariteur/**").hasRole("APPARITEUR")
@@ -216,23 +230,46 @@ public class SecurityConfig {
                 // reste porté par les `@PreAuthorize` de chaque méthode.
                 .requestMatchers("/api/rh/paie/**")
                     .hasAnyRole("RH", "COMPTABLE", "ADMIN_UNIVERSITE", "SUPER_ADMIN")
-                .requestMatchers("/api/rh/**").hasRole("RH")
-                .requestMatchers("/api/social/**").hasRole("SERVICE_SOCIAL")
+                // Les 19 méthodes de RHController et les 20 de ServiceSocialController
+                // autorisent toutes ADMIN_UNIVERSITE et SUPER_ADMIN : sans ces rôles
+                // ici, l'administration de l'établissement — le super administrateur
+                // compris — recevait 403 sur l'intégralité des modules RH et social.
+                .requestMatchers("/api/rh/**").hasAnyRole("RH", "ADMIN_UNIVERSITE", "SUPER_ADMIN")
+                // ETUDIANT requis : « GET /api/social/dossiers/etudiant/{id} » permet à
+                // l'étudiant de consulter son propre dossier social (bourse, aide).
+                .requestMatchers("/api/social/**").hasAnyRole("SERVICE_SOCIAL", "ADMIN_UNIVERSITE", "SUPER_ADMIN", "ETUDIANT")
                 .requestMatchers("/api/professeur/**").hasAnyRole("PROFESSEUR", "ENSEIGNANT", "ADMIN_UNIVERSITE", "SUPER_ADMIN")
                 .requestMatchers("/api/etudiant/**").hasAnyRole("ETUDIANT", "ADMIN_UNIVERSITE", "SUPER_ADMIN", "PROFESSEUR", "ENSEIGNANT")
                 .requestMatchers("/api/chef-promotion/**").hasAnyRole("CHEF_PROMOTION", "CHEF_DEPARTEMENT", "ADMIN_UNIVERSITE", "SUPER_ADMIN")
                 .requestMatchers("/api/bibliothecaire/**").hasAnyRole("BIBLIOTHECAIRE", "ADMIN_UNIVERSITE", "SUPER_ADMIN")
                 
                 .requestMatchers("/api/paiements/gestion/**").hasAnyRole("AGENT", "CAISSIER", "ADMIN_UNIVERSITE", "SUPER_ADMIN")
-                .requestMatchers("/api/echeances/**").hasAnyRole("AGENT", "CAISSIER", "ADMIN_UNIVERSITE")
-                .requestMatchers("/api/remboursements/**").hasAnyRole("AGENT", "ADMIN_UNIVERSITE")
+                // ETUDIANT indispensable ici : « POST /api/echeances/{id}/payer » et
+                // « POST /api/remboursements/demander » sont annotés hasRole('ETUDIANT').
+                // Sans lui, l'étudiant ne pouvait ni régler une échéance ni demander
+                // un remboursement — les deux gestes que ces routes existent pour servir.
+                .requestMatchers("/api/echeances/**")
+                    .hasAnyRole("AGENT", "CAISSIER", "ADMIN_UNIVERSITE", "ETUDIANT", "SUPER_ADMIN")
+                // CHEF_DEPARTEMENT statue sur le motif d'un remboursement
+                // (« valider-motif », « rejeter ») : sans lui ici, ces deux gestes
+                // étaient impossibles pour le seul rôle censé les exercer.
+                .requestMatchers("/api/remboursements/**")
+                    .hasAnyRole("AGENT", "ADMIN_UNIVERSITE", "ETUDIANT", "SUPER_ADMIN", "CHEF_DEPARTEMENT")
 
                 .requestMatchers("/api/systeme/**").hasAnyRole("SUPER_ADMIN", "ADMIN_SYSTEME")
                 .requestMatchers("/api/super-admin/**").hasRole("SUPER_ADMIN")
                 // Supervision et purge du cache applicatif (CacheAdminController)
                 .requestMatchers("/api/admin/cache/**").hasRole("SUPER_ADMIN")
 
-                .requestMatchers(HttpMethod.GET, "/api/annees-academiques").hasAnyRole("ADMIN_UNIVERSITE", "SUPER_ADMIN")
+                // Liste des années ACTIVES : tout utilisateur authentifié. Les écrans
+                // étudiant, professeur et secrétariat s'en servent pour filtrer, et la
+                // même donnée est déjà servie sans authentification sur /public.
+                // Cette règle d'URL doit rester alignée sur le @PreAuthorize du
+                // contrôleur : elle est évaluée AVANT lui, et le contredire ici
+                // renvoyait un 403 au portail étudiant sans que l'annotation
+                // assouplie du contrôleur ne puisse jamais s'appliquer.
+                .requestMatchers(HttpMethod.GET, "/api/annees-academiques").authenticated()
+                // Le reste (/toutes notamment) demeure réservé à l'administration.
                 .requestMatchers(HttpMethod.GET, "/api/annees-academiques/**").hasAnyRole("ADMIN_UNIVERSITE", "SUPER_ADMIN")
                 .requestMatchers("/api/promotions/universite/**").hasAnyRole("ADMIN_UNIVERSITE", "SUPER_ADMIN")
                 .requestMatchers("/api/stats/**").hasRole("SUPER_ADMIN")
@@ -246,18 +283,24 @@ public class SecurityConfig {
 
                 // ✅ Règles TachPay (CORRIGÉ : ajout de CAISSIER)
                 .requestMatchers("/api/tachpay/public/**").permitAll()
-                .requestMatchers("/api/tachpay/etudiant/**").hasRole("ETUDIANT")
+                // « /etudiant/paiement/{reference}/statut » est ouvert à la caisse par
+                // son @PreAuthorize (un agent doit pouvoir vérifier un versement) et
+                // « /caisse/rapport/journalier » au COMPTABLE : ces rôles doivent
+                // figurer ici, sinon l'annotation ne s'applique jamais.
+                .requestMatchers("/api/tachpay/etudiant/**")
+                    .hasAnyRole("ETUDIANT", "AGENT", "CAISSIER", "ADMIN_UNIVERSITE", "SUPER_ADMIN")
                 .requestMatchers("/api/tachpay/admin/**").hasAnyRole("ADMIN_UNIVERSITE", "SUPER_ADMIN")
-                .requestMatchers("/api/tachpay/caisse/**").hasAnyRole("AGENT", "CAISSIER", "ADMIN_UNIVERSITE", "SUPER_ADMIN")
+                .requestMatchers("/api/tachpay/caisse/**").hasAnyRole("AGENT", "CAISSIER", "ADMIN_UNIVERSITE", "SUPER_ADMIN", "COMPTABLE")
                 .requestMatchers("/api/tachpay/webhook/**").permitAll()
                 // ── Alias hérités /api/tachfee/** (ancien nom TachFee) ──
                 // À CONSERVER tant que les consoles opérateur (webhooks) et les
                 // liens/QR déjà émis pointent sur l'ancien préfixe. Le contrôleur
                 // TachPayController sert les deux préfixes.
                 .requestMatchers("/api/tachfee/public/**").permitAll()
-                .requestMatchers("/api/tachfee/etudiant/**").hasRole("ETUDIANT")
+                .requestMatchers("/api/tachfee/etudiant/**")
+                    .hasAnyRole("ETUDIANT", "AGENT", "CAISSIER", "ADMIN_UNIVERSITE", "SUPER_ADMIN")
                 .requestMatchers("/api/tachfee/admin/**").hasAnyRole("ADMIN_UNIVERSITE", "SUPER_ADMIN")
-                .requestMatchers("/api/tachfee/caisse/**").hasAnyRole("AGENT", "CAISSIER", "ADMIN_UNIVERSITE", "SUPER_ADMIN")
+                .requestMatchers("/api/tachfee/caisse/**").hasAnyRole("AGENT", "CAISSIER", "ADMIN_UNIVERSITE", "SUPER_ADMIN", "COMPTABLE")
                 .requestMatchers("/api/tachfee/webhook/**").permitAll()
 
                 .anyRequest().authenticated()

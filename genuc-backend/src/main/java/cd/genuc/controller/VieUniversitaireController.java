@@ -26,7 +26,8 @@ public class VieUniversitaireController {
     // ─────────────────────────────────────────────
 
     @GetMapping("/clubs/{universiteId}")
-    @PreAuthorize("hasAnyRole('ETUDIANT', 'ADMIN_UNIVERSITE', 'SUPER_ADMIN', 'DOYEN', 'CHEF_DEPARTEMENT', 'SECRETAIRE_ACADEMIQUE')")
+    @PreAuthorize("hasAnyRole('ETUDIANT', 'ADMIN_UNIVERSITE', 'SUPER_ADMIN', 'DOYEN', 'CHEF_DEPARTEMENT', 'SECRETAIRE_ACADEMIQUE')"
+            + " and @securityService.peutAccederUniversite(#universiteId, authentication)")
     public ResponseEntity<?> listerClubs(@PathVariable Long universiteId) {
         return ResponseEntity.ok(service.listerClubs(universiteId));
     }
@@ -99,7 +100,8 @@ public class VieUniversitaireController {
     // ─────────────────────────────────────────────
 
     @GetMapping("/evenements/{universiteId}")
-    @PreAuthorize("hasAnyRole('ETUDIANT', 'ADMIN_UNIVERSITE', 'SUPER_ADMIN', 'DOYEN', 'CHEF_DEPARTEMENT', 'SECRETAIRE_ACADEMIQUE')")
+    @PreAuthorize("hasAnyRole('ETUDIANT', 'ADMIN_UNIVERSITE', 'SUPER_ADMIN', 'DOYEN', 'CHEF_DEPARTEMENT', 'SECRETAIRE_ACADEMIQUE')"
+            + " and @securityService.peutAccederUniversite(#universiteId, authentication)")
     public ResponseEntity<?> listerEvenements(@PathVariable Long universiteId) {
         return ResponseEntity.ok(service.listerEvenements(universiteId));
     }

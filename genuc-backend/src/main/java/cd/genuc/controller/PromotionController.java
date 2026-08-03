@@ -20,7 +20,8 @@ public class PromotionController {
 
     // Récupérer toutes les promotions d'une université (via la filière -> département -> université)
     @GetMapping("/universite/{universiteId}")
-    @PreAuthorize("hasAnyRole('ADMIN_UNIVERSITE', 'SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN_UNIVERSITE', 'SUPER_ADMIN')"
+            + " and @securityService.peutAccederUniversite(#universiteId, authentication)")
     public ResponseEntity<List<Promotion>> getByUniversiteId(@PathVariable Long universiteId) {
         List<Promotion> promotions = promotionRepository.findByFiliereDepartementUniversiteId(universiteId);
         return ResponseEntity.ok(promotions);

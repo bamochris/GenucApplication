@@ -15,13 +15,15 @@ public class ParametresUniversiteController {
     private final ParametresUniversiteService parametresService;
 
     @GetMapping("/universite/{universiteId}")
-    @PreAuthorize("hasAnyRole('ADMIN_UNIVERSITE', 'SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN_UNIVERSITE', 'SUPER_ADMIN')"
+            + " and @securityService.peutAccederUniversite(#universiteId, authentication)")
     public ResponseEntity<ParametresUniversite> getParametres(@PathVariable Long universiteId) {
         return ResponseEntity.ok(parametresService.getParametresParUniversite(universiteId));
     }
 
     @PutMapping("/universite/{universiteId}")
-    @PreAuthorize("hasAnyRole('ADMIN_UNIVERSITE', 'SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN_UNIVERSITE', 'SUPER_ADMIN')"
+            + " and @securityService.peutAccederUniversite(#universiteId, authentication)")
     public ResponseEntity<ParametresUniversite> updateParametres(
             @PathVariable Long universiteId,
             @RequestBody ParametresUniversite parametres) {

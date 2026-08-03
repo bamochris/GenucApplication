@@ -86,13 +86,15 @@ public class CaisseController {
     }
 
     @GetMapping("/universite/{universiteId}")
-    @PreAuthorize("hasAnyRole('CAISSIER', 'ADMIN_UNIVERSITE', 'SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('CAISSIER', 'ADMIN_UNIVERSITE', 'SUPER_ADMIN')"
+            + " and @securityService.peutAccederUniversite(#universiteId, authentication)")
     public ResponseEntity<List<Caisse>> getHistorique(@PathVariable Long universiteId) {
         return ResponseEntity.ok(caisseRepo.findByUniversiteIdOrderByDateOuvertureDesc(universiteId));
     }
 
     @GetMapping("/universite/{universiteId}/ouverte")
-    @PreAuthorize("hasRole('CAISSIER')")
+    @PreAuthorize("hasRole('CAISSIER')"
+            + " and @securityService.peutAccederUniversite(#universiteId, authentication)")
     public ResponseEntity<?> getCaisseOuverte(@PathVariable Long universiteId) {
         return caisseRepo.findByUniversiteIdAndStatut(universiteId, StatutCaisse.OUVERTE)
                 .map(ResponseEntity::ok)
@@ -100,7 +102,8 @@ public class CaisseController {
     }
 
     @GetMapping("/stats/{universiteId}")
-    @PreAuthorize("hasAnyRole('CAISSIER', 'ADMIN_UNIVERSITE', 'SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('CAISSIER', 'ADMIN_UNIVERSITE', 'SUPER_ADMIN')"
+            + " and @securityService.peutAccederUniversite(#universiteId, authentication)")
     public ResponseEntity<?> getStats(@PathVariable Long universiteId) {
         List<Caisse> historiques = caisseRepo.findByUniversiteIdOrderByDateOuvertureDesc(universiteId);
         long totalOuvertures = historiques.size();

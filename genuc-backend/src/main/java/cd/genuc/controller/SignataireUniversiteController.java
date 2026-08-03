@@ -30,14 +30,16 @@ public class SignataireUniversiteController {
     // ═══════════════════════════════════════════════
 
     @GetMapping("/api/universites/{universiteId}/signataires")
-    @PreAuthorize("hasAnyRole('ADMIN_UNIVERSITE', 'SUPER_ADMIN', 'DOYEN', 'SECRETAIRE_ACADEMIQUE')")
+    @PreAuthorize("hasAnyRole('ADMIN_UNIVERSITE', 'SUPER_ADMIN', 'DOYEN', 'SECRETAIRE_ACADEMIQUE')"
+            + " and @securityService.peutAccederUniversite(#universiteId, authentication)")
     public ResponseEntity<?> lister(@PathVariable Long universiteId,
                                      @RequestParam(defaultValue = "false") boolean actifsSeuls) {
         return ResponseEntity.ok(signatureService.listerSignataires(universiteId, actifsSeuls));
     }
 
     @PostMapping("/api/universites/{universiteId}/signataires")
-    @PreAuthorize("hasAnyRole('ADMIN_UNIVERSITE', 'SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN_UNIVERSITE', 'SUPER_ADMIN')"
+            + " and @securityService.peutAccederUniversite(#universiteId, authentication)")
     public ResponseEntity<?> creer(@PathVariable Long universiteId, @RequestBody Map<String, Object> body) {
         try {
             RoleEnum roleRattache = body.get("roleRattache") != null
@@ -100,13 +102,15 @@ public class SignataireUniversiteController {
     // ═══════════════════════════════════════════════
 
     @GetMapping("/api/universites/{universiteId}/regles-signature")
-    @PreAuthorize("hasAnyRole('ADMIN_UNIVERSITE', 'SUPER_ADMIN', 'DOYEN', 'SECRETAIRE_ACADEMIQUE')")
+    @PreAuthorize("hasAnyRole('ADMIN_UNIVERSITE', 'SUPER_ADMIN', 'DOYEN', 'SECRETAIRE_ACADEMIQUE')"
+            + " and @securityService.peutAccederUniversite(#universiteId, authentication)")
     public ResponseEntity<?> listerRegles(@PathVariable Long universiteId) {
         return ResponseEntity.ok(signatureService.listerRegles(universiteId));
     }
 
     @PutMapping("/api/universites/{universiteId}/regles-signature")
-    @PreAuthorize("hasAnyRole('ADMIN_UNIVERSITE', 'SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN_UNIVERSITE', 'SUPER_ADMIN')"
+            + " and @securityService.peutAccederUniversite(#universiteId, authentication)")
     public ResponseEntity<?> definirRegle(@PathVariable Long universiteId, @RequestBody Map<String, Object> body) {
         try {
             TypeDocumentSignable type = TypeDocumentSignable.valueOf((String) body.get("typeDocument"));

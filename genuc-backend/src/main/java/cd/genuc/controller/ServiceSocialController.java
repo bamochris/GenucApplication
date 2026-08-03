@@ -22,7 +22,8 @@ public class ServiceSocialController {
     // ════════════════════════════════════════════
 
     @GetMapping("/dossiers/universite/{universiteId}")
-    @PreAuthorize("hasAnyRole('SERVICE_SOCIAL', 'ADMIN_UNIVERSITE', 'SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('SERVICE_SOCIAL', 'ADMIN_UNIVERSITE', 'SUPER_ADMIN')"
+            + " and @securityService.peutAccederUniversite(#universiteId, authentication)")
     public ResponseEntity<List<DossierSocial>> getDossiers(@PathVariable Long universiteId) {
         return ResponseEntity.ok(socialService.getDossiersParUniversite(universiteId));
     }
@@ -94,13 +95,15 @@ public class ServiceSocialController {
     // ════════════════════════════════════════════
 
     @GetMapping("/bourses/etudiant/{etudiantId}")
-    @PreAuthorize("hasAnyRole('ETUDIANT', 'SERVICE_SOCIAL', 'ADMIN_UNIVERSITE')")
+    @PreAuthorize("hasAnyRole('ETUDIANT', 'SERVICE_SOCIAL', 'ADMIN_UNIVERSITE')"
+            + " and @securityService.peutAccederUniversite(#universiteId, authentication)")
     public ResponseEntity<List<Bourse>> getBoursesEtudiant(@PathVariable Long etudiantId) {
         return ResponseEntity.ok(socialService.getBoursesParEtudiant(etudiantId));
     }
 
     @GetMapping("/bourses/universite/{universiteId}")
-    @PreAuthorize("hasAnyRole('SERVICE_SOCIAL', 'ADMIN_UNIVERSITE', 'SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('SERVICE_SOCIAL', 'ADMIN_UNIVERSITE', 'SUPER_ADMIN')"
+            + " and @securityService.peutAccederUniversite(#universiteId, authentication)")
     public ResponseEntity<List<Bourse>> getBoursesUniversite(@PathVariable Long universiteId) {
         return ResponseEntity.ok(socialService.getBoursesParUniversite(universiteId));
     }
@@ -146,13 +149,15 @@ public class ServiceSocialController {
     // ════════════════════════════════════════════
 
     @GetMapping("/aides/etudiant/{etudiantId}")
-    @PreAuthorize("hasAnyRole('ETUDIANT', 'SERVICE_SOCIAL', 'ADMIN_UNIVERSITE')")
+    @PreAuthorize("hasAnyRole('ETUDIANT', 'SERVICE_SOCIAL', 'ADMIN_UNIVERSITE')"
+            + " and @securityService.peutAccederUniversite(#universiteId, authentication)")
     public ResponseEntity<List<AideSociale>> getAidesEtudiant(@PathVariable Long etudiantId) {
         return ResponseEntity.ok(socialService.getAidesParEtudiant(etudiantId));
     }
 
     @GetMapping("/aides/universite/{universiteId}")
-    @PreAuthorize("hasAnyRole('SERVICE_SOCIAL', 'ADMIN_UNIVERSITE', 'SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('SERVICE_SOCIAL', 'ADMIN_UNIVERSITE', 'SUPER_ADMIN')"
+            + " and @securityService.peutAccederUniversite(#universiteId, authentication)")
     public ResponseEntity<List<AideSociale>> getAidesUniversite(@PathVariable Long universiteId) {
         return ResponseEntity.ok(socialService.getAidesParUniversite(universiteId));
     }
@@ -204,7 +209,8 @@ public class ServiceSocialController {
     // ════════════════════════════════════════════
 
     @GetMapping("/stats/{universiteId}")
-    @PreAuthorize("hasAnyRole('SERVICE_SOCIAL', 'ADMIN_UNIVERSITE', 'SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('SERVICE_SOCIAL', 'ADMIN_UNIVERSITE', 'SUPER_ADMIN')"
+            + " and @securityService.peutAccederUniversite(#universiteId, authentication)")
     public ResponseEntity<?> getStats(@PathVariable Long universiteId) {
         return ResponseEntity.ok(socialService.getStatistiques(universiteId));
     }

@@ -45,7 +45,8 @@ public class NotificationController {
     }
 
     @PatchMapping("/tout-lire")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("isAuthenticated()"
+            + " and @securityService.peutAccederUniversite(#universiteId, authentication)")
     public ResponseEntity<?> marquerToutesLues(@AuthenticationPrincipal Utilisateur user) {
         notificationService.marquerToutesLues(user.getId());
         return ResponseEntity.ok(Map.of("message", "Toutes les notifications ont été marquées comme lues"));
@@ -53,7 +54,8 @@ public class NotificationController {
 
     // Admin : envoyer une notification à une université
     @PostMapping("/universite/{universiteId}")
-    @PreAuthorize("hasAnyRole('ADMIN_UNIVERSITE', 'SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN_UNIVERSITE', 'SUPER_ADMIN')"
+            + " and @securityService.peutAccederUniversite(#universiteId, authentication)")
     public ResponseEntity<?> envoyerAUniversite(
             @PathVariable Long universiteId,
             @RequestBody Map<String, String> body) {

@@ -170,7 +170,8 @@ public class FiliereController {
     // Liste des filières d'une université (actives ou non) pour le panneau de
     // gestion de l'exigence du test (secrétaire / admin).
     @GetMapping("/universite/{universiteId}")
-    @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'ADMIN_UNIVERSITE', 'SECRETAIRE_ACADEMIQUE')")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'ADMIN_UNIVERSITE', 'SECRETAIRE_ACADEMIQUE')"
+            + " and @securityService.peutAccederUniversite(#universiteId, authentication)")
     public ResponseEntity<?> getFilieresParUniversite(@PathVariable Long universiteId,
                                                       @AuthenticationPrincipal Utilisateur currentUser) {
         if (currentUser.getRole() != RoleEnum.SUPER_ADMIN

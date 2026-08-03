@@ -129,7 +129,8 @@ public class BibliothequeController {
     // ─── Catégories ─────────────────────────────────────────────
 
     @GetMapping("/categories/{universiteId}")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("isAuthenticated()"
+            + " and @securityService.peutAccederUniversite(#universiteId, authentication)")
     public ResponseEntity<List<CategorieOuvrage>> getCategories(@PathVariable Long universiteId) {
         return ResponseEntity.ok(bibliothequeService.getCategories(universiteId));
     }
@@ -145,7 +146,8 @@ public class BibliothequeController {
     }
 
     @DeleteMapping("/categories/{id}")
-    @PreAuthorize("hasAnyRole('BIBLIOTHECAIRE', 'ADMIN_UNIVERSITE')")
+    @PreAuthorize("hasAnyRole('BIBLIOTHECAIRE', 'ADMIN_UNIVERSITE')"
+            + " and @securityService.peutAccederUniversite(#universiteId, authentication)")
     public ResponseEntity<?> desactiverCategorie(@PathVariable Long id) {
         bibliothequeService.desactiverCategorie(id);
         return ResponseEntity.ok(Map.of("message", "Catégorie désactivée"));
@@ -154,13 +156,15 @@ public class BibliothequeController {
     // ─── Ouvrages (avec types) ──────────────────────────────────
 
     @GetMapping("/ouvrages/{universiteId}")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("isAuthenticated()"
+            + " and @securityService.peutAccederUniversite(#universiteId, authentication)")
     public ResponseEntity<List<Ouvrage>> listerOuvrages(@PathVariable Long universiteId) {
         return ResponseEntity.ok(bibliothequeService.listerOuvragesParUniversite(universiteId));
     }
 
     @GetMapping("/ouvrages/{universiteId}/type/{type}")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("isAuthenticated()"
+            + " and @securityService.peutAccederUniversite(#universiteId, authentication)")
     public ResponseEntity<List<Ouvrage>> listerOuvragesParType(
             @PathVariable Long universiteId,
             @PathVariable String type) {
@@ -263,7 +267,8 @@ public class BibliothequeController {
     }
 
     @GetMapping("/mes-reservations/{etudiantId}")
-    @PreAuthorize("hasRole('ETUDIANT')")
+    @PreAuthorize("hasRole('ETUDIANT')"
+            + " and @securityService.peutAccederUniversite(#universiteId, authentication)")
     public ResponseEntity<List<Reservation>> mesReservations(@PathVariable Long etudiantId) {
         return ResponseEntity.ok(bibliothequeService.getReservationsEtudiant(etudiantId));
     }
@@ -271,7 +276,8 @@ public class BibliothequeController {
     // ─── Statistiques ───────────────────────────────────────────
 
     @GetMapping("/stats/{universiteId}")
-    @PreAuthorize("hasAnyRole('BIBLIOTHECAIRE', 'ADMIN_UNIVERSITE', 'SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('BIBLIOTHECAIRE', 'ADMIN_UNIVERSITE', 'SUPER_ADMIN')"
+            + " and @securityService.peutAccederUniversite(#universiteId, authentication)")
     public ResponseEntity<?> getStatistiques(@PathVariable Long universiteId) {
         return ResponseEntity.ok(bibliothequeService.getStatistiquesBibliotheque(universiteId));
     }
@@ -279,14 +285,16 @@ public class BibliothequeController {
     // ─── Gestion des retards ────────────────────────────────────
 
     @PostMapping("/admin/gerer-retards")
-    @PreAuthorize("hasAnyRole('BIBLIOTHECAIRE', 'ADMIN_UNIVERSITE')")
+    @PreAuthorize("hasAnyRole('BIBLIOTHECAIRE', 'ADMIN_UNIVERSITE')"
+            + " and @securityService.peutAccederUniversite(#universiteId, authentication)")
     public ResponseEntity<?> gererRetards() {
         bibliothequeService.gererRetards();
         return ResponseEntity.ok(Map.of("message", "Gestion des retards effectuée"));
     }
 
     @GetMapping("/echeances/{universiteId}")
-    @PreAuthorize("hasAnyRole('BIBLIOTHECAIRE', 'ADMIN_UNIVERSITE', 'SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('BIBLIOTHECAIRE', 'ADMIN_UNIVERSITE', 'SUPER_ADMIN')"
+            + " and @securityService.peutAccederUniversite(#universiteId, authentication)")
     public ResponseEntity<List<EmpruntResponseDto>> getEcheancesProches(
             @PathVariable Long universiteId,
             @RequestParam(defaultValue = "3") int jours) {
@@ -297,7 +305,8 @@ public class BibliothequeController {
 
     // Emprunts en cours d'une université (dashboard admin / bibliothécaire)
     @GetMapping("/emprunts/actifs/{universiteId}")
-    @PreAuthorize("hasAnyRole('BIBLIOTHECAIRE', 'ADMIN_UNIVERSITE', 'SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('BIBLIOTHECAIRE', 'ADMIN_UNIVERSITE', 'SUPER_ADMIN')"
+            + " and @securityService.peutAccederUniversite(#universiteId, authentication)")
     public ResponseEntity<List<EmpruntResponseDto>> getEmpruntsActifs(@PathVariable Long universiteId) {
         List<EmpruntResponseDto> dtos = bibliothequeService.getEmpruntsActifsParUniversite(universiteId)
                 .stream().map(EmpruntResponseDto::fromEntity).toList();
@@ -307,7 +316,8 @@ public class BibliothequeController {
     // ─── Réservations (vue bibliothécaire / admin) ──────────────
 
     @GetMapping("/admin/reservations/{universiteId}")
-    @PreAuthorize("hasAnyRole('BIBLIOTHECAIRE', 'ADMIN_UNIVERSITE', 'SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('BIBLIOTHECAIRE', 'ADMIN_UNIVERSITE', 'SUPER_ADMIN')"
+            + " and @securityService.peutAccederUniversite(#universiteId, authentication)")
     public ResponseEntity<List<ReservationResponseDto>> getReservationsUniversite(@PathVariable Long universiteId) {
         List<ReservationResponseDto> dtos = bibliothequeService.getReservationsParUniversite(universiteId)
                 .stream().map(ReservationResponseDto::fromEntity).toList();
@@ -316,7 +326,8 @@ public class BibliothequeController {
 
     // Réservations actives uniquement (dashboard admin / bibliothécaire)
     @GetMapping("/reservations/actives/{universiteId}")
-    @PreAuthorize("hasAnyRole('BIBLIOTHECAIRE', 'ADMIN_UNIVERSITE', 'SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('BIBLIOTHECAIRE', 'ADMIN_UNIVERSITE', 'SUPER_ADMIN')"
+            + " and @securityService.peutAccederUniversite(#universiteId, authentication)")
     public ResponseEntity<List<ReservationResponseDto>> getReservationsActives(@PathVariable Long universiteId) {
         List<ReservationResponseDto> dtos = bibliothequeService.getReservationsActivesParUniversite(universiteId)
                 .stream().map(ReservationResponseDto::fromEntity).toList();

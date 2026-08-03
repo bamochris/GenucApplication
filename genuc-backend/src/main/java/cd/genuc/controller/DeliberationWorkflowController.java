@@ -152,13 +152,15 @@ public class DeliberationWorkflowController {
     // ─────────────────────────────────────────────
 
     @GetMapping("/parametres/{universiteId}")
-    @PreAuthorize("hasAnyRole('ADMIN_UNIVERSITE', 'SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN_UNIVERSITE', 'SUPER_ADMIN')"
+            + " and @securityService.peutAccederUniversite(#universiteId, authentication)")
     public ResponseEntity<?> getParametresLMD(@PathVariable Long universiteId) {
         return ResponseEntity.ok(deliberationService.getParametresLMD(universiteId));
     }
 
     @PutMapping("/parametres/{universiteId}")
-    @PreAuthorize("hasAnyRole('ADMIN_UNIVERSITE', 'SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN_UNIVERSITE', 'SUPER_ADMIN')"
+            + " and @securityService.peutAccederUniversite(#universiteId, authentication)")
     public ResponseEntity<?> updateParametresLMD(@PathVariable Long universiteId,
                                                   @RequestBody ParametresLMD params) {
         try {

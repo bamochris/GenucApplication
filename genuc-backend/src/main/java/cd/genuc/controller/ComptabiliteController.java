@@ -23,7 +23,8 @@ public class ComptabiliteController {
     // ─── COMPTES ────────────────────────────────────────────────────
 
     @GetMapping("/comptes/{universiteId}")
-    @PreAuthorize("hasAnyRole('COMPTABLE', 'ADMIN_UNIVERSITE', 'SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('COMPTABLE', 'ADMIN_UNIVERSITE', 'SUPER_ADMIN')"
+            + " and @securityService.peutAccederUniversite(#universiteId, authentication)")
     public ResponseEntity<List<CompteComptable>> getComptes(@PathVariable Long universiteId) {
         return ResponseEntity.ok(comptabiliteService.getComptes(universiteId));
     }
@@ -75,7 +76,8 @@ public class ComptabiliteController {
     }
 
     @GetMapping("/ecritures/{universiteId}")
-    @PreAuthorize("hasAnyRole('COMPTABLE', 'ADMIN_UNIVERSITE')")
+    @PreAuthorize("hasAnyRole('COMPTABLE', 'ADMIN_UNIVERSITE')"
+            + " and @securityService.peutAccederUniversite(#universiteId, authentication)")
     public ResponseEntity<?> getEcritures(@PathVariable Long universiteId,
                                           @RequestParam String debut,
                                           @RequestParam String fin) {
@@ -91,7 +93,8 @@ public class ComptabiliteController {
     // ─── BUDGET ─────────────────────────────────────────────────────
 
     @GetMapping("/budgets/{universiteId}/{annee}")
-    @PreAuthorize("hasAnyRole('COMPTABLE', 'ADMIN_UNIVERSITE')")
+    @PreAuthorize("hasAnyRole('COMPTABLE', 'ADMIN_UNIVERSITE')"
+            + " and @securityService.peutAccederUniversite(#universiteId, authentication)")
     public ResponseEntity<List<Budget>> getBudgets(@PathVariable Long universiteId,
                                                    @PathVariable Integer annee) {
         return ResponseEntity.ok(comptabiliteService.getBudgets(universiteId, annee));
@@ -110,7 +113,8 @@ public class ComptabiliteController {
     // ─── RAPPORTS ──────────────────────────────────────────────────
 
     @GetMapping("/balance/{universiteId}")
-    @PreAuthorize("hasAnyRole('COMPTABLE', 'ADMIN_UNIVERSITE', 'SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('COMPTABLE', 'ADMIN_UNIVERSITE', 'SUPER_ADMIN')"
+            + " and @securityService.peutAccederUniversite(#universiteId, authentication)")
     public ResponseEntity<?> getBalance(@PathVariable Long universiteId,
                                         @RequestParam(defaultValue = "#{T(java.time.LocalDate).now()}") String date) {
         try {

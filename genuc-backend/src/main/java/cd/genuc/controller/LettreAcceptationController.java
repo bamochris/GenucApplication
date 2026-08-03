@@ -66,14 +66,16 @@ public class LettreAcceptationController {
 
     @Operation(summary = "Lister les lettres d'un étudiant")
     @GetMapping("/etudiant/{etudiantId}")
-    @PreAuthorize("hasAnyRole('ADMIN_UNIVERSITE', 'SUPER_ADMIN', 'SECRETAIRE_ACADEMIQUE', 'ETUDIANT')")
+    @PreAuthorize("hasAnyRole('ADMIN_UNIVERSITE', 'SUPER_ADMIN', 'SECRETAIRE_ACADEMIQUE', 'ETUDIANT')"
+            + " and @securityService.peutAccederUniversite(#universiteId, authentication)")
     public ResponseEntity<List<LettreAcceptationDTO>> getLettresByEtudiant(@PathVariable Long etudiantId) {
         return ResponseEntity.ok(lettreService.getLettresByEtudiant(etudiantId));
     }
 
     @Operation(summary = "Lister les lettres d'une université")
     @GetMapping("/universite/{universiteId}")
-    @PreAuthorize("hasAnyRole('ADMIN_UNIVERSITE', 'SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN_UNIVERSITE', 'SUPER_ADMIN')"
+            + " and @securityService.peutAccederUniversite(#universiteId, authentication)")
     public ResponseEntity<List<LettreAcceptationDTO>> getLettresByUniversite(@PathVariable Long universiteId) {
         return ResponseEntity.ok(lettreService.getLettresByUniversite(universiteId));
     }

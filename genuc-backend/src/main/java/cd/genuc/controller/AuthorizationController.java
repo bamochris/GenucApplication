@@ -70,7 +70,8 @@ public class AuthorizationController {
      * GET /api/v1/authorization/user/{userId}/roles/{universiteId}
      */
     @GetMapping("/user/{userId}/roles/{universiteId}")
-    @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'UNIVERSITY_ADMIN')")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'UNIVERSITY_ADMIN')"
+            + " and @securityService.peutAccederUniversite(#universiteId, authentication)")
     @Operation(summary = "Get user roles")
     public ResponseEntity<List<Role>> getUserRoles(
             @PathVariable Long userId,

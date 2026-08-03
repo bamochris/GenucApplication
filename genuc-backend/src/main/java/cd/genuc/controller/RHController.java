@@ -26,7 +26,8 @@ public class RHController {
     // ════════════════════════════════════════════
 
     @GetMapping("/personnel/universite/{universiteId}")
-    @PreAuthorize("hasAnyRole('RH', 'ADMIN_UNIVERSITE', 'SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('RH', 'ADMIN_UNIVERSITE', 'SUPER_ADMIN')"
+            + " and @securityService.peutAccederUniversite(#universiteId, authentication)")
     public ResponseEntity<List<Personnel>> getPersonnel(@PathVariable Long universiteId) {
         return ResponseEntity.ok(rhService.getPersonnelParUniversite(universiteId));
     }
@@ -294,7 +295,8 @@ public class RHController {
     // ════════════════════════════════════════════
 
     @GetMapping("/stats/{universiteId}")
-    @PreAuthorize("hasAnyRole('RH', 'ADMIN_UNIVERSITE', 'SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('RH', 'ADMIN_UNIVERSITE', 'SUPER_ADMIN')"
+            + " and @securityService.peutAccederUniversite(#universiteId, authentication)")
     public ResponseEntity<?> getStats(@PathVariable Long universiteId) {
         return ResponseEntity.ok(rhService.getStatistiquesRH(universiteId));
     }

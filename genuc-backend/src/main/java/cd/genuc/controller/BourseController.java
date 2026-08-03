@@ -89,7 +89,8 @@ public class BourseController {
     // ─── Admin / Service social : gestion des candidatures ───────
 
     @GetMapping("/admin/candidatures/{universiteId}")
-    @PreAuthorize("hasAnyRole('SERVICE_SOCIAL', 'ADMIN_UNIVERSITE', 'SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('SERVICE_SOCIAL', 'ADMIN_UNIVERSITE', 'SUPER_ADMIN')"
+            + " and @securityService.peutAccederUniversite(#universiteId, authentication)")
     public ResponseEntity<List<CandidatureBourseDto>> getCandidaturesUniversite(@PathVariable Long universiteId) {
         List<CandidatureBourseDto> dtos = bourseService.getCandidaturesParUniversite(universiteId)
                 .stream().map(CandidatureBourseDto::fromEntity).toList();

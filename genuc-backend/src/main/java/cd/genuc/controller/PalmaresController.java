@@ -55,7 +55,8 @@ public class PalmaresController {
     // ════════════════════════════════════════════
 
     @GetMapping("/params/{universiteId}/{annee}")
-    @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'ADMIN_UNIVERSITE')")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'ADMIN_UNIVERSITE')"
+            + " and @securityService.peutAccederUniversite(#universiteId, authentication)")
     public ResponseEntity<ParametrePalmares> getParametres(
             @PathVariable Long universiteId,
             @PathVariable String annee) {
@@ -229,7 +230,8 @@ public class PalmaresController {
     // ════════════════════════════════════════════
 
     @GetMapping("/stats/{universiteId}")
-    @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'ADMIN_UNIVERSITE', 'RECTEUR')")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'ADMIN_UNIVERSITE', 'RECTEUR')"
+            + " and @securityService.peutAccederUniversite(#universiteId, authentication)")
     public ResponseEntity<?> getStats(@PathVariable Long universiteId) {
         return ResponseEntity.ok(palmaresService.getStatistiquesPalmares(universiteId));
     }

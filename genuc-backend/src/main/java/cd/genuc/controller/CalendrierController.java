@@ -19,19 +19,22 @@ public class CalendrierController {
     private final CalendrierService calendrierService;
 
     @GetMapping("/universite/{universiteId}")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("isAuthenticated()"
+            + " and @securityService.peutAccederUniversite(#universiteId, authentication)")
     public ResponseEntity<List<CalendrierAcademique>> getEvenements(@PathVariable Long universiteId) {
         return ResponseEntity.ok(calendrierService.getEvenementsParUniversite(universiteId));
     }
 
     @GetMapping("/universite/{universiteId}/actifs")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("isAuthenticated()"
+            + " and @securityService.peutAccederUniversite(#universiteId, authentication)")
     public ResponseEntity<List<CalendrierAcademique>> getEvenementsActifs(@PathVariable Long universiteId) {
         return ResponseEntity.ok(calendrierService.getEvenementsActifsParUniversite(universiteId));
     }
 
     @GetMapping("/universite/{universiteId}/date")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("isAuthenticated()"
+            + " and @securityService.peutAccederUniversite(#universiteId, authentication)")
     public ResponseEntity<?> getEvenementsParDate(@PathVariable Long universiteId,
                                                    @RequestParam String date) {
         LocalDate d = LocalDate.parse(date);

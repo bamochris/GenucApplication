@@ -27,7 +27,8 @@ public class TresorerieController {
     }
 
     @GetMapping("/jour/{universiteId}")
-    @PreAuthorize("hasAnyRole('ADMIN_UNIVERSITE', 'COMPTABLE')")
+    @PreAuthorize("hasAnyRole('ADMIN_UNIVERSITE', 'COMPTABLE')"
+            + " and @securityService.peutAccederUniversite(#universiteId, authentication)")
     public ResponseEntity<?> situationJournaliere(@PathVariable Long universiteId) {
         try {
             return ResponseEntity.ok(tresorerieService.getSituationJournaliere(universiteId));

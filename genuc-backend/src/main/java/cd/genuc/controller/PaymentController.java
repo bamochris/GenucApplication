@@ -91,7 +91,8 @@ public class PaymentController {
      * GET /api/v1/payments/statistics/{universiteId}
      */
     @GetMapping("/statistics/{universiteId}")
-    @PreAuthorize("hasAnyRole('UNIVERSITY_ADMIN', 'FINANCE_MANAGER')")
+    @PreAuthorize("hasAnyRole('UNIVERSITY_ADMIN', 'FINANCE_MANAGER')"
+            + " and @securityService.peutAccederUniversite(#universiteId, authentication)")
     @Operation(summary = "Get payment statistics")
     public ResponseEntity<Map<String, Object>> getStatistics(@PathVariable Long universiteId) {
         log.info("Fetching payment statistics: universiteId={}", universiteId);

@@ -132,7 +132,8 @@ public class MessagerieController {
     // ═══════════════════════════════════════════════════════════════
 
     @GetMapping("/contacts/{universiteId}")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("isAuthenticated()"
+            + " and @securityService.peutAccederUniversite(#universiteId, authentication)")
     public ResponseEntity<?> getContacts(@PathVariable Long universiteId) {
         try {
             return ResponseEntity.ok(messagerieService.getContactsUniversite(universiteId));
@@ -142,7 +143,8 @@ public class MessagerieController {
     }
 
     @GetMapping("/admin/cibles/{universiteId}")
-    @PreAuthorize("hasAnyRole('PROFESSEUR', 'CHEF_DEPARTEMENT', 'ADMIN_UNIVERSITE', 'SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('PROFESSEUR', 'CHEF_DEPARTEMENT', 'ADMIN_UNIVERSITE', 'SUPER_ADMIN')"
+            + " and @securityService.peutAccederUniversite(#universiteId, authentication)")
     public ResponseEntity<?> getCiblesAdmin(@PathVariable Long universiteId) {
         try {
             return ResponseEntity.ok(messagerieService.getCiblesMessagerieAdmin(universiteId));

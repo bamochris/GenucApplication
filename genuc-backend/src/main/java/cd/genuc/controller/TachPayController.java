@@ -437,7 +437,7 @@ public class TachPayController {
             Inscription inscription = inscriptionRepository.findByMatricule(matriculeNettoye)
                 .orElseThrow(() -> new RuntimeException("Étudiant introuvable"));
 
-            return ResponseEntity.ok(construireCheckoutContext(inscription));
+            return ResponseEntity.ok(construireCheckoutContext(inscription, true));
         } catch (Exception e) {
             log.error("Erreur contexte checkout public : {}", e.getMessage());
             return ResponseEntity.badRequest().body(Map.of("erreur", "Erreur lors du traitement de la requête"));
@@ -722,8 +722,17 @@ public class TachPayController {
     }
 
     private Map<String, Object> construireCheckoutContext(Inscription inscription) {
+        return construireCheckoutContext(inscription, false);
+    }
+
+    /**
+     * @param expositionPublique vrai lorsque la réponse part vers un appelant
+     *        NON authentifié (paiement par matricule, sans compte).
+     */
+    private Map<String, Object> construireCheckoutContext(Inscription inscription,
+                                                          boolean expositionPublique) {
         Map<String, Object> result = new LinkedHashMap<>();
-        result.put("data", versCheckoutDetail(inscription));
+        result.put("data", versCheckoutDetail(inscription, expositionPublique));
 
         Map<String, Object> frais = paiementService.getFraisAPayer(inscription.getId());
         result.put("frais", frais.getOrDefault("frais", List.of()));
@@ -738,13 +747,28 @@ public class TachPayController {
     }
 
     private Map<String, Object> versCheckoutDetail(Inscription inscription) {
+        return versCheckoutDetail(inscription, false);
+    }
+
+    private Map<String, Object> versCheckoutDetail(Inscription inscription,
+                                                   boolean expositionPublique) {
         Map<String, Object> detail = new LinkedHashMap<>();
         detail.put("inscriptionId", inscription.getId());
         detail.put("matricule", inscription.getMatricule());
         detail.put("nom", inscription.getNom());
         detail.put("prenom", inscription.getPrenom());
-        detail.put("email", inscription.getEmail());
-        detail.put("telephone", inscription.getTelephone());
+        // Coordonnées personnelles réservées à l'appelant authentifié.
+        //
+        // Les matricules sont séquentiels (« <préfixe><année><5 chiffres> ») :
+        // sur un accès public, les parcourir suffisait à moissonner courriel,
+        // téléphone ET solde dû de chaque étudiant — le nécessaire exact pour
+        // une fraude au paiement crédible. Le nom reste exposé : le payeur doit
+        // pouvoir vérifier qu'il règle bien le bon dossier, et il saisit ses
+        // propres coordonnées pour le reçu.
+        if (!expositionPublique) {
+            detail.put("email", inscription.getEmail());
+            detail.put("telephone", inscription.getTelephone());
+        }
         detail.put("niveau", inscription.getNiveau());
 
         if (inscription.getUniversite() != null) {

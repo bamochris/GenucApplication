@@ -198,13 +198,15 @@ public class AttestationController {
 
     @GetMapping("/etudiant/{inscriptionId}")
     @PreAuthorize("hasAnyRole('ETUDIANT', 'ADMIN_UNIVERSITE', 'SECRETAIRE_ACADEMIQUE') "
-                + "and @securityService.peutAccederInscription(#inscriptionId, authentication)")
+                + "and @securityService.peutAccederInscription(#inscriptionId, authentication)"
+            + " and @securityService.peutAccederUniversite(#universiteId, authentication)")
     public ResponseEntity<List<Attestation>> getMesAttestations(@PathVariable Long inscriptionId) {
         return ResponseEntity.ok(attestationService.getAttestationsByInscription(inscriptionId));
     }
 
     @GetMapping("/en-attente/{universiteId}")
-    @PreAuthorize("hasAnyRole('ADMIN_UNIVERSITE', 'SECRETAIRE_ACADEMIQUE')")
+    @PreAuthorize("hasAnyRole('ADMIN_UNIVERSITE', 'SECRETAIRE_ACADEMIQUE')"
+            + " and @securityService.peutAccederUniversite(#universiteId, authentication)")
     public ResponseEntity<List<Attestation>> getEnAttente(@PathVariable Long universiteId) {
         return ResponseEntity.ok(attestationService.getAttestationsEnAttente(universiteId));
     }

@@ -118,7 +118,8 @@ public class InscriptionController {
     // GET /api/inscriptions/etudiant/{etudiantId}
     // ─────────────────────────────────────────
     @GetMapping("/etudiant/{etudiantId}")
-    @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'ADMIN_UNIVERSITE', 'CHEF_DEPARTEMENT', 'ETUDIANT')")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'ADMIN_UNIVERSITE', 'CHEF_DEPARTEMENT', 'ETUDIANT')"
+            + " and @securityService.peutAccederUniversite(#universiteId, authentication)")
     public ResponseEntity<List<Inscription>> parEtudiant(@PathVariable Long etudiantId) {
         return ResponseEntity.ok(inscriptionService.inscriptionsParEtudiant(etudiantId));
     }
@@ -127,7 +128,8 @@ public class InscriptionController {
     // GET /api/inscriptions/universite/{universiteId}
     // ─────────────────────────────────────────
     @GetMapping("/universite/{universiteId}")
-    @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'ADMIN_UNIVERSITE', 'SECRETAIRE_ACADEMIQUE')")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'ADMIN_UNIVERSITE', 'SECRETAIRE_ACADEMIQUE')"
+            + " and @securityService.peutAccederUniversite(#universiteId, authentication)")
     public ResponseEntity<List<Inscription>> parUniversite(@PathVariable Long universiteId) {
         return ResponseEntity.ok(inscriptionService.inscriptionsParUniversite(universiteId));
     }
@@ -136,7 +138,8 @@ public class InscriptionController {
     // GET /api/inscriptions/universite/{universiteId}/en-attente
     // ─────────────────────────────────────────
     @GetMapping("/universite/{universiteId}/en-attente")
-    @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'ADMIN_UNIVERSITE', 'SECRETAIRE_ACADEMIQUE')")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'ADMIN_UNIVERSITE', 'SECRETAIRE_ACADEMIQUE')"
+            + " and @securityService.peutAccederUniversite(#universiteId, authentication)")
     public ResponseEntity<?> enAttenteParUniversite(@PathVariable Long universiteId) {
         List<Inscription> inscriptionsEnAttente = inscriptionRepository.findByUniversiteIdAndStatut(universiteId, StatutInscription.EN_ATTENTE);
         return ResponseEntity.ok(inscriptionsEnAttente);
@@ -306,7 +309,8 @@ public class InscriptionController {
     // GET /api/inscriptions/statistiques/{universiteId}
     // ─────────────────────────────────────────
     @GetMapping("/statistiques/{universiteId}")
-    @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'ADMIN_UNIVERSITE')")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'ADMIN_UNIVERSITE')"
+            + " and @securityService.peutAccederUniversite(#universiteId, authentication)")
     public ResponseEntity<?> statistiques(@PathVariable Long universiteId,
                                           @RequestParam String annee) {
         try {

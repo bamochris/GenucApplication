@@ -105,7 +105,8 @@ public class EquivalenceDiplomeController {
     // ─────────────────────────────────────────────
 
     @GetMapping("/universite/{universiteId}")
-    @PreAuthorize("hasAnyRole('ADMIN_UNIVERSITE', 'SUPER_ADMIN', 'DOYEN', 'SECRETAIRE_ACADEMIQUE')")
+    @PreAuthorize("hasAnyRole('ADMIN_UNIVERSITE', 'SUPER_ADMIN', 'DOYEN', 'SECRETAIRE_ACADEMIQUE')"
+            + " and @securityService.peutAccederUniversite(#universiteId, authentication)")
     public ResponseEntity<?> listerPourCommission(@PathVariable Long universiteId,
                                                    @RequestParam(required = false) String statut) {
         try {

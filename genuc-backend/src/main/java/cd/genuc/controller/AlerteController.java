@@ -20,25 +20,29 @@ public class AlerteController {
     private final AlerteService alerteService;
 
     @GetMapping("/universite/{universiteId}")
-    @PreAuthorize("hasAnyRole('ADMIN_UNIVERSITE', 'SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN_UNIVERSITE', 'SUPER_ADMIN')"
+            + " and @securityService.peutAccederUniversite(#universiteId, authentication)")
     public ResponseEntity<List<Alerte>> getAlertes(@PathVariable Long universiteId) {
         return ResponseEntity.ok(alerteService.getAlertesParUniversite(universiteId));
     }
 
     @GetMapping("/universite/{universiteId}/non-vues")
-    @PreAuthorize("hasAnyRole('ADMIN_UNIVERSITE', 'SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN_UNIVERSITE', 'SUPER_ADMIN')"
+            + " and @securityService.peutAccederUniversite(#universiteId, authentication)")
     public ResponseEntity<List<Alerte>> getAlertesNonVues(@PathVariable Long universiteId) {
         return ResponseEntity.ok(alerteService.getAlertesNonVuesParUniversite(universiteId));
     }
 
     @GetMapping("/critiques")
-    @PreAuthorize("hasRole('SUPER_ADMIN')")
+    @PreAuthorize("hasRole('SUPER_ADMIN')"
+            + " and @securityService.peutAccederUniversite(#universiteId, authentication)")
     public ResponseEntity<List<Alerte>> getAlertesCritiques() {
         return ResponseEntity.ok(alerteService.getAlertesCritiquesNonVues());
     }
 
     @GetMapping("/universite/{universiteId}/count")
-    @PreAuthorize("hasAnyRole('ADMIN_UNIVERSITE', 'SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN_UNIVERSITE', 'SUPER_ADMIN')"
+            + " and @securityService.peutAccederUniversite(#universiteId, authentication)")
     public ResponseEntity<Map<String, Long>> countNonVues(@PathVariable Long universiteId) {
         return ResponseEntity.ok(Map.of(
                 "nonVues", alerteService.countNonVues(universiteId),
@@ -66,14 +70,16 @@ public class AlerteController {
     }
 
     @PatchMapping("/{id}/vue")
-    @PreAuthorize("hasAnyRole('ADMIN_UNIVERSITE', 'SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN_UNIVERSITE', 'SUPER_ADMIN')"
+            + " and @securityService.peutAccederUniversite(#universiteId, authentication)")
     public ResponseEntity<?> marquerVue(@PathVariable Long id) {
         alerteService.marquerVue(id);
         return ResponseEntity.ok(Map.of("message", "Alerte marquée comme vue"));
     }
 
     @PatchMapping("/universite/{universiteId}/tout-vu")
-    @PreAuthorize("hasAnyRole('ADMIN_UNIVERSITE', 'SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN_UNIVERSITE', 'SUPER_ADMIN')"
+            + " and @securityService.peutAccederUniversite(#universiteId, authentication)")
     public ResponseEntity<?> marquerToutesVues(@PathVariable Long universiteId) {
         alerteService.marquerToutesVues(universiteId);
         return ResponseEntity.ok(Map.of("message", "Toutes les alertes marquées comme vues"));

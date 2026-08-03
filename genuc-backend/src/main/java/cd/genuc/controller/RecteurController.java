@@ -16,7 +16,8 @@ public class RecteurController {
     private final RecteurService recteurService;
 
     @GetMapping("/dashboard/{universiteId}")
-    @PreAuthorize("hasAnyRole('RECTEUR', 'ADMIN_UNIVERSITE')")
+    @PreAuthorize("hasAnyRole('RECTEUR', 'ADMIN_UNIVERSITE')"
+            + " and @securityService.peutAccederUniversite(#universiteId, authentication)")
     public ResponseEntity<?> getDashboard(@PathVariable Long universiteId) {
         try {
             return ResponseEntity.ok(recteurService.getDashboardExecutif(universiteId));
@@ -26,13 +27,15 @@ public class RecteurController {
     }
 
     @GetMapping("/evolution/{universiteId}")
-    @PreAuthorize("hasAnyRole('RECTEUR', 'ADMIN_UNIVERSITE')")
+    @PreAuthorize("hasAnyRole('RECTEUR', 'ADMIN_UNIVERSITE')"
+            + " and @securityService.peutAccederUniversite(#universiteId, authentication)")
     public ResponseEntity<?> getEvolution(@PathVariable Long universiteId) {
         return ResponseEntity.ok(recteurService.getEvolutionEffectifs(universiteId));
     }
 
     @GetMapping("/reussite/{universiteId}")
-    @PreAuthorize("hasAnyRole('RECTEUR', 'ADMIN_UNIVERSITE')")
+    @PreAuthorize("hasAnyRole('RECTEUR', 'ADMIN_UNIVERSITE')"
+            + " and @securityService.peutAccederUniversite(#universiteId, authentication)")
     public ResponseEntity<?> getReussiteParFaculte(
             @PathVariable Long universiteId,
             @RequestParam(defaultValue = "") String annee) {
