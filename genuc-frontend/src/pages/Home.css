@@ -208,8 +208,21 @@
   /* Typographie fluide : la taille suit la largeur de l'écran en continu, au
      lieu de sauter de 100 px à 42 px au franchissement d'un point de rupture.
      Entre les deux (tablettes, petits portables), le titre était démesuré.
-     Bornes : 36 px sur le plus petit téléphone, 100 px sur grand écran. */
-  font-size: clamp(36px, 11vw, 100px);
+
+     ⚠️ La pente est calibrée sur les tailles D'ORIGINE, pas choisie au jugé.
+     Le `11vw` d'abord retenu ne passait par aucune d'elles : il donnait 84 px
+     à 768 px de large (contre 42 px auparavant) et 66 px à 600 px — le titre
+     y était deux fois trop gros, ce qui a fait perdre au passage tout le
+     bénéfice de la fluidité.
+
+     Droite passant par les deux valeurs historiques, 42 px à 768 px et
+     100 px sur grand écran (atteints à 1400 px) :
+       pente = (100 − 42) / (1400 − 768) = 0,092 → 9,2vw
+       ordonnée = 42 − 0,092 × 768 = −28px
+     Soit, aux largeurs courantes : 40 px jusqu'à 740 px (téléphones, où la
+     valeur d'origine était 42 px), 42 px sur tablette, 66 px sur portable
+     1024, 100 px au-delà de 1400. */
+  font-size: clamp(40px, 9.2vw - 28px, 100px);
   font-weight: 700;
   color: #ffffff;
   margin-bottom: 10px;
@@ -453,10 +466,27 @@
   gap: 14px;
 }
 
+/* ─── Cadre des logos d'établissement ──────────────────────────
+ *
+ * Le fond est BLANC EN DUR, dans les deux thèmes, et ne doit pas être
+ * repassé sur `--home-card-bg` : ces logos sont des armoiries fournies par
+ * les établissements, dessinées pour du papier. Beaucoup sont des PNG à
+ * fond transparent avec des traits sombres — sur la tuile ardoise du thème
+ * sombre, le blason devenait illisible. C'est aussi la raison pour laquelle
+ * une exception avait été taillée pour la seule Haute École de Commerce
+ * (`.uni-logo-wrapper--hec`) : la règle est désormais générale, l'exception
+ * n'a plus lieu d'être.
+ *
+ * Quatre déclarations se disputaient ce fond — la règle de base, le survol,
+ * le bloc `[data-theme="dark"]` et le bloc `.home-page` — d'où l'insistance
+ * de ce commentaire : toute nouvelle règle qui y toucherait doit garder
+ * #ffffff. Seuls la bordure et l'ombre s'adaptent au thème, pour que la
+ * tuile blanche reste détourée sur fond sombre.
+ */
 .uni-logo-wrapper {
   width: 110px;
   height: 110px;
-  background: var(--home-card-bg);
+  background: #ffffff;
   border-radius: 24px;
   display: flex;
   align-items: center;
@@ -472,19 +502,34 @@
   border-color: #1D9E75;
 }
 
-.uni-logo-wrapper--hec,
-.uni-card:hover .uni-logo-wrapper--hec,
-[data-theme="dark"] .uni-logo-wrapper--hec,
-[data-theme="dark"] .uni-card:hover .uni-logo-wrapper--hec,
-.home-page .uni-logo-wrapper--hec,
-.home-page .uni-card:hover .uni-logo-wrapper--hec {
-  background: #ffffff;
-}
+/* `.uni-logo-wrapper--hec` forçait le blanc pour la seule Haute École de
+   Commerce, en six sélecteurs pour couvrir chaque combinaison de thème et de
+   survol. Le blanc étant maintenant la règle pour tous les établissements,
+   ces déclarations n'ajoutent plus rien. La classe reste posée par Home.jsx
+   et peut servir à d'autres besoins propres à cet établissement. */
 
 .uni-logo {
   max-width: 100%;
   max-height: 100%;
   object-fit: contain;
+}
+
+/* Repli affiché quand l'établissement n'a pas encore de logo : les trois
+   premières lettres de son code. Ce `<div>` n'avait AUCUNE règle — il ne
+   portait que `.uni-logo`, dont `max-width`/`object-fit` ne veulent rien dire
+   pour un bloc de texte. Il héritait donc de la couleur de texte ambiante,
+   claire en thème sombre : sur la tuile désormais blanche, le code devenait
+   illisible. La couleur est donc fixée, comme le fond. */
+.uni-logo-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  color: #0b1f4a;
 }
 
 .uni-name {
@@ -637,12 +682,31 @@
   .hero-description {
     font-size: 15px;
   }
+  /* Les 12 boutons passent du `flex-wrap` à une VRAIE grille.
+   *
+   * En flex, chaque carte se dimensionnait sur son contenu : « Inscription »
+   * et « Emploi universitaire » n'avaient pas la même largeur, les lignes se
+   * remplissaient au hasard des libellés, et `justify-content: center`
+   * laissait une dernière ligne décentrée sous des lignes irrégulières. Sur
+   * téléphone, où il ne tient que deux ou trois cartes par ligne, l'effet
+   * était franchement désordonné.
+   *
+   * Une grille à colonnes égales range les cartes en lignes régulières, et
+   * `align-items: stretch` (le défaut) leur donne la même hauteur par ligne,
+   * quel que soit le nombre de lignes du libellé. 12 se divise exactement par
+   * 3 et par 2 : aucune ligne orpheline, ni ici ni dans le bloc ≤480px. */
   .menu-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 14px;
   }
   .menu-card {
-    padding: 16px 20px;
-    min-width: 100px;
+    padding: 16px 12px;
+    /* ⚠️ `min-width: 140px` (règle de base) dépasse la colonne dès 480px de
+       large : la grille déborderait et la page défilerait horizontalement.
+       0 est aussi nécessaire pour lever le `min-width: auto` implicite des
+       éléments de grille, sans quoi un libellé long refuse de se couper. */
+    min-width: 0;
   }
   .menu-icon {
     font-size: 36px;
@@ -651,6 +715,12 @@
   }
   .menu-label {
     font-size: 12px;
+    /* Le libellé est maintenant contraint par la colonne, pas l'inverse :
+       il doit pouvoir passer à la ligne et rester centré. */
+    text-align: center;
+    line-height: 1.25;
+    overflow-wrap: break-word;
+    hyphens: auto;
   }
   .stats-container {
     gap: 30px;
@@ -690,6 +760,18 @@
 @media (max-width: 480px) {
   .universites-grid {
     grid-template-columns: repeat(2, 1fr);
+  }
+  /* Deux colonnes en dessous de 480px. À trois, la colonne tombe à 97px sur
+     un écran de 360 (TECNO, Infinix, itel) : une fois les 24px de marge
+     intérieure retirés, il ne reste que 73px pour une icône de 48px et deux
+     lignes de texte. À deux, la carte fait 153px — confortable, et 12 reste
+     divisible, donc les six lignes sont pleines. */
+  .menu-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
+  .menu-card {
+    padding: 14px 10px;
   }
   .stats-container {
     gap: 20px;
@@ -1187,14 +1269,26 @@
   color: #cbd5e1;
 }
 
-[data-theme="dark"] .uni-logo-wrapper {
-  background: #0f172a;
-  border-color: rgba(148, 163, 184, 0.14);
+/* Thème sombre : la tuile reste BLANCHE (voir .uni-logo-wrapper). Seules la
+   bordure et l'ombre changent. La bordure claire d'origine —
+   rgba(148,163,184,.14) — était pensée pour une tuile ardoise ; sur du blanc
+   elle disparaît. Il faut au contraire un liseré sombre pour détourer la
+   tuile du fond de page.
+ *
+ * Le préfixe `.home-page` n'est pas décoratif : sans lui, ce sélecteur pèse
+ * (0,2,0), exactement comme `.home-page .uni-logo-wrapper` déclaré ~150
+ * lignes plus bas, qui l'emportait donc par simple ordre d'apparition. La
+ * bordure et l'ombre du thème sombre ne s'appliquaient jamais. `.home-page`
+ * étant la racine de Home.jsx, le sélecteur cible les mêmes éléments, mais
+ * à (0,3,0). */
+[data-theme="dark"] .home-page .uni-logo-wrapper {
+  background: #ffffff;
+  border-color: rgba(15, 23, 42, 0.12);
   box-shadow: 0 12px 30px rgba(2, 8, 23, 0.38);
 }
 
-[data-theme="dark"] .uni-card:hover .uni-logo-wrapper {
-  background: #111c31;
+[data-theme="dark"] .home-page .uni-card:hover .uni-logo-wrapper {
+  background: #ffffff;
   border-color: #1d9e75;
 }
 
@@ -1339,8 +1433,11 @@
   color: var(--home-subtitle-color);
 }
 
+/* ⚠️ Ne pas remettre `var(--home-card-bg)` ici : cette variable vaut
+   rgba(15,23,42,.94) en thème sombre, et ce sélecteur (0,2,0) l'emporterait
+   sur la règle de base. C'est par ce chemin que la tuile redevenait ardoise. */
 .home-page .uni-logo-wrapper {
-  background: var(--home-card-bg);
+  background: #ffffff;
   border-color: rgba(0, 0, 0, 0.04);
   box-shadow: 0 8px 25px rgba(0, 0, 0, 0.06);
 }
@@ -1609,8 +1706,30 @@
   overflow-wrap: break-word;
 }
 
-/* Aucune image de la page ne peut dépasser son conteneur. */
-.home-page img {
+/* Aucune image de la page ne peut dépasser son conteneur.
+ *
+ * ⚠️ `:where()` est indispensable ici, ce n'est pas une coquetterie.
+ *
+ * La version précédente s'écrivait `.home-page img`, dont la spécificité
+ * (0,1,1) DÉPASSE celle des règles de composant, écrites avec une seule
+ * classe (0,1,0). Un filet de sécurité gagnait donc contre les tailles
+ * qu'il était censé protéger, quel que soit l'ordre des déclarations :
+ *
+ *   - `.topbar-logo-img { height: 40px }` était écrasé par `height: auto` :
+ *     le logo de la barre supérieure s'affichait à sa hauteur naturelle,
+ *     soit plusieurs centaines de pixels. Le repli à 32px du point de
+ *     rupture était perdu de la même manière.
+ *   - `.hero-logo { max-width: 300px }` était écrasé par `max-width: 100%` :
+ *     le logo de la bannière s'étirait à toute la largeur du contenu.
+ *
+ * Constaté le 03/08/2026 : c'est ce qui rendait « certains éléments
+ * bêtement grands » alors que seule la fluidité était demandée.
+ *
+ * `:where()` ne compte pour rien dans le calcul : la règle tombe à (0,0,0)
+ * et cède devant n'importe quelle règle de composant, tout en s'appliquant
+ * aux images qui n'en ont aucune — ce qui est exactement le rôle d'un filet.
+ */
+:where(.home-page img) {
   max-width: 100%;
   height: auto;
 }
