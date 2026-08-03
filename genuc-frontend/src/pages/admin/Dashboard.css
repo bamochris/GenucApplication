@@ -273,3 +273,26 @@
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
+/* ===== TÉLÉPHONES =====
+   Ce fichier ne comportait aucun point de rupture : `.form-grid` et
+   `.detail-grid` restaient sur deux colonnes jusqu'à 360 px de large, soit
+   environ 160 px par colonne — libellés tronqués et champs inutilisables.
+   (Le `pages/Dashboard.css` voisin replie déjà `.form-grid`, mais les pages qui
+   importent CE fichier-ci n'en bénéficiaient pas.) */
+@media (max-width: 768px) {
+  .form-grid,
+  .detail-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 480px) {
+  /* Sous 16 px, Chrome et Safari mobile zooment sur le champ actif et
+     décalent la mise en page. */
+  .form-grid input,
+  .form-grid select,
+  .form-grid textarea {
+    font-size: 16px;
+    min-height: 44px;
+  }
+}

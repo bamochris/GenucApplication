@@ -51,35 +51,35 @@ const DEBOUCHES_MAP = [
   { keys: ['informati','logiciel','développ','génie logiciel','systèmes'],
     Icon: FaLaptopCode, color: C.blue, label: 'Informatique & Tech',
     metiers: ['Développeur Full-Stack','Data Scientist','Architecte Cloud','Cybersécurité','Chef de projet IT','DevOps Engineer'],
-    salaire: '800–2 500 USD/mois', duree: '3–5 ans', secteurs: ['Télécoms','Banques','ONG','Startups','Gouvernement'] },
+    secteurs: ['Télécoms','Banques','ONG','Startups','Gouvernement'] },
   { keys: ['médecin','santé','infirm','pharmacie','dentaire','kinési','biomed'],
     Icon: FaHeartbeat, color: C.red, label: 'Santé & Médecine',
     metiers: ['Médecin généraliste','Spécialiste','Pharmacien','Infirmier(e)','Sage-femme','Biologiste médical'],
-    salaire: '700–3 500 USD/mois', duree: '5–7 ans', secteurs: ['Hôpitaux','ONG santé','MSF','Cliniques','Ministère santé'] },
+    secteurs: ['Hôpitaux','ONG santé','MSF','Cliniques','Ministère santé'] },
   { keys: ['droit','juridique','notariat','judiciaire','sciences po'],
     Icon: FaBalanceScale, color: '#4F46E5', label: 'Droit & Justice',
     metiers: ['Avocat','Magistrat','Notaire','Juriste d\'entreprise','Conseiller juridique','Diplomate'],
-    salaire: '600–2 500 USD/mois', duree: '3–5 ans', secteurs: ['Barreau','Entreprises','ONU','État','Banques'] },
+    secteurs: ['Barreau','Entreprises','ONU','État','Banques'] },
   { keys: ['économi','finance','comptabl','gestion','commerce','management','banque'],
     Icon: FaChartLine, color: C.green, label: 'Finance & Gestion',
     metiers: ['Analyste financier','Comptable','Auditeur','Directeur financier','Banquier','Consultant'],
-    salaire: '700–3 000 USD/mois', duree: '3–5 ans', secteurs: ['Banques','Multinationales','Cabinet audit','ONG','Mines'] },
+    secteurs: ['Banques','Multinationales','Cabinet audit','ONG','Mines'] },
   { keys: ['agronomie','agriculture','élevage','vétérinai','rural','forestier'],
     Icon: FaLeaf, color: '#1D9E75', label: 'Agronomie & Environnement',
     metiers: ['Agronome','Vétérinaire','Ingénieur rural','Hydrologue','Consultant agri'],
-    salaire: '500–2 000 USD/mois', duree: '3–5 ans', secteurs: ['ONG','Ministère agri','FAO','USAID','Coopératives'] },
+    secteurs: ['ONG','Ministère agri','FAO','USAID','Coopératives'] },
   { keys: ['chimie','physique','biologie','science','mathématique','géologie','mine'],
     Icon: FaMicroscope, color: '#0E7490', label: 'Sciences & Recherche',
     metiers: ['Chercheur','Chimiste','Géologue','Ingénieur minier','Topographe','Physicien'],
-    salaire: '800–4 000 USD/mois', duree: '3–5 ans', secteurs: ['Mines','Recherche','Universités','Industries'] },
+    secteurs: ['Mines','Recherche','Universités','Industries'] },
   { keys: ['architecture','btp','génie civil','construction','urbanisme'],
     Icon: FaBuilding, color: C.orange, label: 'Architecture & BTP',
     metiers: ['Architecte','Ingénieur civil','Urbaniste','Conducteur de travaux','BIM Manager'],
-    salaire: '800–2 500 USD/mois', duree: '5 ans', secteurs: ['BTP','Promoteurs','Mairies','ONG','État'] },
+    secteurs: ['BTP','Promoteurs','Mairies','ONG','État'] },
   { keys: ['art','design','comm','journalisme','lettres','linguistique','pédagogie','éducation'],
     Icon: FaPalette, color: C.purple, label: 'Lettres, Arts & Communication',
     metiers: ['Journaliste','Designer','Enseignant','Traducteur','Community manager','Attaché de presse'],
-    salaire: '400–1 500 USD/mois', duree: '3–5 ans', secteurs: ['Médias','ONG','Écoles','Agences','État'] },
+    secteurs: ['Médias','ONG','Écoles','Agences','État'] },
 ];
 
 function getDebouches(filiereNom = '') {
@@ -87,7 +87,7 @@ function getDebouches(filiereNom = '') {
   return DEBOUCHES_MAP.find(d => d.keys.some(k => nom.includes(k))) || {
     Icon: FaGraduationCap, color: '#64748B', label: 'Carrières générales',
     metiers: ['Cadre d\'entreprise','Fonctionnaire','Consultant','Chef de projet','Entrepreneur'],
-    salaire: '500–2 000 USD/mois', duree: '3–5 ans', secteurs: ['Entreprises','ONG','État','Banques'],
+    secteurs: ['Entreprises','ONG','État','Banques'],
   };
 }
 
@@ -510,7 +510,11 @@ function FilieresInfoModal({ filiere, onClose }) {
           <div style={{ fontSize: 11, opacity: 0.8, fontWeight: 600, letterSpacing: 1, marginBottom: 5 }}>FILIÈRE</div>
           <h2 style={{ fontSize: 22, fontWeight: 900, margin: '0 0 8px' }}>{filiere.nom}</h2>
           <div style={{ display: 'flex', gap: 16, fontSize: 13, opacity: 0.9, flexWrap: 'wrap' }}>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}><FaClock style={{ fontSize: 11 }} /> Durée : {filiere.duree || deb.duree}</span>
+            {/* Affichée seulement si la filière la renseigne : deb.duree était une
+                valeur supposée, retirée avec les autres chiffres inventés. */}
+            {filiere.duree && (
+              <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}><FaClock style={{ fontSize: 11 }} /> Durée : {filiere.duree}</span>
+            )}
             <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}><FaBriefcase style={{ fontSize: 11 }} /> {deb.label}</span>
           </div>
         </div>
@@ -571,7 +575,7 @@ function FilieresInfoModal({ filiere, onClose }) {
           {/* Métiers */}
           <div style={{ marginBottom: 24 }}>
             <h4 style={{ color: 'var(--text-primary)', fontWeight: 800, fontSize: 15, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
-              <FaBriefcase style={{ color: deb.color }} /> Métiers après diplôme
+              <FaBriefcase style={{ color: deb.color }} /> Métiers après diplôme <span style={{ fontSize: 11, fontWeight: 500, color: 'var(--text-muted)' }}>(à titre indicatif)</span>
             </h4>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
               {deb.metiers.map(m => (
@@ -585,7 +589,7 @@ function FilieresInfoModal({ filiere, onClose }) {
           {/* Secteurs employeurs */}
           <div style={{ marginBottom: 24 }}>
             <h4 style={{ color: 'var(--text-primary)', fontWeight: 800, fontSize: 15, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
-              <FaBuilding style={{ color: deb.color }} /> Principaux employeurs en RDC
+              <FaBuilding style={{ color: deb.color }} /> Secteurs employeurs <span style={{ fontSize: 11, fontWeight: 500, color: 'var(--text-muted)' }}>(à titre indicatif)</span>
             </h4>
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               {deb.secteurs.map(s => (
@@ -594,17 +598,18 @@ function FilieresInfoModal({ filiere, onClose }) {
             </div>
           </div>
 
-          {/* Salaire */}
-          <div style={{ display: 'flex', gap: 14, marginBottom: 26, flexWrap: 'wrap' }}>
-            <div style={{ flex: 1, padding: '14px 18px', background: 'var(--bg-secondary)', borderRadius: 14, minWidth: 140 }}>
-              <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600, marginBottom: 4 }}>SALAIRE ESTIMÉ EN RDC</div>
-              <div style={{ fontSize: 20, fontWeight: 900, color: C.green }}>{deb.salaire}</div>
+          {/* La fourchette de salaire « estimée en RDC » a été retirée : c'était un
+              chiffre inventé, affiché avec une précision qui lui donnait valeur de
+              fait sur un portail national. La durée n'est montrée que si la filière
+              la renseigne réellement — plus de repli sur une valeur supposée. */}
+          {filiere.duree && (
+            <div style={{ display: 'flex', gap: 14, marginBottom: 26, flexWrap: 'wrap' }}>
+              <div style={{ flex: 1, padding: '14px 18px', background: 'var(--bg-secondary)', borderRadius: 14, minWidth: 140 }}>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600, marginBottom: 4 }}>DURÉE DES ÉTUDES</div>
+                <div style={{ fontSize: 20, fontWeight: 900, color: deb.color }}>{filiere.duree}</div>
+              </div>
             </div>
-            <div style={{ flex: 1, padding: '14px 18px', background: 'var(--bg-secondary)', borderRadius: 14, minWidth: 140 }}>
-              <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600, marginBottom: 4 }}>DURÉE DES ÉTUDES</div>
-              <div style={{ fontSize: 20, fontWeight: 900, color: deb.color }}>{filiere.duree || deb.duree}</div>
-            </div>
-          </div>
+          )}
 
           {/* CTA */}
           <div style={{ display: 'flex', gap: 10 }}>

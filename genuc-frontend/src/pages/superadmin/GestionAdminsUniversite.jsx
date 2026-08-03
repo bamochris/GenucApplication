@@ -4,8 +4,13 @@ import { resolveFileUrl } from '../../utils/fileUrl';
 import SidebarSuperAdmin from '../../components/SidebarSuperAdmin';
 
 const S = {
-  layout: { display: 'flex', minHeight: '100vh', background: 'transparent', fontFamily: 'Inter,Arial,sans-serif' },
-  main:   { flex: 1, padding: '32px', overflowY: 'auto' },
+  // `flexWrap` permet au contenu de passer SOUS la barre latérale une fois
+  // celle-ci repliée en bandeau pleine largeur sur téléphone (voir la media
+  // query ≤768px de SidebarSuperAdmin.css) ; sans lui, il restait coincé à
+  // côté sur une colonne de quelques dizaines de pixels.
+  layout: { display: 'flex', flexWrap: 'wrap', minHeight: '100vh', background: 'transparent', fontFamily: 'Inter,Arial,sans-serif' },
+  // Marge fluide : 32px sur grand écran, 12px sur téléphone.
+  main:   { flex: '1 1 320px', padding: 'clamp(12px, 4vw, 32px)', overflowY: 'auto' },
 
   // Header
   pageHeader: { marginBottom: 28 },

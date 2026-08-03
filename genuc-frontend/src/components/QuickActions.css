@@ -85,7 +85,11 @@
   width: 100%;
   max-width: 480px;
   max-height: 90vh;
-  min-width: 320px;
+  /* L'overlay ajoute 16 px de marge de chaque côté : un plancher fixe à 320 px
+     débordait donc dès 352 px de large (téléphones d'entrée de gamme à 320 px
+     de viewport). `min()` laisse le dialogue suivre l'espace réellement
+     disponible. */
+  min-width: min(320px, 100%);
   min-height: 220px;
   display: flex;
   flex-direction: column;

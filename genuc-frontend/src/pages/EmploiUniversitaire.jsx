@@ -8,18 +8,9 @@ import {
   FaMusic, FaShieldAlt, FaTools, FaCheckCircle, FaArrowRight,
   FaMapMarkerAlt, FaCalendarAlt, FaStar, FaPhone, FaEnvelope
 } from 'react-icons/fa';
+import { resolveFileUrl } from '../utils/fileUrl';
 
 /* ── Données statiques (enrichies depuis Home + propres) ── */
-const UNIVERSITES_LOGOS = [
-  { code: 'UNIKIN', img: '/assets/UNIKIN.png' },
-  { code: 'UPN',    img: '/assets/UPN.png'    },
-  { code: 'HEC-KIN',img: '/assets/HEC-KIN.png'},
-  { code: 'ISIPA',  img: '/assets/ISIPA.png'  },
-  { code: 'ISP',    img: '/assets/ISP.jpg'    },
-  { code: 'UNILU',  img: '/assets/UNILU.jpg'  },
-  { code: 'UCC',    img: '/assets/UCC.jpg'    },
-  { code: 'UPC',    img: '/assets/UPC.png'    },
-];
 
 const CATEGORIES = [
   { id: 'moniteur',   icon: <FaChalkboardTeacher />, label: 'Moniteur / Répétiteur',    color: '#185FA5', bg: '#E6F1FB',
@@ -62,15 +53,28 @@ const ETAPES = [
 export default function EmploiUniversitaire() {
   const navigate = useNavigate();
   const [offres, setOffres] = useState([]);
-  const [stats, setStats] = useState({ universites: 0, etudiants: 48000, postes: 0, etudiantsEmployes: 0 });
+  // « etudiants: 48000 » etait un effectif national invente, affiche « 48 000+ ».
+  // Il est desormais somme sur les etablissements reels : l'API expose nbEtudiants.
+  const [stats, setStats] = useState({ universites: 0, etudiants: 0, postes: 0, etudiantsEmployes: 0 });
   const [search, setSearch] = useState('');
   const [categorie, setCategorie] = useState('');
   const [loadingOffres, setLoadingOffres] = useState(true);
+  // Etablissements reellement enregistres. Remplace UNIVERSITES_LOGOS, une liste
+  // en dur de huit codes (UNIKIN, UPN, ISIPA…) sans rapport avec la base.
+  const [universites, setUniversites] = useState([]);
 
   useEffect(() => {
     /* Stats publiques */
     api.get('/api/universites/public')
-      .then(r => setStats(s => ({ ...s, universites: r.data?.length || 0 })))
+      .then(r => {
+        const unis = r.data || [];
+        setStats(s => ({
+          ...s,
+          universites: unis.length,
+          etudiants: unis.reduce((acc, u) => acc + (u.nbEtudiants || 0), 0),
+        }));
+        setUniversites(unis);
+      })
       .catch(() => {});
 
     /* Offres publiques */
@@ -84,7 +88,9 @@ export default function EmploiUniversitaire() {
           etudiantsEmployes: data.reduce((acc, o) => acc + (o.nbPostes || 1), 0),
         }));
       })
-      .catch(() => setOffres(OFFRES_DEMO))
+      // Une erreur reseau ne doit pas faire apparaitre des offres inventees :
+      // la liste reste vide et l'ecran vide s'affiche.
+      .catch(() => setOffres([]))
       .finally(() => setLoadingOffres(false));
   }, []);
 
@@ -255,14 +261,19 @@ export default function EmploiUniversitaire() {
             </div>
           )}
 
-          {/* Si pas d'offres depuis le backend, afficher les démos */}
-          {!loadingOffres && offres.length === 0 && offresFiltrees.length === 0 && (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 18, marginTop: 20 }}>
-              {OFFRES_DEMO.filter(o => {
-                const matchS = !search || o.titre?.toLowerCase().includes(search.toLowerCase());
-                const matchC = !categorie || o.categorie === categorie;
-                return matchS && matchC;
-              }).map(o => <OffreCard key={o.id} offre={o} onPostuler={() => navigate('/login')} />)}
+          {/* Aucune offre : on le dit. Ce bloc affichait auparavant des offres
+              inventees (moniteur a l'UNIKIN, assistant bibliothecaire a l'UPN,
+              remunerations et nombres de candidatures compris) des que l'API n'en
+              renvoyait aucune — c'est-a-dire en permanence tant qu'aucun
+              etablissement n'en publie. */}
+          {!loadingOffres && offresFiltrees.length === 0 && (
+            <div style={{ textAlign: 'center', padding: '48px 24px', color: 'var(--text-muted)' }}>
+              <FaBriefcase style={{ fontSize: 40, opacity: 0.35, marginBottom: 14 }} />
+              <p style={{ fontSize: 15, margin: 0 }}>
+                {offres.length === 0
+                  ? "Aucune offre d'emploi étudiant n'est publiée pour le moment."
+                  : "Aucune offre ne correspond à votre recherche."}
+              </p>
             </div>
           )}
         </div>
@@ -322,21 +333,24 @@ export default function EmploiUniversitaire() {
         <div style={{ maxWidth: 1100, margin: '0 auto' }}>
           <div style={{ textAlign: 'center', marginBottom: 40 }}>
             <h2 style={{ fontSize: 28, fontWeight: 800, color: 'var(--text-primary)', marginBottom: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12 }}>
-              <FaUniversity style={{ color: '#185FA5' }} /> Universités participantes
+              <FaUniversity style={{ color: '#185FA5' }} /> Établissements participants
             </h2>
             <p style={{ color: 'var(--text-muted)', fontSize: 15 }}>Ces institutions proposent des postes d'emploi étudiant via GENUC</p>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: 16 }}>
-            {UNIVERSITES_LOGOS.map(u => (
-              <div key={u.code} style={{
+            {universites.map(u => (
+              <div key={u.id} style={{
                 background: 'var(--bg-card)', borderRadius: 12, padding: 20, textAlign: 'center',
                 boxShadow: '0 1px 4px rgba(0,0,0,0.07)', cursor: 'pointer', transition: 'all 0.2s',
               }}
                 onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-3px)'; e.currentTarget.style.boxShadow = '0 6px 16px rgba(0,0,0,0.12)'; }}
                 onMouseLeave={e => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = '0 1px 4px rgba(0,0,0,0.07)'; }}>
-                <img src={u.img} alt={u.code} style={{ height: 56, objectFit: 'contain', display: 'block', margin: '0 auto 8px' }}
-                  onError={e => { e.target.style.display = 'none'; }} />
+                {u.logo && (
+                  <img src={resolveFileUrl(u.logo)} alt={u.code} style={{ height: 56, objectFit: 'contain', display: 'block', margin: '0 auto 8px' }}
+                    onError={e => { e.target.style.display = 'none'; }} />
+                )}
                 <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)' }}>{u.code}</div>
+                <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>{u.nom}</div>
               </div>
             ))}
           </div>
@@ -501,54 +515,3 @@ function OffreCard({ offre, onPostuler }) {
   );
 }
 
-/* ─── Données de démo (affichées si l'API ne répond pas) ─── */
-const OFFRES_DEMO = [
-  {
-    id: 1, titre: 'Moniteur en Mathématiques',
-    universite: 'UNIKIN', categorie: 'moniteur',
-    description: 'Animez des séances de révision pour les étudiants de 1ère et 2ème année de la Faculté des Sciences.',
-    heures: '12h/sem', remuneration: '60 USD/mois', campus: 'Campus de Kinshasa',
-    dateDebut: 'Oct 2026', nbPostes: 3, nbCandidatures: 8,
-    competences: ['Mathématiques', 'Pédagogie', 'Patience'],
-  },
-  {
-    id: 2, titre: 'Assistant Bibliothécaire',
-    universite: 'UPN', categorie: 'biblio',
-    description: 'Gérez le catalogue numérique, aidez les lecteurs et assurez la permanence de la bibliothèque.',
-    heures: '15h/sem', remuneration: '50 USD/mois', campus: 'Campus UPN',
-    dateDebut: 'Sep 2026', nbPostes: 2, nbCandidatures: 5,
-    competences: ['Organisation', 'Informatique de base'],
-  },
-  {
-    id: 3, titre: 'Technicien IT Salle Informatique',
-    universite: 'ISP', categorie: 'it',
-    description: 'Maintenance des ordinateurs, installation de logiciels et support aux étudiants pendant les TP.',
-    heures: '20h/sem', remuneration: '80 USD/mois', campus: 'Campus ISP',
-    dateDebut: 'Immédiat', nbPostes: 1, nbCandidatures: 12,
-    competences: ['Réseaux', 'Windows/Linux', 'Support technique'],
-  },
-  {
-    id: 4, titre: 'Assistant Administratif Décanat',
-    universite: 'HEC-KIN', categorie: 'admin',
-    description: 'Appuyez le secrétariat du Décanat : réception, classement des dossiers et traitement du courrier.',
-    heures: '10h/sem', remuneration: '45 USD/mois', campus: 'HEC Kinshasa',
-    dateDebut: 'Oct 2026', nbPostes: 2, nbCandidatures: 4,
-    competences: ['Organisation', 'Word/Excel', 'Discrétion'],
-  },
-  {
-    id: 5, titre: 'Assistant de Laboratoire Chimie',
-    universite: 'UNIKIN', categorie: 'labo',
-    description: 'Préparez les produits chimiques, rangez le matériel et encadrez les étudiants en TP de chimie.',
-    heures: '15h/sem', remuneration: '70 USD/mois', campus: 'Faculté des Sciences',
-    dateDebut: 'Sep 2026', nbPostes: 2, nbCandidatures: 7,
-    competences: ['Chimie', 'Sécurité laboratoire', 'Rigueur'],
-  },
-  {
-    id: 6, titre: 'Animateur Sportif & Culturel',
-    universite: 'UNILU', categorie: 'culture',
-    description: 'Organisez les tournois sportifs inter-facultés, les sorties culturelles et les événements du campus.',
-    heures: '10h/sem', remuneration: '40 USD/mois', campus: 'Campus UNILU Lubumbashi',
-    dateDebut: 'Oct 2026', nbPostes: 4, nbCandidatures: 15,
-    competences: ['Leadership', 'Communication', 'Dynamisme'],
-  },
-];

@@ -83,3 +83,41 @@
   background: rgba(1, 235, 32, 0.3);
   border-radius: 8px;
 }
+/* ===== TÉLÉPHONES =====
+   La barre occupait 240 px fixes (`flex-shrink: 0`) dans un conteneur en
+   `display: flex`. Sur un écran de 360 px, il ne restait donc qu'environ 120 px
+   au contenu — moins encore une fois la marge intérieure retirée. Elle bascule
+   ici en bandeau horizontal défilable au-dessus du contenu. */
+@media (max-width: 768px) {
+  .sidebar {
+    width: 100%;
+    height: auto;
+    position: static;
+    overflow-y: visible;
+    overflow-x: auto;
+    padding: 0 8px 8px;
+  }
+
+  .sidebar-header {
+    padding: 12px 0 8px;
+  }
+
+  .sidebar-header h1 {
+    font-size: 18px;
+  }
+
+  .sidebar-nav {
+    margin-top: 8px;
+    flex-direction: row;
+    gap: 6px;
+    /* Les entrées défilent horizontalement au lieu d'être comprimées. */
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .sidebar-link {
+    flex-shrink: 0;
+    white-space: nowrap;
+    min-height: 44px;
+  }
+}

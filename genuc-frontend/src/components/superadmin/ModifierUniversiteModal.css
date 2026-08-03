@@ -18,7 +18,11 @@
   width: 100%;
   max-width: 640px;
   max-height: 92vh;
-  min-width: 420px;
+  /* `min-width: 420px` en dur débordait de tout téléphone de 360 px : le
+     `width: 100%` ci-dessus ne pouvait plus jouer son rôle. La media query
+     ≤640px plus bas repliait bien la grille en une colonne, mais dans une
+     boîte déjà trop large pour la fenêtre. */
+  min-width: min(420px, 100%);
   min-height: 320px;
   display: flex;
   flex-direction: column;

@@ -25,7 +25,11 @@
 .sas-dialog {
   width: min(1180px, 100%);
   height: min(800px, 92vh);
-  min-width: 480px;
+  /* `min-width: 480px` en dur annulait le `width: min(1180px, 100%)` ci-dessus
+     dès que la fenêtre passait sous 480 px : sur un téléphone de 360 px, le
+     dialogue débordait horizontalement malgré le passage en plein écran prévu
+     par la media query ≤640px. */
+  min-width: min(480px, 100%);
   min-height: 360px;
   display: flex;
   flex-direction: column;

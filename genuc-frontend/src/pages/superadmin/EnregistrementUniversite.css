@@ -1,7 +1,13 @@
 /* ===== CONTENEUR PRINCIPAL ===== */
 .form-container {
   max-width: 1000px;
-  min-width: 480px;
+  /* `min-width: 480px` en dur empêchait le conteneur de descendre sous 480 px.
+     Sur un téléphone de 360 px (TECNO, Infinix, itel…), le formulaire débordait
+     donc de l'écran, et les media queries plus bas ne servaient à rien : la
+     grille passait bien en une colonne, mais dans un bloc trop large pour la
+     fenêtre. `min()` garde le confort sur grand écran sans imposer de plancher
+     supérieur à la largeur réelle de l'appareil. */
+  min-width: min(480px, 100%);
   margin: 0 auto;
   padding: 24px 20px;
   background: #f8fafc;
@@ -623,5 +629,77 @@
   }
   .promo-select, .promo-input, .btn-ajouter-promo {
     width: 100%;
+  }
+  /* `min-width` sur ces deux champs les empêchait de suivre la colonne une
+     fois passés en pleine largeur. */
+  .promo-select, .promo-input {
+    min-width: 0;
+  }
+}
+/* ===== TÉLÉPHONES ÉTROITS (360 px et moins) =====
+   Cible les appareils les plus répandus en RDC (TECNO, Infinix, itel…), dont
+   le viewport CSS descend à 360 px, parfois 320 px sur l'entrée de gamme. */
+@media (max-width: 480px) {
+  .form-container {
+    padding: 14px 10px;
+    border-radius: 12px;
+    /* La poignée de redimensionnement horizontal n'est pas manipulable au
+       doigt, et l'`overflow: auto` qu'elle impose enfermait le formulaire dans
+       un conteneur de défilement interne au lieu de le laisser suivre la page. */
+    resize: none;
+    overflow: visible;
+  }
+
+  .champs {
+    gap: 12px;
+  }
+
+  /* Les numéros d'étape sont positionnés en absolu au-dessus de la barre :
+     resserrés, ils se chevauchaient sur un écran étroit. */
+  .step-number {
+    font-size: 10px;
+    top: -18px;
+  }
+
+  /* L'arborescence facultés → départements → filières mangeait toute la
+     largeur en retraits successifs. */
+  .tree-node {
+    padding-left: 6px;
+    border-left-width: 2px;
+  }
+
+  .tree-children {
+    margin-left: 6px;
+    padding-left: 6px;
+  }
+
+  /* Cibles tactiles confortables, et 16 px sur les champs pour couper le zoom
+     automatique de Chrome mobile à la mise au point. */
+  .champ input,
+  .champ select,
+  .champ textarea,
+  .promo-select,
+  .promo-input {
+    font-size: 16px;
+    min-height: 44px;
+  }
+
+  .btn-secondary,
+  .btn-primary,
+  .btn-annuler,
+  .btn-submit,
+  .btn-ajouter-promo {
+    min-height: 44px;
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+/* Sur écran tactile, quelle que soit la largeur : le redimensionnement au
+   doigt n'existe pas, et le conteneur de défilement qu'il impose gêne. */
+@media (pointer: coarse) {
+  .form-container {
+    resize: none;
+    overflow: visible;
   }
 }

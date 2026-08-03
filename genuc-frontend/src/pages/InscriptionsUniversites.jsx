@@ -18,6 +18,37 @@ const C = {
   orange: '#C07A2B', purple: '#6B21A8', red: '#B91C1C',
 };
 
+/* ── Marque GENUC ──────────────────────────────────────────────────
+   La barre de titre et le pied de page affichaient un carré dégradé portant
+   la lettre « G » à la place du logo. On sert désormais l'image de marque,
+   avec repli sur l'ancien carré si le fichier venait à manquer (état React
+   plutôt que mutation du DOM dans onError, pour éviter toute boucle de
+   rechargement). */
+function LogoGenuc({ taille, rayon }) {
+  const [erreur, setErreur] = useState(false);
+  const base = {
+    width: taille, height: taille, borderRadius: rayon,
+    display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+  };
+
+  if (erreur) {
+    return (
+      <div style={{ ...base, background: 'linear-gradient(135deg,#1D9E75,#185FA5)', color: 'white', fontWeight: 900, fontSize: Math.round(taille * 0.44) }}>
+        G
+      </div>
+    );
+  }
+
+  return (
+    <img
+      src="/assets/logo-genuc.png"
+      alt="GENUC"
+      style={{ ...base, objectFit: 'contain', background: 'white' }}
+      onError={() => setErreur(true)}
+    />
+  );
+}
+
 /* ── Logos des universités ────────────────────────────────────── */
 const UNI_LOGOS = {
   UNIKIN:    '/assets/UNIKIN.png',
@@ -142,6 +173,28 @@ export default function InscriptionsUniversites() {
   const [recherche, setRecherche]       = useState('');
   const [infoFiliere, setInfoFiliere]   = useState(null);
   const panelRef = useRef(null);
+  const filieresRef = useRef(null);
+
+  // ── Défilement automatique après un choix ────────────────────────
+  // Les deux effets ci-dessous remplacent l'ancien `setTimeout(…, 100)` : un
+  // délai fixe partait parfois AVANT que React ait peint le bloc (téléphone
+  // lent, liste longue), et le défilement ne se produisait pas. Un effet, lui,
+  // s'exécute une fois le DOM à jour — la cible existe donc toujours.
+
+  // 1. Choix d'une université → on amène le panneau des départements à l'écran.
+  useEffect(() => {
+    if (!selectedUni) return;
+    panelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, [selectedUni]);
+
+  // 2. Choix d'un département (section/faculté) → on descend jusqu'aux filières.
+  //    Le bloc est monté dès la sélection (il affiche ses squelettes pendant le
+  //    chargement) : sa hauteur est déjà stable, le défilement part donc bien
+  //    « juste après le clic » sans attendre la réponse du serveur.
+  useEffect(() => {
+    if (!selectedDept) return;
+    filieresRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, [selectedDept]);
 
   useEffect(() => {
     api.get('/api/universites/public/ouvertes')
@@ -164,7 +217,6 @@ export default function InscriptionsUniversites() {
     } finally {
       setLoadingDept(false);
     }
-    setTimeout(() => panelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
   };
 
   const handleDeptClick = async (dept) => {
@@ -196,7 +248,7 @@ export default function InscriptionsUniversites() {
       <nav style={{ position: 'sticky', top: 0, zIndex: 1000, background: C.navy, boxShadow: '0 2px 20px rgba(0,0,0,0.3)' }}>
         <div style={{ maxWidth: 1280, margin: '0 auto', padding: '10px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', minHeight: 62, flexWrap: 'wrap', gap: 10 }}>
           <Link to="/" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div style={{ width: 34, height: 34, background: 'linear-gradient(135deg,#1D9E75,#185FA5)', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, color: 'white', fontSize: 15 }}>G</div>
+            <LogoGenuc taille={34} rayon={8} />
             <span style={{ color: 'white', fontWeight: 800, fontSize: 17 }}>GENUC</span>
           </Link>
           <div className="iu-nav-links" style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -340,7 +392,7 @@ export default function InscriptionsUniversites() {
 
       {/* ══ PANEL EXPLORATION (Facultés + Filières) ══ */}
       {selectedUni && (
-        <section ref={panelRef} style={{ maxWidth: 1280, margin: '32px auto 0', padding: '0 20px 40px' }}>
+        <section ref={panelRef} style={{ maxWidth: 1280, margin: '32px auto 0', padding: '0 20px 40px', scrollMarginTop: 80 }}>
 
           {/* Breadcrumb */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 20, fontSize: 13, color: 'var(--text-muted)', flexWrap: 'wrap' }}>
@@ -421,7 +473,11 @@ export default function InscriptionsUniversites() {
 
             {/* ─ Filières ─ */}
             {selectedDept && (
-              <div style={{ background: 'var(--bg-card)', borderRadius: 20, padding: 28, boxShadow: '0 4px 20px rgba(0,0,0,0.06)' }}>
+              // `scrollMarginTop` compense la barre de titre collante (position:
+              // sticky, ~62 px) : sans elle, scrollIntoView place le haut du bloc
+              // exactement sous la barre, qui masque alors le titre « Filières
+              // disponibles ».
+              <div ref={filieresRef} style={{ background: 'var(--bg-card)', borderRadius: 20, padding: 28, boxShadow: '0 4px 20px rgba(0,0,0,0.06)', scrollMarginTop: 80 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
                   <div style={{ width: 36, height: 36, borderRadius: 10, background: `${C.green}18`, color: C.green, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>
                     <FaGraduationCap />
@@ -482,7 +538,7 @@ export default function InscriptionsUniversites() {
       {/* ══ FOOTER ══ */}
       <footer style={{ background: '#0A1628', color: 'rgba(255,255,255,0.5)', padding: '30px 24px', textAlign: 'center' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 12 }}>
-          <div style={{ width: 28, height: 28, background: 'linear-gradient(135deg,#1D9E75,#185FA5)', borderRadius: 7, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, color: 'white', fontSize: 13 }}>G</div>
+          <LogoGenuc taille={28} rayon={7} />
           <span style={{ color: 'white', fontWeight: 700, fontSize: 15 }}>GENUC</span>
         </div>
         <p style={{ fontSize: 12, margin: 0 }}>Plateforme Nationale de Gestion Universitaire — RDC · support@genuc.cd</p>
