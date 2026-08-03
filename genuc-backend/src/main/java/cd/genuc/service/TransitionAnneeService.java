@@ -25,6 +25,7 @@ public class TransitionAnneeService {
     private final PromotionRepository promotionRepository;
     private final InscriptionService inscriptionService;
     private final BaremePaiementRepository baremeRepository;
+    private final UniversiteRepository universiteRepository;
 
     /**
      * Exécute le passage à l'année suivante pour tous les étudiants d'une université donnée.
@@ -43,15 +44,24 @@ public class TransitionAnneeService {
     @Transactional
     public Map<String, Object> executerPassageClasse(Long universiteId, String anneeActuelle, 
                                                      String anneeSuivante, double coefficientIndexation, boolean dryRun) {
-        // Récupérer les années académiques
-        AnneeAcademique anneeCourante = anneeRepository.findByLibelle(anneeActuelle)
+        // Années académiques recherchées PAR ÉTABLISSEMENT.
+        //
+        // L'unicité porte sur (libelle, universite_id) : « 2025-2026 » existe une
+        // fois par établissement. Chercher sur le seul libellé renvoyait donc
+        // plusieurs lignes dès qu'un deuxième établissement ouvrait la même année
+        // — cas normal d'une plateforme nationale — et l'appel, typé pour un
+        // resultat unique, levait une exception. De plus l'année créée ici l'était
+        // sans université, en violation d'une contrainte NOT NULL.
+        Universite universite = universiteId == null ? null
+                : universiteRepository.findById(universiteId).orElseThrow(
+                        () -> new RuntimeException("Établissement introuvable : " + universiteId));
+
+        AnneeAcademique anneeCourante = trouverAnnee(anneeActuelle, universite)
                 .orElseThrow(() -> new RuntimeException("Année actuelle introuvable"));
-        AnneeAcademique nouvelleAnnee = anneeRepository.findByLibelle(anneeSuivante)
+        AnneeAcademique nouvelleAnnee = trouverAnnee(anneeSuivante, universite)
                 .orElseGet(() -> {
-                    if (dryRun) {
-                        return new AnneeAcademique(anneeSuivante, true);
-                    }
-                    return anneeRepository.save(new AnneeAcademique(anneeSuivante, true));
+                    AnneeAcademique creee = new AnneeAcademique(anneeSuivante, true, universite);
+                    return dryRun ? creee : anneeRepository.save(creee);
                 });
 
         // Récupérer les inscriptions de l'année courante (validées)
@@ -107,8 +117,8 @@ public class TransitionAnneeService {
                 if (decision == DecisionJury.ADMIS) {
                     String niveauSuivant = promotionActuelle.getNiveauSuivant();
                     if (niveauSuivant != null) {
-                        nouvellePromotion = promotionRepository.findByFiliereIdAndLibelle(
-                                promotionActuelle.getFiliere().getId(), niveauSuivant);
+                        nouvellePromotion = trouverPromotion(
+                                promotionActuelle.getFiliere().getId(), niveauSuivant, nouvelleAnnee);
                     }
                     if (nouvellePromotion != null) {
                         if (!dryRun) {
@@ -155,6 +165,44 @@ public class TransitionAnneeService {
                 "erreurs", erreurs,
                 "erreursDetails", erreursDetails
         );
+    }
+
+    /**
+     * Année académique de CET établissement. Sans établissement (passage
+     * national, réservé aux rôles globaux), on retombe sur le libellé seul.
+     */
+    private java.util.Optional<AnneeAcademique> trouverAnnee(String libelle, Universite universite) {
+        return universite == null
+                ? anneeRepository.findByLibelle(libelle)
+                : anneeRepository.findByLibelleAndUniversite(libelle, universite);
+    }
+
+    /**
+     * Promotion d'accueil pour un niveau donné.
+     *
+     * <p>On vise d'abord celle de l'année d'arrivée, réponse juste quand
+     * l'établissement crée ses promotions année par année. À défaut — cas des
+     * établissements qui les réutilisent — on retient la plus récente.</p>
+     *
+     * <p>Ce détour remplace un {@code findByFiliereIdAndLibelle} à résultat
+     * unique : le couple (filière, libellé) n'est pas unique, une ligne existant
+     * par année ouverte. L'appel direct levait donc une exception dès la
+     * deuxième année d'exploitation — et comme la boucle attrape les erreurs
+     * étudiant par étudiant, la promotion entière restait silencieusement
+     * bloquée au lieu d'échouer bruyamment.</p>
+     */
+    private Promotion trouverPromotion(Long filiereId, String libelle, AnneeAcademique anneeCible) {
+        if (anneeCible != null && anneeCible.getId() != null) {
+            Promotion ciblee = promotionRepository
+                    .findByFiliereIdAndLibelleAndAnneeAcademiqueId(filiereId, libelle, anneeCible.getId())
+                    .orElse(null);
+            if (ciblee != null) {
+                return ciblee;
+            }
+        }
+        return promotionRepository
+                .findFirstByFiliereIdAndLibelleOrderByAnneeAcademiqueIdDesc(filiereId, libelle)
+                .orElse(null);
     }
 
     private void dupliquerBaremes(Long universiteId, String anneeActuelle, String anneeSuivante, double coeff) {

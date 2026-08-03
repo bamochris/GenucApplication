@@ -150,6 +150,29 @@ public class Promotion {
     }
 
     public boolean isDerniereAnnee() {
-        return "L3".equals(libelle) || "M2".equals(libelle) || "D3".equals(libelle);
+        return estNiveauDiplomant(libelle);
+    }
+
+    /**
+     * Le niveau donne-t-il lieu à un diplôme en fin d'année ?
+     *
+     * <p>À ne pas confondre avec « il n'existe pas de niveau suivant » : un L3
+     * délivre une licence <em>et</em> ouvre sur le M1. Les deux notions sont
+     * distinctes, d'où une règle propre.</p>
+     *
+     * <p><b>G3 y figure</b> : c'est la fin du graduat du système congolais
+     * classique, le cycle le plus répandu dans les établissements desservis.
+     * Son absence des listes historiques faisait proposer ADMIS au lieu de
+     * DIPLOME au jury ; or la délivrance d'un diplôme exige la décision
+     * DIPLOME. Aucun gradué ne pouvait donc obtenir son titre.</p>
+     *
+     * <p>Règle centralisée ici parce qu'elle était recopiée dans
+     * {@code DeliberationService.proposerDecision} : deux copies d'une même
+     * liste divergent, et c'est exactement ce qui s'est produit.</p>
+     */
+    public static boolean estNiveauDiplomant(String libelle) {
+        if (libelle == null) return false;
+        String n = libelle.trim().toUpperCase();
+        return "L3".equals(n) || "M2".equals(n) || "D3".equals(n) || "G3".equals(n);
     }
 }

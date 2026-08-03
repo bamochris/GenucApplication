@@ -1,11 +1,15 @@
 package cd.genuc.controller;
 
 import cd.genuc.model.AnneeAcademique;
+import cd.genuc.model.Universite;
+import cd.genuc.model.Utilisateur;
 import cd.genuc.repository.AnneeAcademiqueRepository;
+import cd.genuc.repository.UniversiteRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Comparator;
@@ -18,6 +22,7 @@ import java.util.Map;
 public class AnneeAcademiqueController {
 
     private final AnneeAcademiqueRepository anneeRepository;
+    private final UniversiteRepository universiteRepository;
 
     // Tout utilisateur authentifié : les écrans étudiant, professeur et
     // secrétariat ont tous besoin de la liste des années pour filtrer. La
@@ -51,18 +56,38 @@ public class AnneeAcademiqueController {
 
     @PostMapping
     @PreAuthorize("hasAnyRole('ADMIN_UNIVERSITE', 'SUPER_ADMIN')")
-    public ResponseEntity<?> creer(@RequestBody Map<String, Object> body) {
+    public ResponseEntity<?> creer(@RequestBody Map<String, Object> body,
+                                   @AuthenticationPrincipal Utilisateur utilisateur) {
         String libelle = body.get("libelle") != null ? body.get("libelle").toString().trim() : "";
         if (libelle.isBlank()) {
             return ResponseEntity.badRequest().body(Map.of("message", "Le libellé est obligatoire (ex : 2025-2026)."));
         }
-        if (anneeRepository.findByLibelle(libelle).isPresent()) {
-            return ResponseEntity.status(HttpStatus.CONFLICT)
-                    .body(Map.of("message", "Cette année académique existe déjà."));
+
+        // Une année appartient à un établissement : l'unicité porte sur
+        // (libelle, universite_id) et la colonne est NOT NULL. L'année était
+        // pourtant construite sans établissement — l'enregistrement violait la
+        // contrainte — et le contrôle de doublon, mené sur le seul libellé,
+        // interdisait à un établissement d'ouvrir une année déjà ouverte par un
+        // autre, en plus d'échouer dès que deux lignes portaient ce libellé.
+        Long universiteId = body.get("universiteId") != null
+                ? Long.valueOf(body.get("universiteId").toString())
+                : (utilisateur != null ? utilisateur.getUniversiteId() : null);
+        if (universiteId == null) {
+            return ResponseEntity.badRequest()
+                    .body(Map.of("message", "L'établissement est obligatoire pour créer une année académique."));
         }
-        AnneeAcademique annee = new AnneeAcademique();
-        annee.setLibelle(libelle);
-        annee.setActive(body.get("active") == null || Boolean.parseBoolean(body.get("active").toString()));
+        Universite universite = universiteRepository.findById(universiteId).orElse(null);
+        if (universite == null) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Établissement introuvable."));
+        }
+        if (anneeRepository.findByLibelleAndUniversite(libelle, universite).isPresent()) {
+            return ResponseEntity.status(HttpStatus.CONFLICT)
+                    .body(Map.of("message", "Cette année académique existe déjà pour cet établissement."));
+        }
+
+        AnneeAcademique annee = new AnneeAcademique(libelle,
+                body.get("active") == null || Boolean.parseBoolean(body.get("active").toString()),
+                universite);
         return ResponseEntity.status(HttpStatus.CREATED).body(anneeRepository.save(annee));
     }
 

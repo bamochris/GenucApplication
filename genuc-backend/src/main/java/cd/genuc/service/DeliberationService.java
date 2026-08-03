@@ -596,7 +596,9 @@ public class DeliberationService {
     }
 
     private DecisionJury proposerDecision(double moyenne, int creditsValides, int creditsRequis, String niveau) {
-        boolean derniereAnnee = "L3".equals(niveau) || "M2".equals(niveau) || "D3".equals(niveau);
+        // Règle unique, portée par Promotion : la recopier ici l'avait fait
+        // diverger (G3, fin du graduat, manquait des deux côtés).
+        boolean derniereAnnee = Promotion.estNiveauDiplomant(niveau);
         boolean admis = moyenne >= 10.0 && creditsValides >= creditsRequis * 0.6;
         if (derniereAnnee && admis) return DecisionJury.DIPLOME;
         if (admis) return DecisionJury.ADMIS;
