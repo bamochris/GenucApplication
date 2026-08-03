@@ -1,6 +1,9 @@
 /* Transparent : laisse voir le fond de marque (body::before, index.css) */
 .page {
-  padding: 24px;
+  /* Exposée en variable pour que `.page-header.pleine-largeur` puisse annuler
+     exactement cette marge, quelle que soit sa valeur au point de rupture. */
+  --page-pad: 24px;
+  padding: var(--page-pad);
   min-height: 100vh;
   background: transparent;
 }
@@ -10,6 +13,23 @@
   align-items: center;
   justify-content: space-between;
   margin-bottom: 24px;
+}
+
+/* En-tête pleine largeur : il vient toucher le bord de la barre latérale à
+   gauche et le bord de la fenêtre à droite, au lieu de rester en retrait des
+   24 px de marge intérieure de `.page`. On annule cette marge par des marges
+   négatives, puis on la restitue en marge INTÉRIEURE pour que le texte reste
+   aligné avec le contenu du dessous.
+   `--page-pad` (déclaré sur `.page`) garde les deux valeurs synchronisées :
+   sans lui, la bande dépasserait sur téléphone, où la marge tombe à 12 px. */
+.page-header.pleine-largeur {
+  margin: calc(var(--page-pad) * -1) calc(var(--page-pad) * -1) 20px;
+  padding: 16px var(--page-pad);
+  background: var(--bg-card);
+  border-bottom: 1px solid var(--border-color);
+  align-items: flex-start;
+  gap: 16px;
+  flex-wrap: wrap;
 }
 
 .page-title { font-size: 20px; font-weight: 700; color: var(--text-primary, #0B1F4A); margin: 0; }
@@ -632,7 +652,7 @@
    tableaux et les grilles de formulaire débordaient. */
 @media (max-width: 480px) {
   .page {
-    padding: 12px;
+    --page-pad: 12px;
   }
 
   .card {

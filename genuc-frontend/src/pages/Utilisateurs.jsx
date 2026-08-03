@@ -43,6 +43,14 @@ const ROLES = [
   { id: 'INVITE',               label: 'Invité' },
 ];
 
+// Apparence commune à toutes les listes déroulantes de la barre de filtres.
+const styleSelect = {
+  padding: '9px 12px', fontSize: 13,
+  border: '1.5px solid var(--border-color)', borderRadius: 9,
+  background: 'var(--bg-card)', color: 'var(--text-primary)',
+  maxWidth: '100%',
+};
+
 const badgeRole = (role) =>
   role === 'SUPER_ADMIN' ? 'badge-danger'
   : role === 'ADMIN_UNIVERSITE' ? 'badge-success'
@@ -61,8 +69,15 @@ export default function Utilisateurs() {
 
   // Filtres
   const [recherche, setRecherche]       = useState('');
+  const [champRecherche, setChampRecherche] = useState('tout'); // tout | nom | email
   const [filtreRole, setFiltreRole]     = useState('');
   const [filtreStatut, setFiltreStatut] = useState('');
+  const [filtreUniversite, setFiltreUniversite] = useState('');
+  const [filtreDepartement, setFiltreDepartement] = useState('');
+  const [departements, setDepartements] = useState([]);
+
+  // Tri
+  const [tri, setTri] = useState('nom-asc');
 
   // Édition
   const [enEdition, setEnEdition]       = useState(null); // utilisateur en cours d'édition
@@ -99,17 +114,65 @@ export default function Utilisateurs() {
     universites.find(u => u.id === id)?.nom
     || universites.find(u => String(u.id) === String(id))?.nom;
 
+  const nomDepartement = (id) =>
+    departements.find(d => String(d.id) === String(id))?.nom;
+
+  // Les départements dépendent de l'université choisie : on ne peut pas les
+  // charger tous d'avance (l'API les expose par établissement). Le filtre
+  // « Département » n'a donc de sens qu'une fois une université sélectionnée.
+  useEffect(() => {
+    if (!filtreUniversite) {
+      setDepartements([]);
+      setFiltreDepartement('');
+      return;
+    }
+    api.get(`/api/universites/public/${filtreUniversite}/departements`)
+      .then(r => setDepartements(Array.isArray(r.data) ? r.data : []))
+      .catch(() => setDepartements([]));
+    setFiltreDepartement('');
+  }, [filtreUniversite]);
+
+  const nomComplet = (u) =>
+    (u.nomComplet || `${u.prenom || ''} ${u.nom || ''}`.trim() || '').toLowerCase();
+
   const visibles = useMemo(() => {
     const q = recherche.trim().toLowerCase();
-    return utilisateurs.filter(u => {
+
+    const filtres = utilisateurs.filter(u => {
       if (filtreRole && u.role !== filtreRole) return false;
       if (filtreStatut === 'actif' && !u.actif) return false;
       if (filtreStatut === 'inactif' && u.actif) return false;
+      if (filtreUniversite && String(u.universiteId) !== String(filtreUniversite)) return false;
+      if (filtreDepartement && String(u.departementId) !== String(filtreDepartement)) return false;
       if (!q) return true;
-      const texte = `${u.nomComplet || ''} ${u.nom || ''} ${u.prenom || ''} ${u.email || ''}`.toLowerCase();
-      return texte.includes(q);
+      // Le champ de recherche peut être restreint au nom ou à l'adresse afin
+      // qu'un terme présent dans les deux ne ramène pas tout.
+      if (champRecherche === 'nom') return nomComplet(u).includes(q);
+      if (champRecherche === 'email') return (u.email || '').toLowerCase().includes(q);
+      return `${nomComplet(u)} ${(u.email || '').toLowerCase()}`.includes(q);
     });
-  }, [utilisateurs, recherche, filtreRole, filtreStatut]);
+
+    // `localeCompare` gère les accents (Émile après Edouard, pas à la fin).
+    const texte = (v) => (v || '').toString().toLowerCase();
+    const comparateurs = {
+      'nom-asc':   (a, b) => nomComplet(a).localeCompare(nomComplet(b), 'fr'),
+      'nom-desc':  (a, b) => nomComplet(b).localeCompare(nomComplet(a), 'fr'),
+      'email-asc': (a, b) => texte(a.email).localeCompare(texte(b.email), 'fr'),
+      'email-desc':(a, b) => texte(b.email).localeCompare(texte(a.email), 'fr'),
+      'role-asc':  (a, b) => texte(a.role).localeCompare(texte(b.role), 'fr'),
+      'universite-asc': (a, b) =>
+        texte(nomUniversite(a.universiteId)).localeCompare(texte(nomUniversite(b.universiteId)), 'fr'),
+      'departement-asc': (a, b) =>
+        texte(nomDepartement(a.departementId)).localeCompare(texte(nomDepartement(b.departementId)), 'fr'),
+      'statut-asc': (a, b) => Number(b.actif) - Number(a.actif),
+    };
+
+    // Copie avant tri : `sort` modifie le tableau en place, et trier
+    // `utilisateurs` directement ferait muter l'état.
+    return [...filtres].sort(comparateurs[tri] || comparateurs['nom-asc']);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- nomUniversite/nomDepartement dérivent de universites/departements, déjà listés
+  }, [utilisateurs, recherche, champRecherche, filtreRole, filtreStatut,
+      filtreUniversite, filtreDepartement, tri, universites, departements]);
 
   // ─── Activer / Désactiver ─────────────────────────────────────
   const basculerStatut = async (u) => {
@@ -224,7 +287,9 @@ export default function Utilisateurs() {
 
   return (
     <div className="page">
-      <div className="page-header">
+      {/* `pleine-largeur` fait toucher la bande au bord de la barre latérale à
+          gauche et au bord de la fenêtre à droite (voir Dashboard.css). */}
+      <div className="page-header pleine-largeur">
         <div>
           <h1 className="page-title">Gestion des utilisateurs</h1>
           <p className="page-sub">
@@ -264,17 +329,72 @@ export default function Utilisateurs() {
               }}
             />
             <select value={filtreRole} onChange={e => setFiltreRole(e.target.value)}
-                    style={{ padding: '9px 12px', fontSize: 13, border: '1.5px solid var(--border-color)', borderRadius: 9, background: 'var(--bg-card)', color: 'var(--text-primary)' }}>
+                    style={styleSelect} aria-label="Filtrer par rôle">
               <option value="">Tous les rôles</option>
               {estSuperAdmin && <option value="SUPER_ADMIN">Super Admin</option>}
               {ROLES.map(r => <option key={r.id} value={r.id}>{r.label}</option>)}
             </select>
             <select value={filtreStatut} onChange={e => setFiltreStatut(e.target.value)}
-                    style={{ padding: '9px 12px', fontSize: 13, border: '1.5px solid var(--border-color)', borderRadius: 9, background: 'var(--bg-card)', color: 'var(--text-primary)' }}>
+                    style={styleSelect}>
               <option value="">Tous les statuts</option>
               <option value="actif">✅ Actifs</option>
               <option value="inactif">🚫 Désactivés</option>
             </select>
+
+            {/* Restreint la recherche à un seul champ : un terme présent à la
+                fois dans un nom et dans une adresse ne ramène plus tout. */}
+            <select value={champRecherche} onChange={e => setChampRecherche(e.target.value)}
+                    style={styleSelect} aria-label="Champ de recherche">
+              <option value="tout">🔎 Nom et email</option>
+              <option value="nom">🔎 Nom seulement</option>
+              <option value="email">🔎 Email seulement</option>
+            </select>
+
+            <select value={filtreUniversite} onChange={e => setFiltreUniversite(e.target.value)}
+                    style={styleSelect} aria-label="Filtrer par université">
+              <option value="">🏛️ Toutes les universités</option>
+              {universites.map(u => <option key={u.id} value={u.id}>{u.nom}</option>)}
+            </select>
+
+            {/* Les départements sont exposés par établissement : le filtre ne
+                devient utilisable qu'une fois une université choisie. */}
+            <select value={filtreDepartement} onChange={e => setFiltreDepartement(e.target.value)}
+                    style={{ ...styleSelect, opacity: filtreUniversite ? 1 : 0.55 }}
+                    disabled={!filtreUniversite}
+                    title={filtreUniversite ? '' : "Choisissez d'abord une université"}
+                    aria-label="Filtrer par département">
+              <option value="">
+                {filtreUniversite ? '🏢 Tous les départements' : '🏢 Département (choisir une université)'}
+              </option>
+              {departements.map(d => <option key={d.id} value={d.id}>{d.nom}</option>)}
+            </select>
+
+            <select value={tri} onChange={e => setTri(e.target.value)}
+                    style={styleSelect} aria-label="Trier la liste">
+              <option value="nom-asc">↕ Nom (A → Z)</option>
+              <option value="nom-desc">↕ Nom (Z → A)</option>
+              <option value="email-asc">↕ Email (A → Z)</option>
+              <option value="email-desc">↕ Email (Z → A)</option>
+              <option value="role-asc">↕ Rôle</option>
+              <option value="universite-asc">↕ Université</option>
+              <option value="departement-asc">↕ Département</option>
+              <option value="statut-asc">↕ Statut (actifs d'abord)</option>
+            </select>
+
+            {(recherche || filtreRole || filtreStatut || filtreUniversite || filtreDepartement) && (
+              <button
+                type="button"
+                className="btn-outline"
+                style={{ fontSize: 12, padding: '8px 14px' }}
+                onClick={() => {
+                  setRecherche(''); setFiltreRole(''); setFiltreStatut('');
+                  setFiltreUniversite(''); setFiltreDepartement('');
+                }}
+              >
+                ✖ Réinitialiser
+              </button>
+            )}
+
             <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
               {visibles.length} / {utilisateurs.length} comptes
             </span>
@@ -291,6 +411,7 @@ export default function Utilisateurs() {
                     <th>Email</th>
                     <th>Rôle</th>
                     <th>Université</th>
+                    <th>Département</th>
                     <th>Statut</th>
                     <th style={{ textAlign: 'right' }}>Actions</th>
                   </tr>
@@ -308,6 +429,12 @@ export default function Utilisateurs() {
                       <td><span className={`badge ${badgeRole(u.role)}`}>{u.role}</span></td>
                       <td style={{ color: '#185FA5', fontSize: 12 }}>
                         {nomUniversite(u.universiteId) || (u.role === 'SUPER_ADMIN' ? 'MINISTÈRE / ESU (Global)' : 'Non rattaché')}
+                      </td>
+                      {/* Le nom n'est résolu que si les départements de
+                          l'université filtrée ont été chargés ; sinon on montre
+                          au moins que le compte est rattaché quelque part. */}
+                      <td style={{ color: 'var(--text-secondary)', fontSize: 12 }}>
+                        {nomDepartement(u.departementId) || (u.departementId ? `#${u.departementId}` : '—')}
                       </td>
                       <td>
                         <span className={`badge ${u.actif ? 'badge-success' : 'badge-danger'}`}>
@@ -360,7 +487,7 @@ export default function Utilisateurs() {
                   ))}
                   {visibles.length === 0 && (
                     <tr>
-                      <td colSpan={6} style={{ padding: 24, textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>
+                      <td colSpan={7} style={{ padding: 24, textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>
                         Aucun compte ne correspond à ces critères.
                       </td>
                     </tr>

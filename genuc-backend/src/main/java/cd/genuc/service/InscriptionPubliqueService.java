@@ -37,6 +37,7 @@ import cd.genuc.model.StatutInscription;   // ✅ IMPORT AJOUTÉ
 import cd.genuc.model.Universite;
 import cd.genuc.model.Utilisateur;
 import cd.genuc.model.Vacation;
+import cd.genuc.model.ParametresUniversite;
 import cd.genuc.repository.AnneeAcademiqueRepository;
 import cd.genuc.repository.DepartementRepository;
 import cd.genuc.repository.DossierInscriptionRepository;
@@ -47,6 +48,7 @@ import cd.genuc.repository.PromotionRepository;
 import cd.genuc.repository.UniversiteRepository;
 import cd.genuc.repository.UtilisateurRepository;
 import cd.genuc.repository.VacationRepository;
+import cd.genuc.repository.ParametresUniversiteRepository;
 import cd.genuc.service.EmailService;
 import cd.genuc.service.SmsService;
 import cd.genuc.service.WhatsAppService;
@@ -68,6 +70,7 @@ public class InscriptionPubliqueService {
     private final PromotionRepository promotionRepo;
     private final AnneeAcademiqueRepository anneeRepo;
     private final VacationRepository vacationRepo;
+    private final ParametresUniversiteRepository parametresRepo;
     private final PasswordEncoder passwordEncoder;
     private final EmailService emailService;
     private final SmsService smsService;
@@ -248,11 +251,31 @@ public class InscriptionPubliqueService {
     }
 
     /**
-     * Vacation et frais d'inscription selon l'offre de l'établissement : si des vacations
-     * y sont ouvertes aux inscriptions, le candidat doit en choisir une (les frais viennent
-     * de la vacation) ; sinon les frais définis au niveau de l'université s'appliquent.
+     * Vacation et frais d'inscription selon l'offre de l'établissement.
+     *
+     * <p>Ordre de priorité :</p>
+     * <ol>
+     *   <li>la vacation choisie, si le candidat en transmet une ;</li>
+     *   <li>{@code ParametresUniversite.fraisInscription} — le champ que
+     *       l'écran « Paramètres de l'établissement » alimente réellement ;</li>
+     *   <li>{@code Universite.fraisInscription}, conservé pour les fiches
+     *       antérieures à ce module de paramétrage.</li>
+     * </ol>
+     *
+     * <p>Ce deuxième niveau manquait : l'administrateur saisissait des frais dans
+     * ParametresUniversite tandis que le dépôt lisait Universite — deux champs
+     * homonymes portés par deux entités distinctes. Le montant saisi restait donc
+     * sans effet, et le dossier partait avec un montant nul.</p>
+     *
+     * <p>Aucun montant résolu fait désormais échouer le dépôt avec un message
+     * explicite : un dossier sans montant traverse tout le parcours et n'échoue
+     * qu'au paiement, là où le candidat ne peut rien y faire. Un établissement
+     * qui n'exige rien saisit 0, ce qui est une valeur, pas une absence.</p>
      */
-    private void appliquerVacationEtFrais(DossierInscription dossier, Universite uni, Long vacationId) {
+    // Visibilité paquet plutôt que private : la résolution des frais porte une règle
+    // de priorité qui a déjà silencieusement échoué une fois, elle mérite un test
+    // direct sans monter tout le parcours de dépôt en doublures.
+    void appliquerVacationEtFrais(DossierInscription dossier, Universite uni, Long vacationId) {
         // La campagne/vacation n'est plus une étape obligatoire du parcours candidat.
         // Si une vacation est tout de même transmise, on l'honore (frais = ceux de la
         // vacation) ; sinon, les frais définis au niveau de l'université s'appliquent.
@@ -267,7 +290,18 @@ public class InscriptionPubliqueService {
             dossier.setDeviseInscription(choisie.getDeviseFrais());
             return;
         }
-        dossier.setMontantInscription(uni.getFraisInscription());
+        Double frais = parametresRepo.findByUniversiteId(uni.getId())
+            .map(ParametresUniversite::getFraisInscription)
+            .orElse(null);
+        if (frais == null) {
+            frais = uni.getFraisInscription();
+        }
+        if (frais == null) {
+            throw new RuntimeException(
+                "Les frais de dossier ne sont pas définis pour cet établissement. "
+                + "Contactez le secrétariat : le dépôt ne peut pas être enregistré sans montant.");
+        }
+        dossier.setMontantInscription(frais);
         dossier.setDeviseInscription(deviseParDefaut(uni.getDevise()));
     }
 
