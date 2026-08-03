@@ -25,7 +25,16 @@ export const AuthProvider = ({ children }) => {
   const logoutRef = useRef(null);
   const etaitAuthentifieRef = useRef(false);
 
-   // Récupère le profil minimal depuis /api/auth/moi (email + roles uniquement)
+   // Récupère le profil COMPLET depuis /api/auth/moi : role, universiteId,
+   // inscriptionId, nomComplet, photoProfil — la même forme que la réponse de
+   // connexion, jetons exclus.
+   //
+   // C'est cet appel qui reconstitue la session à chaque chargement de page.
+   // L'endpoint ne renvoyait qu'email + roles (les autorités Spring) : `role`
+   // étant absent, hasRole() échouait et toute route protégée renvoyait vers
+   // /forbidden dès le premier rafraîchissement, alors que la session était
+   // parfaitement valide. universiteId et inscriptionId manquaient de même.
+   //
    // Les cookies HttpOnly sont envoyés automatiquement par le navigateur.
    const fetchUserProfile = useCallback(async () => {
      try {

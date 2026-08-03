@@ -521,12 +521,15 @@ public class AuthController {
 
     // ─── Profil ─────────────────────────────────────
 
+    // Le frontend reconstitue toute sa session à partir de cet appel au
+    // chargement de la page : il lui faut le profil complet, pas seulement
+    // l'email et les autorités. Voir AuthService.profil().
     @GetMapping("/moi")
-    public ResponseEntity<?> monProfil(@AuthenticationPrincipal UserDetails userDetails) {
-        if (userDetails == null) {
+    public ResponseEntity<?> monProfil(@AuthenticationPrincipal Utilisateur utilisateur) {
+        if (utilisateur == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("erreur", "Non authentifié"));
         }
-        return ResponseEntity.ok(Map.of("email", userDetails.getUsername(), "roles", userDetails.getAuthorities()));
+        return ResponseEntity.ok(authService.profil(utilisateur));
     }
 
 }

@@ -168,6 +168,38 @@ public class AuthService {
         }
     }
 
+    /**
+     * Profil du compte connecté, dans la MÊME forme que la réponse de connexion,
+     * jetons exclus.
+     *
+     * <p>{@code GET /api/auth/moi} ne renvoyait que {@code email} et {@code roles}
+     * (la liste des autorités Spring). Or le frontend reconstitue toute sa session
+     * à partir de cet appel au chargement de la page : il y lit {@code role} —
+     * absent, d'où un renvoi vers /forbidden dès le premier rafraîchissement —
+     * mais aussi {@code universiteId} (cloisonnement multi-établissement, 68
+     * écrans) et {@code inscriptionId} (portail étudiant, 45 écrans).</p>
+     *
+     * <p>Le défaut ne se voyait pas juste après la connexion, puisque la réponse
+     * de login porte, elle, le profil complet : il n'apparaissait qu'au premier
+     * rechargement.</p>
+     *
+     * <p>{@code roles} est conservé pour ne rien casser de ce qui l'utiliserait.</p>
+     */
+    public Map<String, Object> profil(Utilisateur utilisateur) {
+        Map<String, Object> profil = new HashMap<>();
+        profil.put("id", utilisateur.getId());
+        profil.put("nomComplet", utilisateur.getNomComplet());
+        profil.put("email", utilisateur.getEmail());
+        profil.put("role", utilisateur.getRole());
+        profil.put("universiteId", utilisateur.getUniversiteId());
+        profil.put("departementId", utilisateur.getDepartementId());
+        profil.put("compteActive", utilisateur.isCompteActive());
+        profil.put("inscriptionId", utilisateur.getInscriptionId());
+        profil.put("photoProfil", utilisateur.getPhotoProfil());
+        profil.put("roles", utilisateur.getAuthorities());
+        return profil;
+    }
+
     private Map<String, Object> construireReponse(String accessToken, String refreshToken, Utilisateur utilisateur) {
         Map<String, Object> reponse = new HashMap<>();
         reponse.put("token", accessToken);
