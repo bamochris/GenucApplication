@@ -4,6 +4,32 @@ server {
     root /usr/share/nginx/html;
     index index.html;
 
+    # ─── Taille des corps de requête ───────────────────────────────────
+    #
+    # Sans cette directive, Nginx applique son défaut : 1 Mo. Or plusieurs
+    # écrans envoient du multipart bien plus lourd — POST
+    # /api/super-admin/universites/etapes joint le logo de l'établissement
+    # ET trois PDF (agrément, arrêté ministériel, statuts).
+    #
+    # Le mode d'échec est trompeur : au-delà de la limite, Nginx renvoie 413
+    # puis FERME la connexion alors que le navigateur téléverse encore. Le
+    # navigateur ne voit donc pas le 413 mais une connexion réinitialisée,
+    # c'est-à-dire une panne réseau. Constaté en production le 03/08/2026 :
+    # l'enregistrement d'une université échouait avec « Hors ligne.
+    # Reconnectez-vous pour synchroniser. » — le message que le service
+    # worker fabriquait pour toute requête réseau échouée — alors que la
+    # session était valide et le backend en parfaite santé.
+    #
+    # La valeur laisse volontairement de la marge sur le plafond Spring
+    # (spring.servlet.multipart.max-request-size = 10 Mo dans
+    # application.yml) : c'est le backend qui doit refuser un envoi trop
+    # gros, avec un JSON explicite, et non le proxy en coupant la ligne.
+    client_max_body_size 12m;
+
+    # Un téléversement de 10 Mo sur une connexion lente met plus que les 60 s
+    # par défaut à arriver ; sans cela le proxy renonce en cours d'envoi.
+    client_body_timeout 120s;
+
     # ─── Compression GZIP ──────────────────────────────────────────────
     gzip on;
     gzip_vary on;
@@ -85,9 +111,10 @@ server {
         proxy_set_header Connection "";
 
         # Timeouts adaptés aux endpoints longs (génération PDF, paiements)
+        # et aux téléversements multipart (dossiers d'agrément scannés).
         proxy_connect_timeout 10s;
-        proxy_send_timeout    60s;
-        proxy_read_timeout    60s;
+        proxy_send_timeout    120s;
+        proxy_read_timeout    120s;
 
         # Buffer pour éviter les writes lentes
         proxy_buffering on;

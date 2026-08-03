@@ -512,10 +512,21 @@ const EnregistrementUniversite = () => {
       setTimeout(() => navigate('/superadmin/dashboard'), 1500);
     } catch (err) {
       console.error('❌ Erreur lors de l\'enregistrement:', err);
-      if (err.response?.status === 403) {
+      // L'intercepteur d'Axios rejette une ApiError, qui porte `status` à la
+      // racine ; `response` n'est reconstitué que lorsque le serveur a
+      // vraiment répondu. On lit donc les deux, dans cet ordre.
+      const statut = err.status ?? err.response?.status;
+      if (statut === 403) {
         setErreur('❌ Accès refusé (403). Vérifiez que vous êtes connecté en tant que SUPER_ADMIN.');
-      } else if (err.response?.status === 401) {
+      } else if (statut === 401) {
         setErreur('❌ Authentification requise. Veuillez vous reconnecter.');
+      } else if (statut === 413) {
+        setErreur('❌ Les pièces jointes sont trop volumineuses (10 Mo maximum au total, logo et PDF compris). Compressez-les puis réessayez.');
+      } else if (!statut) {
+        // Ni statut ni réponse : la requête n'a jamais abouti. Le plus
+        // souvent un envoi coupé en cours de route — d'où le rappel sur la
+        // taille des pièces, principale cause observée.
+        setErreur('❌ L\'envoi n\'a pas abouti. Vérifiez votre connexion, et que les pièces jointes ne dépassent pas 10 Mo au total.');
       } else {
         const msg = err.response?.data?.message || err.response?.data?.erreur || err.message;
         setErreur('❌ Erreur : ' + msg);

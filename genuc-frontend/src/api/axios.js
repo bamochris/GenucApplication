@@ -26,6 +26,29 @@ class ApiError extends Error {
     this.status = status;
     this.code = code;
     this.errors = errors || {};
+
+    // ⚠️ Compatibilité avec l'idiome Axios utilisé partout dans les pages.
+    //
+    // L'intercepteur d'erreur remplace l'erreur Axios par cette ApiError, qui
+    // n'exposait que `status`. Or une douzaine d'écrans testent
+    // `err.response?.status === 401` / `=== 403` : depuis l'introduction de
+    // cette classe, ces branches étaient MORTES — `err.response` valait
+    // toujours undefined, donc tout retombait dans le `else` générique.
+    // Symptôme : une session expirée sur EnregistrementUniversite.jsx
+    // n'affichait pas « Authentification requise », mais le message brut
+    // remonté par le réseau. Constaté le 03/08/2026.
+    //
+    // On restaure donc la forme attendue. Uniquement quand le serveur a
+    // RÉELLEMENT répondu : pour une panne réseau ou un timeout (status 0),
+    // `response` reste absent, exactement comme le fait Axios — sans quoi un
+    // appelant ne pourrait plus distinguer « pas de réponse » de « réponse
+    // d'erreur ».
+    if (status) {
+      this.response = {
+        status,
+        data: { message, erreur: message, code: this.code, errors: this.errors },
+      };
+    }
   }
 }
 
@@ -304,7 +327,10 @@ api.interceptors.response.use(
       isRefreshing = true;
 
       try {
-        await api.post('/api/auth/refresh', {}, {}, { _retry: true });
+        // `axios.post(url, data, config)` ne prend que TROIS arguments : la
+        // version précédente en passait quatre, et le `{ _retry: true }`
+        // final tombait dans le vide. Le drapeau doit voyager dans la config.
+        await api.post('/api/auth/refresh', {}, { _retry: true });
 
         // Les nouveaux tokens sont définis comme cookies HttpOnly par le
         // backend. Le navigateur les enverra automatiquement avec la
@@ -320,7 +346,16 @@ api.interceptors.response.use(
 
         window.dispatchEvent(new CustomEvent('genuc:session-expired'));
 
-        return Promise.reject(refreshError);
+        // Ne PAS propager l'erreur du refresh telle quelle. Elle décrit
+        // l'échec du renouvellement, pas celui de la requête de l'appelant :
+        // sans cookie de refresh le backend répond 400 « refreshToken est
+        // requis », message que l'écran affichait à un utilisateur dont le
+        // seul problème est que sa session a expiré. On rend un 401, ce que
+        // les pages savent interpréter (« Veuillez vous reconnecter »).
+        return Promise.reject(new ApiError(
+          'Votre session a expiré. Veuillez vous reconnecter.',
+          { status: 401, code: 'SESSION_EXPIREE' }
+        ));
       } finally {
         isRefreshing = false;
       }

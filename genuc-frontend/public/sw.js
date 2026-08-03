@@ -1,6 +1,9 @@
 /* GENUC Service Worker — Offline-First v2.0 */
 
-const CACHE_NAME = 'genuc-v2';
+/* Le numéro de version doit changer à chaque modification de ce fichier :
+ * `activate` supprime les caches dont le nom diffère, c'est le seul moyen de
+ * purger les entrées posées par la version précédente. */
+const CACHE_NAME = 'genuc-v3';
 const OFFLINE_URL = '/offline.html';
 
 /* Ressources critiques mises en cache immédiatement */
@@ -51,16 +54,27 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  /* Ne pas intercepter les requêtes API — elles ont leur propre retry */
+  /* Ne pas intercepter les requêtes API — elles ont leur propre retry.
+   *
+   * Le commentaire disait déjà « ne pas intercepter », mais le code le
+   * faisait : il appelait respondWith(fetch(request)) et, en cas d'échec
+   * réseau, fabriquait une réponse 503 « Hors ligne. Reconnectez-vous pour
+   * synchroniser. ». Deux dégâts :
+   *
+   *  1. Le vrai motif disparaissait. Toute panne — connexion coupée par le
+   *     proxy sur un téléversement trop gros (413), backend en cours de
+   *     redéploiement, DNS — devenait le même 503 « Hors ligne », et le
+   *     diagnostic partait vers la connectivité alors que la session était
+   *     valide. Constaté le 03/08/2026 sur l'enregistrement d'université.
+   *  2. Côté Axios, une panne réseau n'est plus une panne mais une RÉPONSE
+   *     HTTP : la branche `!error.response` de l'intercepteur (« Impossible
+   *     de contacter le serveur ») devenait inatteignable, et un 503 est
+   *     rejouable — chaque GET échoué repartait donc trois fois pour rien.
+   *
+   * Sans respondWith, le navigateur exécute la requête lui-même : vrais
+   * codes de statut, vraies erreurs réseau, et le corps multipart n'est pas
+   * relayé une seconde fois à travers le worker. */
   if (url.pathname.startsWith('/api/')) {
-    event.respondWith(
-      fetch(request).catch(() =>
-        new Response(JSON.stringify({ erreur: 'Hors ligne. Reconnectez-vous pour synchroniser.' }), {
-          status: 503,
-          headers: { 'Content-Type': 'application/json' }
-        })
-      )
-    );
     return;
   }
 

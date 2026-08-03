@@ -16,6 +16,7 @@ import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -163,6 +164,19 @@ public class GlobalExceptionHandler {
         log.warn("Méthode {} non supportée sur cette route", e.getMethod());
         return erreur(HttpStatus.METHOD_NOT_ALLOWED, "METHODE_NON_AUTORISEE",
             "La méthode " + e.getMethod() + " n'est pas autorisée sur cette ressource.");
+    }
+
+    // Téléversement au-delà de spring.servlet.multipart.max-request-size
+    // (10 Mo, application.yml). Sans ce gestionnaire, le dépassement
+    // ressortait en 500 : l'utilisateur qui joint quatre PDF scannés à
+    // l'enregistrement d'une université lisait « erreur serveur » et n'avait
+    // aucun moyen de deviner qu'il devait compresser ses pièces.
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<?> handleTelechargementTropGros(MaxUploadSizeExceededException e) {
+        log.warn("Téléversement refusé : taille maximale dépassée ({})", e.getMessage());
+        return erreur(HttpStatus.PAYLOAD_TOO_LARGE, "FICHIER_TROP_VOLUMINEUX",
+            "Les fichiers envoyés dépassent la taille autorisée (10 Mo au total). "
+                + "Compressez-les ou envoyez-les séparément.");
     }
 
     // ─── VALIDATION (400) ────────────────────────────────────────
