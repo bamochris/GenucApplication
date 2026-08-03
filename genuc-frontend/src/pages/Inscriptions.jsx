@@ -11,6 +11,7 @@ import { useDebounce } from '../hooks/useDebounce';
 import useDraggableDialog from '../hooks/useDraggableDialog';
 import { DOCUMENTS_CATALOGUE, DOCUMENTS_PAR_DEFAUT, parseDocumentsRequis, libelleDocument, acceptDocument } from '../utils/documentsInscription';
 import './Dashboard.css';
+import './Inscriptions.css';
 
 // ─── Constantes ───────────────────────────────────────────────
 const NIVEAUX = [
@@ -1242,11 +1243,16 @@ export default function Inscriptions() {
       {/* Fenêtre du formulaire : déplaçable par son en-tête (presser sans
           relâcher puis bouger) et redimensionnable par le coin bas-droit. */}
       <div
-        className="dialog-resizable"
-        style={{ width: '100%', maxWidth: 920, minWidth: 460, minHeight: 400, background: 'var(--bg-secondary)', borderRadius: '12px', boxShadow: '0 8px 40px rgba(0,0,0,0.10)', ...panelStyle }}
+        className="dialog-resizable inscription-panel"
+        // minWidth: 460 en dur empêchait le panneau de descendre sous 460 px :
+        // sur un téléphone de 360 px (TECNO, Infinix, itel… très répandus en
+        // RDC) le formulaire débordait de l'écran et imposait un défilement
+        // horizontal. `min(460px, 100%)` garde le confort sur grand écran tout
+        // en laissant le panneau suivre la largeur réelle du téléphone.
+        style={{ width: '100%', maxWidth: 920, minWidth: 'min(460px, 100%)', minHeight: 400, background: 'var(--bg-secondary)', borderRadius: '12px', boxShadow: '0 8px 40px rgba(0,0,0,0.10)', ...panelStyle }}
       >
       <div
-        className="dialog-draggable-handle"
+        className="dialog-draggable-handle inscription-entete"
         {...dragHandleProps}
         style={{ background: 'linear-gradient(135deg, #185FA5, #1e40af)', color: '#fff', padding: '18px 24px', borderRadius: '12px 12px 0 0', marginBottom: 0, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '12px' }}
       >
@@ -1288,7 +1294,7 @@ export default function Inscriptions() {
       </div>
 
       {/* Indicateur de progression amélioré */}
-      <div style={{ background: 'var(--bg-card)', borderBottom: '1px solid var(--border-color)', padding: '16px 32px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+      <div className="inscription-etapes" style={{ background: 'var(--bg-card)', borderBottom: '1px solid var(--border-color)', padding: '16px 32px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
         <div style={{ display: 'flex', gap: '6px', overflowX: 'auto', flex: 1 }}>
           {ETAPES.map(e => (
             <div key={e.num} style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0 }}>
@@ -1340,7 +1346,7 @@ export default function Inscriptions() {
         </div>
       )}
 
-      <div className="card" style={{ borderRadius: '0 0 12px 12px', padding: '20px 24px', minHeight: '400px' }}>
+      <div className="card inscription-corps" style={{ borderRadius: '0 0 12px 12px', padding: '20px 24px', minHeight: '400px' }}>
         {etape === 1 && renderEtape1()}
         {etape === 2 && renderEtape2()}
         {etape === 3 && renderEtape3()}

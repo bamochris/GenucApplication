@@ -155,7 +155,15 @@ export default function Universites() {
               <tr>
                 <th>Code</th>
                 <th>Nom</th>
+                <th>Type</th>
                 <th>Ville</th>
+                {/* Compteurs réels : nbFacultes et nbDepartements sont dérivés des
+                    listes saisies à l'enregistrement, nbEtudiants compte les
+                    inscriptions VALIDE. Cet écran ne montrait aucune de ces
+                    informations. */}
+                <th>Facultés</th>
+                <th>Départements</th>
+                <th>Étudiants</th>
                 <th>Inscriptions</th>
                 <th>Actions</th>
               </tr>
@@ -167,7 +175,13 @@ export default function Universites() {
                     <strong>{u.code}</strong>
                   </td>
                   <td>{u.nom}</td>
+                  <td>{u.typeEtablissement || '—'}</td>
                   <td>{u.ville || '—'}</td>
+                  <td>{u.nbFacultes ?? '—'}</td>
+                  <td>{u.nbDepartements ?? '—'}</td>
+                  {/* 0 est une information : un établissement neuf n'a pas
+                      d'étudiant, ce n'est pas une donnée absente. */}
+                  <td>{u.nbEtudiants ?? '—'}</td>
                   <td>
                     <span className={`badge ${u.inscriptionsOuvertes ? 'badge-success' : 'badge-neutral'}`}>
                       {u.inscriptionsOuvertes ? 'Ouvertes' : 'Fermées'}

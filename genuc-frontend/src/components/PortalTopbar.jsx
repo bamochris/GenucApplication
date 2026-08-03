@@ -61,6 +61,7 @@ export default function PortalTopbar() {
   const location = useLocation();
   const navigate = useNavigate();
   const [logoutModal, setLogoutModal] = useState(false);
+  const [logoErreur, setLogoErreur] = useState(false);
   const photos = usePhotosIdentite(!!user);
 
   if (!user) return null;
@@ -116,8 +117,20 @@ export default function PortalTopbar() {
                   style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }}
                   onError={e => { e.currentTarget.style.display = 'none'; }}
                 />
-              ) : (
+              ) : logoErreur ? (
                 <span className="avatar-placeholder">{initiales(user)}</span>
+              ) : (
+                // Sans photo de profil, on affiche le logo GENUC plutôt que
+                // l'initiale seule : sur un compte au nom d'un seul mot, celle-ci
+                // se réduisait à une grosse lettre isolée collée au libellé.
+                // Repli sur les initiales via l'état React (et non une mutation
+                // du DOM dans onError, qui rouvrirait une boucle de rechargement).
+                <img
+                  src="/assets/logo-genuc.png"
+                  alt=""
+                  style={{ width: '100%', height: '100%', objectFit: 'contain', borderRadius: '50%' }}
+                  onError={() => setLogoErreur(true)}
+                />
               )}
             </Link>
             <div className="profile-info">

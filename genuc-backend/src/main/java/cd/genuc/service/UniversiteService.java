@@ -72,6 +72,27 @@ public class UniversiteService {
         return universites;
     }
 
+    /**
+     * Un établissement seul, avec son effectif étudiant renseigné.
+     *
+     * <p>Distincte d'{@link #obtenir(Long)}, qui est cachée 6 heures : y placer
+     * l'effectif le figerait d'autant. Ici la fiche vient du cache, seul le
+     * compteur repart en base — une requête, sur un écran consulté par les
+     * administrateurs d'établissement.</p>
+     *
+     * <p>Renvoie une COPIE superficielle : renseigner le compteur sur l'instance
+     * cachée la partagerait entre requêtes concurrentes.</p>
+     */
+    @Transactional(readOnly = true)
+    public Universite obtenirAvecEffectif(Long id) {
+        Universite cachee = obtenir(id);
+        Universite copie = new Universite();
+        org.springframework.beans.BeanUtils.copyProperties(cachee, copie);
+        copie.setNbEtudiants(
+            inscriptionRepo.countByUniversite_IdAndStatut(id, StatutInscription.VALIDE));
+        return copie;
+    }
+
     @Transactional(readOnly = true)
     @Cacheable(value = CacheNames.UNIVERSITES, key = "#id")
     public Universite obtenir(Long id) {

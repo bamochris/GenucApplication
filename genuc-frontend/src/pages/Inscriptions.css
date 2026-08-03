@@ -1,0 +1,118 @@
+/* src/pages/Inscriptions.css
+   Adaptation du formulaire public d'inscription aux téléphones.
+
+   Cible réelle : les appareils les plus répandus en RDC (TECNO, Infinix, itel,
+   Samsung A) exposent un viewport CSS de 360 px, parfois 320 px sur les
+   modèles d'entrée de gamme. Le panneau du formulaire portait un
+   `minWidth: 460px` en dur : il ne pouvait donc PAS tenir dans l'écran, d'où
+   le débordement horizontal et l'impression que « ça ne s'ajuste pas ».
+   Ce fichier complète le correctif de largeur par le reste de la mise en page.
+
+   Les styles du formulaire sont majoritairement en ligne dans Inscriptions.jsx ;
+   les surcharges ci-dessous ont donc besoin de `!important` pour les dépasser.
+   Les classes visées (inscription-panel / -entete / -etapes / -corps) ont été
+   ajoutées au JSX pour servir de points d'accroche. */
+
+/* ── Téléphones et petites tablettes ───────────────────────────── */
+@media (max-width: 768px) {
+  /* Le conteneur .page ajoute 24 px de chaque côté : sur 360 px il ne reste
+     que 312 px utiles. On les rend au formulaire. */
+  .page:has(.inscription-panel) {
+    padding: 12px !important;
+  }
+
+  .inscription-panel {
+    /* Le redimensionnement au coin bas-droit n'a aucun sens au doigt et
+       créait un conteneur de défilement interne qui piégeait le geste. */
+    resize: none !important;
+    overflow: visible !important;
+    /* Une position glissée (transform) pouvait laisser le panneau hors écran
+       sans moyen de le ramener : on neutralise le déplacement sur mobile. */
+    transform: none !important;
+    min-height: 0 !important;
+    border-radius: 10px !important;
+  }
+
+  .inscription-entete {
+    padding: 14px 16px !important;
+    /* Rend le défilement vertical à la page : `touch-action: none` (hérité de
+       .dialog-draggable-handle) le bloquait dès que le doigt partait de
+       l'en-tête, ce qui donnait une page « collée ». */
+    touch-action: auto !important;
+    cursor: default !important;
+  }
+
+  .inscription-entete h1 {
+    font-size: 17px !important;
+  }
+
+  .inscription-entete p {
+    font-size: 12px !important;
+  }
+
+  /* Les boutons Retour / Recommencer / Annuler passent la largeur entière et
+     se répartissent, au lieu de déborder en une ligne serrée. */
+  .inscription-entete > div:last-child {
+    width: 100%;
+  }
+
+  .inscription-entete button {
+    flex: 1 1 auto;
+    min-height: 40px; /* cible tactile confortable */
+  }
+
+  .inscription-etapes {
+    padding: 12px 14px !important;
+  }
+
+  .inscription-corps {
+    padding: 16px 14px !important;
+    min-height: 0 !important;
+  }
+
+  /* Empêche le zoom automatique de Safari/Chrome mobile à la mise au point :
+     sous 16 px, le navigateur agrandit la page et casse la mise en page. */
+  .inscription-corps input,
+  .inscription-corps select,
+  .inscription-corps textarea {
+    font-size: 16px !important;
+    min-height: 44px;
+  }
+}
+
+/* ── Petits écrans (360 px et moins : TECNO/itel d'entrée de gamme) ── */
+@media (max-width: 400px) {
+  .page:has(.inscription-panel) {
+    padding: 8px !important;
+  }
+
+  .inscription-entete {
+    padding: 12px !important;
+  }
+
+  .inscription-corps {
+    padding: 14px 10px !important;
+  }
+
+  /* Le fil des étapes défile horizontalement plutôt que de comprimer les
+     pastilles au point de les rendre illisibles. */
+  .inscription-etapes {
+    padding: 10px !important;
+  }
+
+  .inscription-etapes > div:first-child {
+    gap: 4px !important;
+  }
+}
+
+/* Repli pour les navigateurs sans `:has()` (Chrome < 105, encore présent sur
+   de vieux Android) : on ne peut pas viser le parent, on compense en retirant
+   la marge intérieure du panneau lui-même. */
+@supports not selector(:has(*)) {
+  @media (max-width: 768px) {
+    .inscription-panel {
+      margin-left: -12px;
+      margin-right: -12px;
+    }
+  }
+}

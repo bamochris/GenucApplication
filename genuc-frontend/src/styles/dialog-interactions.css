@@ -16,3 +16,23 @@
 .dialog-draggable-handle:active {
   cursor: grabbing;
 }
+
+/* ── Écrans tactiles ────────────────────────────────────────────────
+   `resize: both` n'offre aucune poignée utilisable au doigt, mais
+   `overflow: auto` qu'il impose crée un conteneur de défilement interne : sur
+   téléphone, le contenu se retrouvait enfermé dans une petite zone au lieu de
+   suivre le défilement de la page. Et `touch-action: none` sur la poignée
+   empêchait tout défilement dès que le doigt se posait sur l'en-tête.
+   Les deux interactions sont donc réservées aux pointeurs fins. */
+@media (pointer: coarse), (max-width: 768px) {
+  .dialog-resizable {
+    resize: none;
+    overflow: visible;
+  }
+
+  .dialog-draggable-handle {
+    cursor: default;
+    touch-action: auto;
+    user-select: auto;
+  }
+}

@@ -89,7 +89,9 @@ public class UniversiteController {
                         .body(Map.of("erreur", "Votre compte n'est rattaché à aucune université."));
             }
             try {
-                Universite uni = universiteService.obtenir(currentUser.getUniversiteId());
+                // Avec l'effectif : cet écran affiche les mêmes compteurs que
+                // la liste du super-admin, il ne doit pas en être privé.
+                Universite uni = universiteService.obtenirAvecEffectif(currentUser.getUniversiteId());
                 return ResponseEntity.ok(List.of(uni));
             } catch (RuntimeException e) {
                 return ResponseEntity.status(HttpStatus.NOT_FOUND)

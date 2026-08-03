@@ -24,6 +24,12 @@ export default function useDraggableDialog() {
   const onPointerDown = useCallback((e) => {
     // Ignore le drag s'il démarre sur un contrôle interactif de l'en-tête (ex. bouton fermer).
     if (e.target.closest('button, a, input, select, textarea')) return;
+    // Au doigt, ce geste entre en conflit avec le défilement de la page : le
+    // `preventDefault` ci-dessous bloquerait le scroll dès que le doigt part de
+    // l'en-tête, et l'utilisateur pouvait pousser le panneau hors de l'écran
+    // sans aucun moyen de le ramener. Le déplacement reste donc réservé aux
+    // pointeurs fins (souris, stylet).
+    if (e.pointerType === 'touch' || window.matchMedia('(pointer: coarse)').matches) return;
     e.preventDefault();
     dragState.current = {
       startX: e.clientX,

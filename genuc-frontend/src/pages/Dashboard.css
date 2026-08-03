@@ -624,3 +624,56 @@
   .frais-grid { grid-template-columns: 1fr; }
   .frais-montant { font-size: 36px; }
 }
+
+/* ── Téléphones étroits (360 px et moins) ────────────────────────────
+   Cible les appareils les plus courants en RDC (TECNO, Infinix, itel…).
+   À 360 px de large, les 24 px de marge intérieure de `.page` de chaque côté
+   plus ceux de `.card` ne laissaient qu'environ 264 px au contenu : les
+   tableaux et les grilles de formulaire débordaient. */
+@media (max-width: 480px) {
+  .page {
+    padding: 12px;
+  }
+
+  .card {
+    padding: 14px 12px;
+    border-radius: 10px;
+  }
+
+  .page-title {
+    font-size: 20px;
+  }
+
+  .page-sub {
+    font-size: 13px;
+  }
+
+  /* Les tableaux de données restent lisibles en défilant horizontalement
+     DANS leur conteneur, plutôt qu'en élargissant la page entière. */
+  .data-table {
+    display: block;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    white-space: nowrap;
+  }
+
+  .stats-grid {
+    grid-template-columns: 1fr 1fr !important;
+    gap: 10px;
+  }
+
+  /* Cibles tactiles : 44 px est le minimum confortable au doigt. */
+  .btn-primary,
+  .btn-outline,
+  .data-table button {
+    min-height: 44px;
+  }
+
+  /* Sous 16 px, Chrome et Safari mobile zooment automatiquement sur le champ
+     actif et décalent toute la mise en page. */
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
+}
