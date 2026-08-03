@@ -66,6 +66,12 @@ public class PaiementService {
             throw new RuntimeException("Le montant doit etre superieur a zero");
         }
 
+        String devise = data.getOrDefault("devise", "USD").toString().toUpperCase().trim();
+        double seuilMinimum = "CDF".equals(devise) ? 1000.0 : 1.0;
+        if (montant < seuilMinimum) {
+            throw new RuntimeException("Le montant minimum est de " + seuilMinimum + " " + devise);
+        }
+
         TypePaiement type = TypePaiement.valueOf(
             data.getOrDefault("type", "FRAIS_ACADEMIQUES").toString()
         );
@@ -73,8 +79,29 @@ public class PaiementService {
             data.getOrDefault("modePaiement", "ESPECES").toString()
         );
 
-        // Générer la référence unique
+        // Vérifier le solde total dû pour ce type de paiement
+        Double totalDu = baremeRepo.findByUniversiteIdAndAnneeAcademiqueAndNiveauAndTypePaiement(
+                universiteId, inscription.getAnneeAcademique().getLibelle(), inscription.getNiveau(), type)
+                .map(BaremePaiement::getMontantAttendu)
+                .orElse(0.0);
+
+        Double totalDejaPaye = paiementRepo.findByInscriptionIdAndTypeAndStatutIn(
+                inscriptionId, type, java.util.List.of(StatutPaiement.VALIDE, StatutPaiement.EN_ATTENTE))
+                .stream()
+                .mapToDouble(Paiement::getMontant)
+                .sum();
+
+        if (totalDejaPaye + montant > totalDu && totalDu > 0) {
+            throw new RuntimeException(
+                "Montant depassant le solde dû (dû: " + totalDu + " " + devise + ", déjà payé: " + totalDejaPaye + " " + devise + ")"
+            );
+        }
+
+        // Générer la référence unique et vérifier l'unicité
         String reference = genererReference();
+        if (paiementRepo.existsByReference(reference)) {
+            reference = genererReference();
+        }
 
         Paiement paiement = Paiement.builder()
             .reference(reference)

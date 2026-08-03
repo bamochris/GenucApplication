@@ -54,6 +54,7 @@ public class Presence {
 
     private String codeQrScanne;
     private LocalDateTime scanTimestamp;
+    private LocalDateTime qrExpiration;
 
     @PrePersist
     protected void onCreate() {

@@ -55,6 +55,17 @@ public class NoteService {
         Cours cours = coursRepo.findById(coursId)
             .orElseThrow(() -> new CoursNotFoundException(coursId));
 
+        Long demandeurId = data.get("professeurId") != null
+            ? Long.valueOf(data.get("professeurId").toString()) : null;
+
+        if (demandeurId == null) {
+            throw new RuntimeException("professeurId est requis pour saisir une note");
+        }
+
+        if (!demandeurId.equals(cours.getProfesseurId())) {
+            throw new RuntimeException("Vous n'êtes pas autorisé à saisir des notes pour ce cours");
+        }
+
         // Récupérer la note existante ou en créer une nouvelle
         Note note = noteRepo.findByInscriptionIdAndCoursIdAndAnneeAcademiqueAndSession(
                 inscriptionId, coursId, annee, session)
@@ -132,6 +143,10 @@ public class NoteService {
 
         if (note.getStatut() != StatutNote.PUBLIEE) {
             throw new NoteStatutException(note.getStatut().name(), "rattrapage");
+        }
+
+        if (note.getNoteRattrapage() != null) {
+            throw new RuntimeException("Un rattrapage a déjà été effectué pour cette note");
         }
 
         note.appliquerRattrapage(noteRattrapage);

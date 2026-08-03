@@ -123,6 +123,9 @@ public class InscriptionPubliqueService {
         if (etudiantRepo.existsByEmail(req.getEmail())) {
             throw new RuntimeException("Un étudiant est déjà inscrit avec cet email");
         }
+        if (req.getTelephone1() != null && !req.getTelephone1().isBlank() && dossierRepo.existsByTelephone(req.getTelephone1())) {
+            throw new RuntimeException("Un dossier existe déjà avec ce numéro de téléphone");
+        }
 
         if (req.getUniversiteId() == null)      throw new RuntimeException("L'université est obligatoire.");
         if (req.getDepartementId() == null)     throw new RuntimeException("Le département est obligatoire.");

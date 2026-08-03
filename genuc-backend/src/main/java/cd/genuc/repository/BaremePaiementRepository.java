@@ -8,6 +8,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface BaremePaiementRepository extends JpaRepository<BaremePaiement, Long> {
@@ -27,6 +28,13 @@ public interface BaremePaiementRepository extends JpaRepository<BaremePaiement, 
         @Param("niveau") String niveau,
         @Param("type") TypePaiement type
     );
+
+    default Optional<BaremePaiement> findByUniversiteIdAndAnneeAcademiqueAndNiveauAndTypePaiement(
+            Long universiteId, String anneeAcademique, String niveau, TypePaiement typePaiement) {
+        return findBareme(universiteId, anneeAcademique, niveau, typePaiement)
+                .stream()
+                .findFirst();
+    }
 
 	List<BaremePaiement> findByUniversiteIdAndAnneeAcademique(Long universiteId, String anneeActuelle);
 

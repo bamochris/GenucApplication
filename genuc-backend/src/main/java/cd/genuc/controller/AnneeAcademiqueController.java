@@ -19,8 +19,13 @@ public class AnneeAcademiqueController {
 
     private final AnneeAcademiqueRepository anneeRepository;
 
+    // Tout utilisateur authentifié : les écrans étudiant, professeur et
+    // secrétariat ont tous besoin de la liste des années pour filtrer. La
+    // restriction aux deux rôles d'administration leur renvoyait 403 — constaté
+    // le 03/08/2026 sur le portail étudiant — alors que la MÊME donnée est déjà
+    // exposée sans authentification sur /public juste en dessous.
     @GetMapping
-    @PreAuthorize("hasAnyRole('ADMIN_UNIVERSITE', 'SUPER_ADMIN')")
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<?> lister() {
         return ResponseEntity.ok(anneeRepository.findByActiveTrue());
     }

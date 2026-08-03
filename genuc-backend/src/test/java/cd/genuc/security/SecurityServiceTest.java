@@ -310,6 +310,10 @@ class SecurityServiceTest {
             @Override public String getEmailInscription() { return emailInscription; }
             @Override public String getEmailEtudiant()   { return emailEtudiant; }
             @Override public String getMatricule()       { return "HECKIN202500001"; }
+            // Ajouté à la projection en même temps que le cloisonnement par
+            // département : la valeur ne pèse sur aucun de ces tests, qui portent
+            // sur la propriété et l'établissement.
+            @Override public Long getDepartementId()     { return null; }
         };
     }
 }

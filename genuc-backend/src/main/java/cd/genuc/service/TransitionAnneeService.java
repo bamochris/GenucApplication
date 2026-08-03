@@ -1,6 +1,7 @@
 package cd.genuc.service;
 
 import cd.genuc.model.*;
+import cd.genuc.model.Deliberation.StatutDeliberation;
 import cd.genuc.repository.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -11,6 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -35,11 +37,22 @@ public class TransitionAnneeService {
     @Transactional
     public Map<String, Object> executerPassageClasse(Long universiteId, String anneeActuelle, 
                                                      String anneeSuivante, double coefficientIndexation) {
+        return executerPassageClasse(universiteId, anneeActuelle, anneeSuivante, coefficientIndexation, false);
+    }
+
+    @Transactional
+    public Map<String, Object> executerPassageClasse(Long universiteId, String anneeActuelle, 
+                                                     String anneeSuivante, double coefficientIndexation, boolean dryRun) {
         // Récupérer les années académiques
         AnneeAcademique anneeCourante = anneeRepository.findByLibelle(anneeActuelle)
                 .orElseThrow(() -> new RuntimeException("Année actuelle introuvable"));
         AnneeAcademique nouvelleAnnee = anneeRepository.findByLibelle(anneeSuivante)
-                .orElseGet(() -> anneeRepository.save(new AnneeAcademique(anneeSuivante, true)));
+                .orElseGet(() -> {
+                    if (dryRun) {
+                        return new AnneeAcademique(anneeSuivante, true);
+                    }
+                    return anneeRepository.save(new AnneeAcademique(anneeSuivante, true));
+                });
 
         // Récupérer les inscriptions de l'année courante (validées)
         List<Inscription> inscriptions;
@@ -55,14 +68,24 @@ public class TransitionAnneeService {
         int erreurs = 0;
         int bloquesPromotionManquante = 0;
         java.util.Set<String> promotionsManquantes = new java.util.TreeSet<>();
+        java.util.List<String> erreursDetails = new java.util.ArrayList<>();
 
         for (Inscription ins : inscriptions) {
             try {
-                // Récupérer la délibération de l'étudiant pour cette année
+                // Récupérer la délibération PUBLIÉE de l'étudiant pour cette année
                 Deliberation delib = deliberationRepository.findByInscriptionIdAndAnneeAcademique(ins.getId(), anneeActuelle)
                         .orElse(null);
                 if (delib == null) {
                     log.warn("Pas de délibération pour l'inscription {}", ins.getId());
+                    erreursDetails.add("Inscription " + ins.getId() + " : pas de délibération");
+                    erreurs++;
+                    continue;
+                }
+
+                if (delib.getStatut() != StatutDeliberation.PUBLIEE) {
+                    log.warn("Délibération non publiée pour inscription {} (statut: {})", ins.getId(), delib.getStatut());
+                    erreursDetails.add("Inscription " + ins.getId() + " : délibération non publiée (statut: " + delib.getStatut() + ")");
+                    erreurs++;
                     continue;
                 }
 
@@ -70,55 +93,56 @@ public class TransitionAnneeService {
                 Promotion promotionActuelle = ins.getPromotion();
                 Promotion nouvellePromotion = null;
 
-                // Déterminer la nouvelle promotion
                 if (decision == DecisionJury.ADMIS) {
-                    // Passer à la promotion supérieure si elle existe
                     String niveauSuivant = promotionActuelle.getNiveauSuivant();
                     if (niveauSuivant != null) {
                         nouvellePromotion = promotionRepository.findByFiliereIdAndLibelle(
                                 promotionActuelle.getFiliere().getId(), niveauSuivant);
                     }
                     if (nouvellePromotion != null) {
-                        inscriptionService.reinscrire(ins.getId(), nouvelleAnnee, nouvellePromotion, false);
+                        if (!dryRun) {
+                            inscriptionService.reinscrire(ins.getId(), nouvelleAnnee, nouvellePromotion, false);
+                        }
                         reinscrits++;
                     } else if (niveauSuivant == null) {
-                        // Fin de cycle (G3, D3, dernier niveau connu...) = diplômé
                         diplomes++;
                     } else {
-                        // Le niveau suivant est connu (ex : L2) mais la promotion
-                        // n'existe pas dans la filière : ne PAS compter diplômé,
-                        // signaler la promotion à créer.
                         promotionsManquantes.add(promotionActuelle.getFiliere().getNom()
                                 + " -> " + niveauSuivant);
                         bloquesPromotionManquante++;
                     }
                 } else if (decision == DecisionJury.REDOUBLE) {
-                    // Redouble : même promotion
-                    inscriptionService.reinscrire(ins.getId(), nouvelleAnnee, promotionActuelle, true);
+                    if (!dryRun) {
+                        inscriptionService.reinscrire(ins.getId(), nouvelleAnnee, promotionActuelle, true);
+                    }
                     redoublants++;
                 } else if (decision == DecisionJury.DIPLOME) {
                     diplomes++;
                 }
-                // Les autres décisions (EXCLU, etc.) ne donnent pas lieu à réinscription
 
             } catch (Exception e) {
                 log.error("Erreur pour l'inscription {} : {}", ins.getId(), e.getMessage());
+                erreursDetails.add("Inscription " + ins.getId() + " : " + e.getMessage());
                 erreurs++;
             }
         }
 
-        // Dupliquer les barèmes de paiement pour la nouvelle année
-        dupliquerBaremes(universiteId, anneeActuelle, anneeSuivante, coefficientIndexation);
+        // Dupliquer les barèmes de paiement pour la nouvelle année (sauf en dry-run)
+        if (!dryRun) {
+            dupliquerBaremes(universiteId, anneeActuelle, anneeSuivante, coefficientIndexation);
+        }
 
         return Map.of(
+                "dryRun", dryRun,
                 "anneeActuelle", anneeActuelle,
                 "anneeSuivante", anneeSuivante,
                 "reinscrits", reinscrits,
                 "diplomes", diplomes,
+                "redoublants", redoublants,
                 "bloquesPromotionManquante", bloquesPromotionManquante,
                 "promotionsManquantes", new java.util.ArrayList<>(promotionsManquantes),
-                "redoublants", redoublants,
-                "erreurs", erreurs
+                "erreurs", erreurs,
+                "erreursDetails", erreursDetails
         );
     }
 
@@ -131,6 +155,13 @@ public class TransitionAnneeService {
         }
 
         for (BaremePaiement b : baremes) {
+            Optional<BaremePaiement> existant = baremeRepository
+                    .findByUniversiteIdAndAnneeAcademiqueAndNiveauAndTypePaiement(
+                            b.getUniversite().getId(), anneeSuivante, b.getNiveau(), b.getTypePaiement());
+            if (existant.isPresent()) {
+                continue;
+            }
+
             BaremePaiement nouveau = BaremePaiement.builder()
                     .anneeAcademique(anneeSuivante)
                     .niveau(b.getNiveau())

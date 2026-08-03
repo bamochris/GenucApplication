@@ -77,13 +77,19 @@ public class DeliberationService {
 
         Optional<Deliberation> existante = deliberationRepo
                 .findByInscriptionIdAndAnneeAcademique(inscriptionId, anneeAcademique);
-        if (existante.isPresent() && existante.get().getStatut() == StatutDeliberation.PUBLIEE) {
-            throw new RuntimeException("Une deliberation publiee existe deja pour cet etudiant");
+        if (existante.isPresent()) {
+            StatutDeliberation statut = existante.get().getStatut();
+            if (statut == StatutDeliberation.PUBLIEE) {
+                throw new RuntimeException("Une deliberation publiee existe deja pour cet etudiant");
+            }
+            if (statut == StatutDeliberation.EN_PREPARATION || statut == StatutDeliberation.PRÊTE) {
+                throw new RuntimeException("Une deliberation est deja en cours pour cet etudiant (statut: " + statut + ")");
+            }
         }
 
         List<Note> notes = noteRepo.notesValideesPourDeliberation(inscriptionId, anneeAcademique);
         if (notes.isEmpty()) {
-            throw new RuntimeException("Aucune note validee pour cet etudiant cette annee");
+            throw new RuntimeException("Aucune note publiee pour cet etudiant cette annee");
         }
 
         double totalPondere = 0;
@@ -263,6 +269,9 @@ public class DeliberationService {
         Deliberation delib = obtenir(id);
         if (delib.getStatut() == StatutDeliberation.PUBLIEE) {
             throw new RuntimeException("Impossible de modifier une deliberation publiee");
+        }
+        if (delib.getStatut() == StatutDeliberation.EN_PREPARATION || delib.getStatut() == StatutDeliberation.PRÊTE) {
+            throw new RuntimeException("Impossible de modifier une deliberation en cours de preparation ou prete");
         }
 
         String ancienStatut = delib.getStatut().name();
@@ -578,7 +587,7 @@ public class DeliberationService {
         boolean admis = moyenne >= 10.0 && creditsValides >= creditsRequis * 0.6;
         if (derniereAnnee && admis) return DecisionJury.DIPLOME;
         if (admis) return DecisionJury.ADMIS;
-        if (moyenne >= 8.0) return DecisionJury.ADMIS_RATTRAPAGE;
+        if (moyenne >= 8.0 && creditsValides >= creditsRequis * 0.5) return DecisionJury.ADMIS_RATTRAPAGE;
         return DecisionJury.REDOUBLE;
     }
 

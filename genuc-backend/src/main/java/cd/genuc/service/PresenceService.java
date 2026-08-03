@@ -32,7 +32,8 @@ public class PresenceService {
 
     public byte[] genererQrCode(Long coursId, Long seanceId) throws WriterException, IOException {
         String uuid = UUID.randomUUID().toString();
-        String payload = String.format("GENUC:PRESENCE:%d:%d:%s", coursId, seanceId != null ? seanceId : 0, uuid);
+        LocalDateTime expiration = LocalDateTime.now().plusMinutes(5);
+        String payload = String.format("GENUC:PRESENCE:%d:%d:%s:%s", coursId, seanceId != null ? seanceId : 0, uuid, expiration.toString());
         QRCodeWriter qrWriter = new QRCodeWriter();
         BitMatrix bitMatrix = qrWriter.encode(payload, BarcodeFormat.QR_CODE, 300, 300);
         ByteArrayOutputStream pngOutputStream = new ByteArrayOutputStream();
@@ -43,11 +44,16 @@ public class PresenceService {
     @Transactional
     public Presence enregistrerPresence(String payload, Long etudiantId) {
         String[] parts = payload.split(":");
-        if (parts.length < 4 || !parts[0].equals("GENUC") || !parts[1].equals("PRESENCE")) {
+        if (parts.length < 5 || !parts[0].equals("GENUC") || !parts[1].equals("PRESENCE")) {
             throw new RuntimeException("QR code invalide");
         }
         Long coursId = Long.parseLong(parts[2]);
         Long seanceId = parts[3].equals("0") ? null : Long.parseLong(parts[3]);
+        LocalDateTime expiration = LocalDateTime.parse(parts[4]);
+
+        if (LocalDateTime.now().isAfter(expiration)) {
+            throw new RuntimeException("QR code expiré");
+        }
 
         Cours cours = coursRepository.findById(coursId)
                 .orElseThrow(() -> new RuntimeException("Cours introuvable"));

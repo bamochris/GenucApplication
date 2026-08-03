@@ -120,12 +120,15 @@ public class PalmaresService {
 
             List<EtudiantMoyenne> moyennes = new ArrayList<>();
             for (Inscription ins : etudiants) {
+                Deliberation delib = deliberationRepo
+                        .findByInscriptionIdAndAnneeAcademique(ins.getId(), annee)
+                        .orElse(null);
+                if (delib == null || delib.getStatut() != Deliberation.StatutDeliberation.PUBLIEE) {
+                    continue;
+                }
                 Double moyenne = noteRepo.calculerMoyenneGenerale(ins.getId(), annee);
                 if (moyenne != null && moyenne >= seuil) {
-                    Deliberation delib = deliberationRepo
-                            .findByInscriptionIdAndAnneeAcademique(ins.getId(), annee)
-                            .orElse(null);
-                    if (delib != null && delib.getMention() != null) {
+                    if (delib.getMention() != null) {
                         String mention = delib.getMention().name();
                         if (mention.equals("DISTINCTION") || mention.equals("GRANDE_DISTINCTION")
                                 || mention.equals("TRES_GRANDE_DISTINCTION")) {

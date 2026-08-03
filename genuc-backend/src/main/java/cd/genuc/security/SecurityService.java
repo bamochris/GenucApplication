@@ -89,8 +89,26 @@ public class SecurityService {
             return estSonInscription(utilisateur, inscriptionId);
         }
 
-        // Personnel : cloisonnement par établissement.
-        return estDansSonUniversite(utilisateur, inscriptionId);
+        // Personnel : cloisonnement par établissement puis par département si défini.
+        if (!estDansSonUniversite(utilisateur, inscriptionId)) {
+            return false;
+        }
+
+        Long departementAppelant = utilisateur.getDepartementId();
+        if (departementAppelant == null) {
+            return true;
+        }
+
+        ProprietaireInscription cible = inscriptionRepository.findProprietaire(inscriptionId).orElse(null);
+        if (cible == null || cible.getDepartementId() == null) {
+            return true;
+        }
+
+        boolean autorise = departementAppelant.equals(cible.getDepartementId());
+        if (!autorise) {
+            journaliserRefus(utilisateur, inscriptionId, "inscription d'un autre département");
+        }
+        return autorise;
     }
 
     /** Variante sans {@code Authentication} explicite, pour un appel depuis une couche service. */

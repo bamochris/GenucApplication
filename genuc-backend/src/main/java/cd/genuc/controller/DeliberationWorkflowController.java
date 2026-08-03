@@ -10,6 +10,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -117,7 +118,18 @@ public class DeliberationWorkflowController {
         if (inscriptionId == null) {
             return ResponseEntity.badRequest().body(Map.of("erreur", "Aucune inscription associée"));
         }
-        return ResponseEntity.ok(workflow.getResultatsEtudiant(inscriptionId, anneeAcademique));
+        try {
+            return ResponseEntity.ok(workflow.getResultatsEtudiant(inscriptionId, anneeAcademique));
+        } catch (RuntimeException e) {
+            // Un étudiant pas encore délibéré n'est pas une panne. Le service lève
+            // une exception dans ce cas, qui ressortait en 500 pour TOUT nouvel
+            // inscrit consultant ses résultats — le cas le plus courant en début
+            // d'année. On répond « pas encore de résultats », que l'écran sait
+            // présenter comme un état vide.
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of(
+                "erreur", "Aucun résultat de délibération pour l'année " + anneeAcademique,
+                "code", "DELIBERATION_ABSENTE"));
+        }
     }
 
     @GetMapping("/etudiant/pdf")

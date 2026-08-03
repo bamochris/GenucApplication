@@ -19,6 +19,9 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 import java.util.Map;
 import java.util.stream.Collectors;
+import org.springframework.web.bind.MissingServletRequestParameterException;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 
 @Slf4j
 @RestControllerAdvice
@@ -130,6 +133,36 @@ public class GlobalExceptionHandler {
         log.warn("Ressource non trouvée : {}", e.getMessage());
         return erreur(HttpStatus.NOT_FOUND,
             e.getResourceType().toUpperCase() + "_NOT_FOUND", e.getMessage());
+    }
+
+    // ─── ERREURS CLIENT MAL CLASSÉES (400 / 405) ─────────────────
+    //
+    // Sans ces trois gestionnaires, une requête mal formée par l'appelant
+    // ressortait en 500 INTERNAL_ERROR : un paramètre requis oublié, un
+    // identifiant non numérique dans l'URL ou un verbe HTTP inadapté étaient
+    // présentés comme une panne serveur. Constaté le 03/08/2026 en parcourant
+    // les portails. Conséquence : le client ne sait pas que la faute est chez
+    // lui, et la supervision compte des pannes qui n'en sont pas.
+
+    @ExceptionHandler(MissingServletRequestParameterException.class)
+    public ResponseEntity<?> handleParametreManquant(MissingServletRequestParameterException e) {
+        log.warn("Paramètre requis absent : {}", e.getParameterName());
+        return erreur(HttpStatus.BAD_REQUEST, "PARAMETRE_MANQUANT",
+            "Le paramètre « " + e.getParameterName() + " » est obligatoire.");
+    }
+
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<?> handleTypeInvalide(MethodArgumentTypeMismatchException e) {
+        log.warn("Type invalide pour « {} » : {}", e.getName(), e.getValue());
+        return erreur(HttpStatus.BAD_REQUEST, "PARAMETRE_INVALIDE",
+            "La valeur fournie pour « " + e.getName() + " » n'est pas du type attendu.");
+    }
+
+    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+    public ResponseEntity<?> handleMethodeNonSupportee(HttpRequestMethodNotSupportedException e) {
+        log.warn("Méthode {} non supportée sur cette route", e.getMethod());
+        return erreur(HttpStatus.METHOD_NOT_ALLOWED, "METHODE_NON_AUTORISEE",
+            "La méthode " + e.getMethod() + " n'est pas autorisée sur cette ressource.");
     }
 
     // ─── VALIDATION (400) ────────────────────────────────────────

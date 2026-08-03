@@ -2,6 +2,7 @@ package cd.genuc.repository;
 
 import cd.genuc.model.Paiement;
 import cd.genuc.model.Paiement.StatutPaiement;
+import cd.genuc.model.Paiement.TypePaiement;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
@@ -25,6 +26,8 @@ public interface PaiementRepository extends JpaRepository<Paiement, Long> {
     List<Paiement> findByInscriptionId(Long inscriptionId);
 
     List<Paiement> findByInscriptionIdAndStatut(Long inscriptionId, StatutPaiement statut);
+
+    List<Paiement> findByInscriptionIdAndTypeAndStatutIn(Long inscriptionId, TypePaiement type, List<StatutPaiement> statuts);
 
     List<Paiement> findByUniversiteId(Long universiteId);
 

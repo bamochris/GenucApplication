@@ -34,14 +34,14 @@ public interface NoteRepository extends JpaRepository<Note, Long> {
     
     Optional<Note> findByInscriptionIdAndCoursIdAndAnneeAcademiqueAndSession(Long inscriptionId, Long coursId, String anneeAcademique, Integer session);
     
-    @Query("SELECT n FROM Note n WHERE n.inscription.id = :inscriptionId AND n.anneeAcademique = :annee AND n.statut = 'VALIDEE'")
+    @Query("SELECT n FROM Note n WHERE n.inscription.id = :inscriptionId AND n.anneeAcademique = :annee AND n.statut = 'PUBLIEE'")
     List<Note> notesValideesPourDeliberation(@Param("inscriptionId") Long inscriptionId, @Param("annee") String annee);
     
     // ✅ UNIQUE méthode calculerMoyenneGenerale (l'autre a été supprimée)
-    @Query("SELECT AVG(n.noteRetenue) FROM Note n WHERE n.inscription.id = :inscriptionId AND n.anneeAcademique = :annee AND n.statut = 'VALIDEE'")
+    @Query("SELECT AVG(n.noteRetenue) FROM Note n WHERE n.inscription.id = :inscriptionId AND n.anneeAcademique = :annee AND n.statut = 'PUBLIEE'")
     Double calculerMoyenneGenerale(@Param("inscriptionId") Long inscriptionId, @Param("annee") String annee);
     
-    @Query("SELECT SUM(n.credits) FROM Note n WHERE n.inscription.id = :inscriptionId AND n.anneeAcademique = :annee AND n.noteRetenue >= 10 AND n.statut = 'VALIDEE'")
+    @Query("SELECT SUM(n.credits) FROM Note n WHERE n.inscription.id = :inscriptionId AND n.anneeAcademique = :annee AND n.noteRetenue >= 10 AND n.statut = 'PUBLIEE'")
     Integer sumCreditsValides(@Param("inscriptionId") Long inscriptionId, @Param("annee") String annee);
     
     // ═════════════ MÉTHODES POUR STATS ═════════════

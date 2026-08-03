@@ -18,6 +18,10 @@ public interface DossierInscriptionRepository extends JpaRepository<DossierInscr
 
     boolean existsByEmail(String email);
 
+    boolean existsByTelephone(String telephone);
+
+    boolean existsByMatricule(String matricule);
+
     long countByUniversiteId(Long universiteId);
 
     // Attribution des dossiers à un agent d'admissions (round-robin par charge).

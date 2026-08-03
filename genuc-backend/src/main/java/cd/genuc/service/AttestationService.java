@@ -61,6 +61,15 @@ public class AttestationService {
 
         verifierFraisDocumentaire(inscriptionId, type);
 
+        if (type == Attestation.TypeAttestation.DIPLOME) {
+            Deliberation delib = deliberationRepo.findByInscriptionIdAndAnneeAcademique(inscriptionId, inscription.getAnneeAcademique().getLibelle())
+                    .orElse(null);
+            if (delib == null || delib.getDecision() != Deliberation.DecisionJury.DIPLOME || delib.getStatut() != Deliberation.StatutDeliberation.PUBLIEE) {
+                throw new BusinessException("DIPLOME_NON_DISPONIBLE",
+                        "Le diplôme n'est pas disponible : délibération non publiée ou décision différente de DIPLOME.");
+            }
+        }
+
         boolean existeEnAttente = attestationRepo.existsByInscriptionIdAndTypeAndStatut(
                 inscriptionId, type, Attestation.StatutAttestation.EN_ATTENTE);
         if (existeEnAttente) {

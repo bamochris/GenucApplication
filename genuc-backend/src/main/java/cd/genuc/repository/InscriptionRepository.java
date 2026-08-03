@@ -26,13 +26,15 @@ public interface InscriptionRepository extends JpaRepository<Inscription, Long> 
         String getEmailInscription();
         String getEmailEtudiant();
         String getMatricule();
+        Long getDepartementId();
     }
 
     @Query("""
            SELECT i.universite.id AS universiteId,
                   i.email         AS emailInscription,
                   e.email         AS emailEtudiant,
-                  i.matricule     AS matricule
+                  i.matricule     AS matricule,
+                  i.departement.id AS departementId
            FROM Inscription i LEFT JOIN i.etudiant e
            WHERE i.id = :id
            """)
