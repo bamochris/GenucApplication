@@ -22,7 +22,10 @@ export default function PasswordConfirmModal({ title, message, confirmLabel = 'C
     setVerification(true);
     setErreur('');
     try {
-      await api.post('/api/auth/verifier-mot-de-passe', { motDePasse });
+      // Le backend lit le champ `ancienMotDePasse` (DTO PasswordChangeRequest
+      // partagé avec le changement de mot de passe) : envoyer `motDePasse`
+      // faisait répondre 400 « Mot de passe requis » quel que soit la saisie.
+      await api.post('/api/auth/verifier-mot-de-passe', { ancienMotDePasse: motDePasse });
       await onConfirm();
       onClose();
     } catch (err) {
