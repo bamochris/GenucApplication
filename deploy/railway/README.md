@@ -137,3 +137,40 @@ répondent 503, la caisse et toute la scolarité fonctionnent. Détail dans
   conserver dossiers, TFC et photos, il faut attacher un volume Railway sur
   `/app/uploads`, ou basculer le stockage sur S3.
 - Le plan d'essai limite la mémoire ; le backend démarre à environ 1 Go.
+
+---
+
+## Pièges vérifiés en production
+
+Tous constatés sur ce déploiement, tous corrigés dans le dépôt. À relire avant
+de déboguer un symptôme voisin.
+
+**Le déploiement automatique du backend était désactivé.** Le frontend, lui,
+l'avait. Un correctif poussé pouvait donc être « livré » sans jamais atteindre
+la production : le service affichait un déploiement vieux de plusieurs heures.
+Vérifier Settings → Source → « Auto deploys when pushed to GitHub » sur
+**chaque** service.
+
+**Nginx évalue les locations REGEX avant les locations préfixe.** La règle de
+cache des assets (`~* \.(js|css|png|jpg|…)$`) capturait toute requête `/api/`
+finissant par une extension d'image : les fichiers téléversés répondaient 404
+en `.jpg` et `.png`, alors que les mêmes chemins en `.pdf` fonctionnaient. D'où
+`location ^~ /api/`, qui fait gagner le préfixe. Même modificateur sur
+`/uploads/`.
+
+**`/uploads/` doit être proxifié séparément.** Le backend y sert l'identité
+visuelle (logos, sceaux, certificats) sans authentification — un `<img src>` ne
+transmet aucun en-tête. Sans location dédiée, ces requêtes tombaient sur la
+règle SPA et renvoyaient `index.html`.
+
+**`GET /api/auth/moi` doit renvoyer le profil complet.** Le frontend reconstitue
+toute sa session à partir de cet appel au chargement de la page. Quand il ne
+renvoyait qu'`email` + `roles`, `user.role` était indéfini et toute route
+protégée basculait sur `/forbidden` — au premier rafraîchissement seulement,
+puisque la réponse de login porte le profil complet. `universiteId` et
+`inscriptionId` manquaient de même, lus par 68 et 45 écrans.
+
+**Les variables `REACT_APP_*` sont figées au build.** Non passée au
+`docker build`, `REACT_APP_API_BASE_URL` retombait sur `http://localhost:8082`
+et l'interface affichait « Hors ligne » alors que l'API répondait. Le Dockerfile
+passe désormais une valeur vide, qui signifie « même origine ».
