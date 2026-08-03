@@ -21,6 +21,7 @@ import java.util.stream.Collectors;
 public class UniversiteService {
 
     private final UniversiteRepository universiteRepo;
+    private final InscriptionRepository inscriptionRepo;
     private final FaculteRepository faculteRepo;
     private final DepartementRepository departementRepo;
     private final FiliereRepository filiereRepo;
@@ -37,13 +38,38 @@ public class UniversiteService {
     @Transactional(readOnly = true)
     @Cacheable(value = CacheNames.UNIVERSITES_PUBLIQUES, key = "'actives'")
     public List<Universite> listerToutes() {
-        return universiteRepo.findAllActifesOrdered();
+        return avecEffectifs(universiteRepo.findAllActifesOrdered());
     }
 
     @Transactional(readOnly = true)
     @Cacheable(value = CacheNames.UNIVERSITES_PUBLIQUES, key = "'inscriptions-ouvertes'")
     public List<Universite> listerInscriptionsOuvertes() {
-        return universiteRepo.findByInscriptionsOuvertesTrue();
+        return avecEffectifs(universiteRepo.findByInscriptionsOuvertesTrue());
+    }
+
+    /**
+     * Renseigne l'effectif étudiant de chaque établissement de la liste.
+     *
+     * <p>Appelé À L'INTÉRIEUR des méthodes cachées, à dessein : enrichir après
+     * coup reviendrait à muter les instances rendues par le cache — celles de
+     * Caffeine sont partagées entre requêtes concurrentes. La contrepartie est
+     * que l'effectif suit le TTL du cache (15 min pour universites-publiques),
+     * ce qui est sans conséquence pour un chiffre de vitrine.</p>
+     *
+     * <p>Une seule requête groupée, quel que soit le nombre d'établissements.</p>
+     */
+    private List<Universite> avecEffectifs(List<Universite> universites) {
+        if (universites == null || universites.isEmpty()) {
+            return universites;
+        }
+        Map<Long, Long> effectifs = new HashMap<>();
+        for (Object[] ligne : inscriptionRepo.compterEtudiantsValidesParUniversite()) {
+            effectifs.put((Long) ligne[0], (Long) ligne[1]);
+        }
+        // Un etablissement sans inscription validee est absent du resultat :
+        // il doit afficher 0, pas un tiret.
+        universites.forEach(u -> u.setNbEtudiants(effectifs.getOrDefault(u.getId(), 0L)));
+        return universites;
     }
 
     @Transactional(readOnly = true)

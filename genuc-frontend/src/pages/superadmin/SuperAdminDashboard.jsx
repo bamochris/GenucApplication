@@ -84,9 +84,14 @@ export default function SuperAdminDashboard() {
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
+      // ⚠️ NE PAS lire /api/universites/public ici : HttpCacheConfig lui pose
+      // « public, max-age=60, stale-while-revalidate=300 », donc le navigateur
+      // resservait sa copie en cache après chaque écriture et le tableau
+      // affichait l'état d'AVANT l'action. /api/universites/admin renvoie la
+      // même liste au SUPER_ADMIN mais en « no-store ».
       const [statsRes, universitesRes] = await Promise.all([
         api.get('/api/super-admin/stats'),
-        api.get('/api/universites/public')
+        api.get('/api/universites/admin')
       ]);
       setStats(statsRes.data || {});
       setUniversites(universitesRes.data || []);
@@ -109,10 +114,15 @@ export default function SuperAdminDashboard() {
 
   const toggleInscriptions = async (id) => {
     try {
-      await api.patch(`/api/universites/${id}/inscriptions`);
-      const universitesRes = await api.get('/api/universites/public');
+      // La réponse du PATCH porte déjà l'état résultant : on l'applique tout de
+      // suite pour que le badge suive le toast, sans dépendre du rechargement.
+      const { data } = await api.patch(`/api/universites/${id}/inscriptions`);
+      setUniversites(prev => prev.map(u =>
+        u.id === id ? { ...u, inscriptionsOuvertes: data.inscriptionsOuvertes } : u
+      ));
+      const universitesRes = await api.get('/api/universites/admin');
       setUniversites(universitesRes.data);
-      toast.success('Statut des inscriptions mis à jour');
+      toast.success(data.message || 'Statut des inscriptions mis à jour');
     } catch (err) {
       toast.error(err.response?.data?.message || 'Erreur lors de la mise à jour');
     }
@@ -244,7 +254,10 @@ export default function SuperAdminDashboard() {
             actions={[
               { icon: '🏛️', label: 'Enregistrer une université', to: '/superadmin/enregistrement-universite', color: '#185FA5', bg: '#E6F1FB', description: 'Ajouter une nouvelle université à la plateforme nationale.', applyLabel: 'Ouvrir le formulaire' },
               { icon: '🎓', label: 'Universités', to: '/universites', color: '#1D9E75', bg: '#E1F5EE', description: 'Consulter et gérer les universités.', applyLabel: 'Ouvrir les universités' },
-              { icon: '📋', label: 'Dossiers', to: '/admin/dossiers', color: '#854F0B', bg: '#FAEEDA', description: 'Consulter les dossiers d\'inscription.', applyLabel: 'Ouvrir les dossiers' },
+              // Pas d'action « Dossiers » ici : /admin/dossiers est réservée à
+              // ADMIN_UNIVERSITE + SECRETAIRE_ACADEMIQUE, le SUPER_ADMIN y était
+              // renvoyé vers « Accès refusé ».
+              { icon: '👥', label: "Admins d'universités", to: '/super-admin/admins-universites', color: '#854F0B', bg: '#FAEEDA', description: "Créer et gérer les comptes administrateurs d'université.", applyLabel: 'Ouvrir la gestion' },
               { icon: '🏆', label: 'Palmarès', to: '/admin/generer-palmares', color: '#6B21A8', bg: '#F3E8FF', description: 'Générer le palmarès national.', applyLabel: 'Ouvrir le palmarès' },
             ]}
           />

@@ -25,11 +25,11 @@ const universiteService = {
   getStats: (id) =>
     api.get(`/api/universites/${id}/stats`),
 
-  getUniversiteComplete: (id) =>
-    api.get(`/api/super-admin/universites/${id}/complet`),
-
-  getDashboard: () =>
-    api.get('/api/super-admin/dashboard'),
+  // Retirés : `getUniversiteComplete` visait GET /api/super-admin/universites/{id}/complet
+  // et `getDashboard` visait GET /api/super-admin/dashboard. Aucun de ces deux
+  // chemins n'existe côté backend (SuperAdminController n'expose que /stats,
+  // /stats/universites, /stats/completes, /stats/paiements-mensuels et
+  // POST /universites) : les câbler aurait produit un 404.
 
   // ── SUPER_ADMIN / ADMIN_UNIVERSITE ──────────────────────────
   modifier: (id, data) =>

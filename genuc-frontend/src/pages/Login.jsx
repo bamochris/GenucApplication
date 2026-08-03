@@ -499,30 +499,11 @@ export default function Login() {
             Connectez-vous pour accéder à vos services académiques et administratifs.
           </p>
 
-          {/* Statistiques */}
-          <div className="login-stats">
-            <div className="login-stat">
-              <div className="stat-num">5</div>
-              <div className="stat-lbl">Universités</div>
-            </div>
-            <div className="login-stat">
-              <div className="stat-num">10K+</div>
-              <div className="stat-lbl">Utilisateurs</div>
-            </div>
-            <div className="login-stat">
-              <div className="stat-num">99.9%</div>
-              <div className="stat-lbl">Disponibilité</div>
-            </div>
-          </div>
-
-          {/* Logos universités */}
-          <div className="login-uni-logos">
-            <span>UNIKIN</span>
-            <span>UNILU</span>
-            <span>HEC-KIN</span>
-            <span>UNIKIN</span>
-            <span>UPN</span>
-          </div>
+          {/* Les statistiques « 5 universités / 10K+ utilisateurs / 99,9 % de
+              disponibilité » et le bandeau UNIKIN·UNILU·HEC-KIN·UPN ont été
+              retirés : chiffres et établissements inventés, affichés sans
+              condition sur la page d'accueil de la plateforme nationale.
+              À réintroduire uniquement adossés à des compteurs réels. */}
 
           {/* Section confiance */}
           <div className="login-trust-section">

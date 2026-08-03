@@ -212,6 +212,42 @@ public class Universite {
     @Builder.Default
     private List<String> promotions = new ArrayList<>();
 
+    // ════════════════════════════════════════════════════════════
+    //  COMPTEURS EXPOSÉS AUX FICHES PUBLIQUES
+    // ════════════════════════════════════════════════════════════
+    //
+    // Les cartes d'établissement affichaient un tiret partout : elles lisent
+    // nbFacultes/nbDepartements/nbEtudiants, que l'API ne renvoyait pas.
+    //
+    // Les deux premiers sont dérivés des listes saisies au formulaire
+    // d'enregistrement — la source retenue, parce qu'elle reflète exactement ce
+    // que l'établissement a déclaré. Les entités Departement et Filiere, elles,
+    // ne sont pas alimentées par cet enregistrement : s'en servir afficherait
+    // zéro (voir la note sur la désynchronisation du référentiel).
+
+    /** Nombre de facultés ou sections déclarées. Dérivé : jamais stocké. */
+    public int getNbFacultes() {
+        return facultes == null ? 0 : facultes.size();
+    }
+
+    /** Nombre de départements déclarés, toutes facultés confondues. */
+    public int getNbDepartements() {
+        return departements == null ? 0 : departements.size();
+    }
+
+    /**
+     * Effectif étudiant réel : inscriptions VALIDE de l'établissement.
+     *
+     * <p>Renseigné par le service lors des listages publics, et non calculé ici :
+     * il demande une requête, et l'exposer en dérivé sur l'entité provoquerait
+     * une requête par établissement à chaque sérialisation.</p>
+     *
+     * <p>Reste nul tant qu'aucune inscription n'est validée — un zéro affiché
+     * vaut mieux qu'un chiffre inventé.</p>
+     */
+    @Transient
+    private Long nbEtudiants;
+
     // ─── Relations existantes ──────────────────────────────────
     // Pas de CascadeType.REMOVE : supprimer une université ne doit JAMAIS emporter
     // les inscriptions des étudiants (la FK en base bloquera, c'est voulu — la

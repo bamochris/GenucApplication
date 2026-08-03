@@ -567,9 +567,10 @@ function UniCard({ uni, selected, onClick }) {
       {/* Stats */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8, marginBottom: 14 }}>
         {[
-          { label: 'Facultés',  val: uni.nbDepartements || '—' },
-          { label: 'Filières',  val: uni.nbFilieres     || '—' },
-          { label: 'Étudiants', val: uni.nbEtudiants ? (uni.nbEtudiants > 999 ? `${(uni.nbEtudiants / 1000).toFixed(1)}k` : uni.nbEtudiants) : '—' },
+          // Champs réellement renvoyés par l'API (voir UniversitesPubliques.jsx).
+          { label: 'Facultés',     val: uni.nbFacultes ?? '—' },
+          { label: 'Départements', val: uni.nbDepartements ?? '—' },
+          { label: 'Étudiants',    val: uni.nbEtudiants == null ? '—' : (uni.nbEtudiants > 999 ? `${(uni.nbEtudiants / 1000).toFixed(1)}k` : uni.nbEtudiants) },
         ].map(s => (
           <div key={s.label} style={{ textAlign: 'center', padding: '8px 4px', background: 'var(--bg-secondary)', borderRadius: 10 }}>
             <div style={{ fontSize: 15, fontWeight: 800, color: uc.bg }}>{s.val}</div>
@@ -581,7 +582,7 @@ function UniCard({ uni, selected, onClick }) {
       {/* Pied de carte */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span style={{ padding: '3px 10px', borderRadius: 20, background: uc.light, color: uc.bg, fontSize: 11, fontWeight: 700 }}>
-          {uni.type || 'Université'}
+          {uni.typeEtablissement || 'Établissement'}
         </span>
         <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: selected ? uc.bg : 'var(--text-muted)', fontWeight: selected ? 700 : 400, transition: 'all 0.2s' }}>
           {selected ? 'Sélectionnée ✓' : 'Voir les filières'} <FaChevronRight style={{ fontSize: 9 }} />
@@ -811,12 +812,3 @@ function SkeletonCard() {
   );
 }
 
-/* ── Données démo (fallback si API vide) ─────────────────────── */
-const UNIVERSITES_DEMO = [
-  { id: 1, code: 'UNIKIN',  nom: 'Université de Kinshasa',           ville: 'Kinshasa',   type: 'Université publique', nbDepartements: 12, nbFilieres: 48, nbEtudiants: 22000 },
-  { id: 2, code: 'UPN',     nom: 'Université Pédagogique Nationale', ville: 'Kinshasa',   type: 'Université publique', nbDepartements: 8,  nbFilieres: 24, nbEtudiants: 12000 },
-  { id: 3, code: 'UNILU',   nom: 'Université de Lubumbashi',         ville: 'Lubumbashi', type: 'Université publique', nbDepartements: 10, nbFilieres: 38, nbEtudiants: 18000 },
-  { id: 4, code: 'HEC-KIN', nom: 'HEC - Hautes Études Commerciales', ville: 'Kinshasa',   type: 'Institut supérieur', nbDepartements: 5,  nbFilieres: 15, nbEtudiants: 4500  },
-  { id: 5, code: 'ISP',     nom: 'Institut Supérieur Pédagogique',   ville: 'Kinshasa',   type: 'Institut supérieur', nbDepartements: 6,  nbFilieres: 20, nbEtudiants: 8000  },
-  { id: 6, code: 'ISIPA',   nom: 'ISIPA - Institut Supérieur Info.', ville: 'Kinshasa',   type: 'Institut spécialisé', nbDepartements: 4, nbFilieres: 12, nbEtudiants: 3200  },
-];

@@ -26,11 +26,13 @@ export default function Universites() {
   // Fonction de chargement des universités (avec filtrage selon le rôle)
   const chargerUniversites = () => {
     setChargement(true);
-    // Si SUPER_ADMIN, on utilise l'endpoint public (toutes les universités)
-    // Sinon (ADMIN_UNIVERSITE), on utilise l'endpoint admin qui retourne uniquement son université
-    const url = isSuperAdmin ? '/api/universites/public' : '/api/universites/admin';
-    
-    api.get(url)
+    // /api/universites/admin sert les deux rôles : liste complète pour le
+    // SUPER_ADMIN, sa seule université pour l'ADMIN_UNIVERSITE. On ne passe
+    // plus par /api/universites/public pour le super admin : cet endpoint est
+    // marqué « public, max-age=60 » (HttpCacheConfig), donc le navigateur y
+    // resservait une copie périmée juste après une écriture — l'ouverture des
+    // inscriptions semblait ne pas prendre effet.
+    api.get('/api/universites/admin')
       .then(r => {
         // La réponse peut être un tableau ou, pour /admin, une liste contenant une université
         const data = Array.isArray(r.data) ? r.data : [];

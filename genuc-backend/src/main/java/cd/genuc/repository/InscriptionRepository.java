@@ -123,6 +123,27 @@ public interface InscriptionRepository extends JpaRepository<Inscription, Long> 
     long countByStatutAndUniversiteActifTrue(StatutInscription statut);
     long countByUniversiteActifTrue();
 
+    /**
+     * Effectif étudiant par établissement, en UNE requête.
+     *
+     * <p>Alimente le compteur des fiches publiques. Compter établissement par
+     * établissement produirait une requête par carte affichée — le listage
+     * public en montre autant qu'il y a d'universités actives.</p>
+     *
+     * <p>Seules les inscriptions VALIDE comptent : une demande en attente ou
+     * rejetée n'est pas un étudiant.</p>
+     *
+     * @return couples [universiteId, effectif] ; un établissement sans aucune
+     *         inscription validée est simplement absent du résultat.
+     */
+    @Query("""
+           SELECT i.universite.id, COUNT(i)
+             FROM Inscription i
+            WHERE i.statut = cd.genuc.model.StatutInscription.VALIDE
+            GROUP BY i.universite.id
+           """)
+    List<Object[]> compterEtudiantsValidesParUniversite();
+
     // ══════════════════════════════════════════════════════════════
     // MÉTHODES POUR LE MODULE DÉLIBÉRATION
     // ══════════════════════════════════════════════════════════════

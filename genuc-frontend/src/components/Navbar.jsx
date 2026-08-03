@@ -222,8 +222,10 @@ export const LINKS_CONFIG = {
   SUPER_ADMIN: [
     { to: '/super-admin/dashboard', icon: 'home', label: 'Dashboard national', ariaLabel: 'Aller au Dashboard national' },
     { to: '/universites', icon: 'university', label: 'Universités', ariaLabel: 'Gérer les universités' },
-    { to: '/admin/dossiers', icon: 'clipboard-list', label: 'Dossiers', ariaLabel: 'Consulter les dossiers' },
-    { to: '/inscriptions', icon: 'file-alt', label: 'Inscriptions', ariaLabel: 'Gérer les inscriptions' },
+    // Ni « Dossiers » ni « Inscriptions » ici : /admin/dossiers est réservée à
+    // ADMIN_UNIVERSITE + SECRETAIRE_ACADEMIQUE (le SUPER_ADMIN tombait sur
+    // « Accès refusé »), et /inscriptions est le formulaire PUBLIC de dépôt de
+    // candidature, pas un écran de gestion.
     { to: '/paiements', icon: 'credit-card', label: 'Paiements', ariaLabel: 'Consulter les paiements' },
     { to: '/cours', icon: 'video', label: 'Cours en ligne', ariaLabel: 'Accéder aux cours en ligne' },
     { to: '/notes', icon: 'chart-bar', label: 'Notes', ariaLabel: 'Consulter les notes' },

@@ -190,7 +190,7 @@ export default function UniversitesPubliques() {
           {/* Stats */}
           <div style={{ display: 'flex', justifyContent: 'center', gap: 36, marginTop: 36, flexWrap: 'wrap' }}>
             {[
-              { val: universites.length > 0 ? `${universites.length}+` : '0', label: 'Universités' },
+              { val: universites.length, label: 'Établissements' },
               { val: '120+', label: 'Facultés' },
               { val: '480+', label: 'Filières' },
               { val: '48 000+', label: 'Étudiants' },
@@ -419,9 +419,14 @@ function UniCard({ uni, selected, onClick }) {
       {/* Stats */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8, marginBottom: 14 }}>
         {[
-          { label: 'Facultés',   val: uni.nbDepartements || '—' },
-          { label: 'Filières',   val: uni.nbFilieres     || '—' },
-          { label: 'Étudiants',  val: uni.nbEtudiants ? (uni.nbEtudiants > 999 ? `${(uni.nbEtudiants/1000).toFixed(1)}k` : uni.nbEtudiants) : '—' },
+          // Champs réellement renvoyés par /api/universites/public : nbFacultes et
+          // nbDepartements sont dérivés des listes saisies à l'enregistrement,
+          // nbEtudiants compte les inscriptions VALIDE. On affiche 0 plutôt qu'un
+          // tiret : un établissement neuf a bien zéro étudiant, ce n'est pas une
+          // donnée manquante.
+          { label: 'Facultés',    val: uni.nbFacultes ?? '—' },
+          { label: 'Départements', val: uni.nbDepartements ?? '—' },
+          { label: 'Étudiants',   val: uni.nbEtudiants == null ? '—' : (uni.nbEtudiants > 999 ? `${(uni.nbEtudiants/1000).toFixed(1)}k` : uni.nbEtudiants) },
         ].map(s => (
           <div key={s.label} style={{ textAlign: 'center', padding: '8px 4px', background: 'var(--bg-secondary)', borderRadius: 10 }}>
             <div style={{ fontSize: 15, fontWeight: 800, color: uc.bg }}>{s.val}</div>
@@ -433,7 +438,7 @@ function UniCard({ uni, selected, onClick }) {
       {/* Badge accréditation + bouton */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span style={{ padding: '3px 10px', borderRadius: 20, background: uc.light, color: uc.bg, fontSize: 11, fontWeight: 700 }}>
-          {uni.type || 'Université'}
+          {uni.typeEtablissement || 'Établissement'}
         </span>
         <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: selected ? uc.bg : 'var(--text-muted)', fontWeight: selected ? 700 : 400, transition: 'all 0.2s' }}>
           {selected ? 'Sélectionnée ✓' : 'Explorer'} <FaChevronRight style={{ fontSize: 9 }} />
