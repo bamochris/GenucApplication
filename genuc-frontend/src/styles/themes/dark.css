@@ -548,6 +548,14 @@
   color: #f1f5f9;
 }
 
+/* L'étape EN COURS portait `color: #0B1F4A` (bleu nuit) via
+   `.progress-step.active .step-number`, dont la spécificité l'emportait sur la
+   règle générique ci-dessous : sur fond sombre, son numéro devenait illisible —
+   la barre semblait commencer à « 2 ». */
+[data-theme="dark"] .progress-step.active .step-number {
+  color: #e2e8f0;
+}
+
 [data-theme="dark"] .sous-titre,
 [data-theme="dark"] .step-number,
 [data-theme="dark"] .champ label,

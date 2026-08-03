@@ -43,7 +43,10 @@ function LogoGenuc({ taille, rayon }) {
     <img
       src="/assets/logo-genuc.png"
       alt="GENUC"
-      style={{ ...base, objectFit: 'contain', background: 'white' }}
+      // Fond bleu nuit de la marque (et non blanc) : la pastille s'intègre à la
+      // barre de titre et au pied de page au lieu d'y découper un carré clair.
+      // Le retrait intérieur évite que le logo touche les bords de la pastille.
+      style={{ ...base, objectFit: 'contain', background: C.navy, padding: Math.round(taille * 0.12) }}
       onError={() => setErreur(true)}
     />
   );

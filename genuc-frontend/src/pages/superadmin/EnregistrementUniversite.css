@@ -108,7 +108,16 @@
 /* ===== GRILLE DE CHAMPS ===== */
 .champs {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  /* Colonnes pilotées par la largeur RÉELLEMENT DISPONIBLE, et non par celle du
+     viewport. `1fr 1fr` imposait deux colonnes quoi qu'il arrive : sur
+     téléphone, la piste de gauche s'écrasait à ~50 px (intitulés coupés lettre
+     par lettre, champs réduits à un chevron) parce qu'un `1fr` vaut
+     `minmax(auto, 1fr)` — la piste de droite, dont le contenu a une largeur
+     minimale plus grande, prenait tout le reste.
+     Avec `auto-fit` : deux colonnes tant qu'il y a la place pour deux fois
+     360 px, une seule en dessous. Le `min(360px, 100%)` évite qu'un conteneur
+     plus étroit que 360 px ne provoque à son tour un dépassement. */
+  grid-template-columns: repeat(auto-fit, minmax(min(360px, 100%), 1fr));
   gap: 18px 24px;
 }
 .champ {
@@ -170,7 +179,8 @@
 }
 .autorite-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  /* Même correctif que `.champs` : deux colonnes seulement s'il y a la place. */
+  grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr));
   gap: 12px 20px;
 }
 
@@ -458,9 +468,18 @@
 .tree-control .tag-input {
   display: flex;
   gap: 8px;
+  /* Le bouton « Ajouter département » est en `white-space: nowrap` (~150 px) et
+     le champ a une largeur intrinsèque d'environ 180 px : la ligne réclamait
+     donc ~340 px de minimum, à l'intérieur d'un nœud d'arbre déjà décalé par
+     ses retraits. Elle débordait, et le bouton se retrouvait coupé au bord
+     droit. On l'autorise à passer à la ligne. */
+  flex-wrap: wrap;
 }
 .tree-control .tag-input input {
-  flex: 1;
+  flex: 1 1 180px;
+  /* Sans `min-width: 0`, `flex: 1` ne peut PAS réduire le champ sous sa largeur
+     intrinsèque : c'est ce qui poussait la ligne au-delà du conteneur. */
+  min-width: 0;
   padding: 6px 10px;
   border: 1.5px solid #d1d5db;
   border-radius: 6px;
@@ -694,7 +713,8 @@
   .btn-primary,
   .btn-annuler,
   .btn-submit,
-  .btn-ajouter-promo {
+  .btn-ajouter-promo,
+  .tree-control .tag-input button {
     min-height: 44px;
     width: 100%;
     justify-content: center;
