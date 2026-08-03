@@ -153,7 +153,13 @@
 /* ── Hero ────────────────────────────────────────────── */
 .hero-section {
   position: relative;
+  /* `100vh` sur mobile inclut la hauteur de la barre d'adresse, même quand
+     elle est visible : la bannière dépassait donc l'écran, le bas du contenu
+     était coupé, et la page sautait au moment où la barre se rétracte.
+     `100svh` (small viewport height) mesure la zone RÉELLEMENT visible.
+     La déclaration `100vh` reste en repli pour les navigateurs antérieurs. */
   min-height: 100vh;
+  min-height: 100svh;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -199,7 +205,11 @@
 
 .hero-title {
   font-family: 'Montserrat', sans-serif;
-  font-size: 100px;
+  /* Typographie fluide : la taille suit la largeur de l'écran en continu, au
+     lieu de sauter de 100 px à 42 px au franchissement d'un point de rupture.
+     Entre les deux (tablettes, petits portables), le titre était démesuré.
+     Bornes : 36 px sur le plus petit téléphone, 100 px sur grand écran. */
+  font-size: clamp(36px, 11vw, 100px);
   font-weight: 700;
   color: #ffffff;
   margin-bottom: 10px;
@@ -619,9 +629,7 @@
 
 /* ── Responsive ────────────────────────────────────────── */
 @media (max-width: 768px) {
-  .hero-title {
-    font-size: 42px;
-  }
+  /* `.hero-title` n'est plus redéfini ici : `clamp()` s'en charge en continu. */
   .hero-subtitle {
     font-size: 14px;
     letter-spacing: 3px;
@@ -1521,4 +1529,88 @@
   .features-section {
     padding: 50px 20px;
   }
+}
+/* ═══════════════════════════════════════════════════════════════
+   TÉLÉPHONES — finition
+   Complète les points de rupture existants là où ils laissaient des
+   marges intérieures de grand écran ou des cibles trop petites au doigt.
+   Référence : 360 px de large (TECNO, Infinix, itel), 320 px sur l'entrée
+   de gamme.
+   ═══════════════════════════════════════════════════════════════ */
+@media (max-width: 640px) {
+  /* `padding: 100px 40px` amputait la section de 80 px sur 360 : il ne
+     restait que 280 px au contenu. Aucun point de rupture ne la traitait. */
+  .cta-section {
+    padding: 56px 18px;
+  }
+
+  .home-topbar {
+    padding: 10px 14px;
+  }
+
+  /* Les boutons empilés occupent la largeur : cibles franches, pas de
+     colonne de boutons de largeurs inégales. */
+  .cta-buttons {
+    width: 100%;
+  }
+
+  .cta-btn-primary,
+  .cta-btn-secondary {
+    width: 100%;
+    max-width: 320px;
+    min-height: 48px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .footer-links {
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .footer-links a {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+  }
+}
+
+@media (max-width: 400px) {
+  .features-section {
+    padding: 40px 14px;
+  }
+
+  .feature-card {
+    padding: 20px 16px;
+  }
+
+  /* Le séparateur vertical entre statistiques n'a plus de sens une fois les
+     éléments répartis sur plusieurs lignes : il produisait des barres
+     orphelines en fin de ligne. */
+  .stat-divider {
+    display: none;
+  }
+
+  .stats-container {
+    gap: 14px 22px;
+  }
+}
+
+/* Titres et intitulés : jamais de mot qui force la largeur de la page.
+   Un nom d'établissement ou un intitulé long sans espace débordait sinon,
+   et le débordement se voyait sur toute la page (défilement horizontal). */
+.hero-title,
+.hero-description,
+.section-title,
+.section-subtitle,
+.feature-title,
+.cta-content h3 {
+  overflow-wrap: break-word;
+}
+
+/* Aucune image de la page ne peut dépasser son conteneur. */
+.home-page img {
+  max-width: 100%;
+  height: auto;
 }

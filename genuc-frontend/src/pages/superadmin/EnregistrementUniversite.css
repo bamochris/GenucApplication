@@ -555,6 +555,17 @@
 }
 
 /* ===== RESPONSIVE ===== */
+@media (max-width: 900px) {
+  /* `!important` assumé : c'est le filet de sécurité de la mise en page. Deux
+     colonnes sous 900 px écrasent la piste de gauche à ~50 px (intitulés
+     coupés lettre par lettre, champs réduits à un chevron). Aucune règle,
+     présente ou future, ne doit pouvoir rétablir deux colonnes ici. */
+  .champs,
+  .autorite-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
 @media (max-width: 768px) {
   .champs {
     grid-template-columns: 1fr;
