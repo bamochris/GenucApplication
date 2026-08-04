@@ -13,6 +13,24 @@
    Les classes visées (inscription-panel / -entete / -etapes / -corps) ont été
    ajoutées au JSX pour servir de points d'accroche. */
 
+/* ── Barre d'accent des titres de section ──────────────────────────
+   Même langage visuel que le liseré latéral des encarts : le titre porte
+   sa barre à la couleur de marque, qui suit --title-brand (bleu en thème
+   clair, blanc en sombre). Rendue en ::before plutôt qu'en élément du JSX
+   pour ne rien ajouter à l'arbre lu par les lecteurs d'écran — la barre
+   est décorative.
+
+   Le conteneur est `display: flex; align-items: center; gap: 8px` : le
+   ::before devient un élément de la ligne et l'espacement vient du gap. */
+.insc-titre-section::before {
+  content: '';
+  flex: 0 0 auto;
+  width: 4px;
+  height: 15px;
+  border-radius: 2px;
+  background: var(--title-brand);
+}
+
 /* ── Téléphones et petites tablettes ───────────────────────────── */
 @media (max-width: 768px) {
   /* Le conteneur .page ajoute 24 px de chaque côté : sur 360 px il ne reste

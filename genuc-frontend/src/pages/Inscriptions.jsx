@@ -101,6 +101,17 @@ const S = {
   grid2: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '10px' },
   full: { gridColumn: 'span 2' },
   section: { marginBottom: '22px' },
+  // Section présentée en carte : les groupes de champs se suivaient sans
+  // délimitation, séparés par un simple filet sous le titre. Sur une étape qui
+  // en enchaîne trois ou quatre, on ne voyait plus où finissait « Comment vous
+  // joindre » ni où commençait « Personne à prévenir ».
+  bloc: {
+    background: 'var(--bg-card)',
+    border: '1px solid var(--border-color)',
+    borderRadius: '14px',
+    padding: '18px 20px 8px',
+    marginBottom: '16px',
+  },
   sectionTitle: {
     fontSize: '14px',
     fontWeight: 700,
@@ -910,8 +921,8 @@ export default function Inscriptions() {
     <div>
       <EnteteEtape etape={ETAPES[0]} />
 
-      <div style={S.section}>
-        <div style={S.sectionTitle}><span>Votre identité</span></div>
+      <div style={S.bloc}>
+        <div className="insc-titre-section" style={S.sectionTitle}><span>Votre identité</span></div>
         <div className="insc-grid2" style={S.grid2}>
           <F label="Nom" name="nom" required value={form.nom} onChange={handleChange} onBlur={handleBlur} error={fieldTouched.nom && erreurs.nom} />
           <F label="Post-nom" name="postnom" value={form.postnom} onChange={handleChange} onBlur={handleBlur} />
@@ -925,8 +936,8 @@ export default function Inscriptions() {
         </div>
       </div>
 
-      <div style={S.section}>
-        <div style={S.sectionTitle}><span>Comment vous joindre</span></div>
+      <div style={S.bloc}>
+        <div className="insc-titre-section" style={S.sectionTitle}><span>Comment vous joindre</span></div>
         {dossierExistant && (
           <Encart ton="attention" icone="⚠️" titre="Un dossier existe déjà pour cette adresse">
             Dossier <strong>{dossierExistant.numeroDossier}</strong>
@@ -949,8 +960,8 @@ export default function Inscriptions() {
         </div>
       </div>
 
-      <div style={S.section}>
-        <div style={S.sectionTitle}><span>Personne à prévenir en cas d'urgence</span></div>
+      <div style={S.bloc}>
+        <div className="insc-titre-section" style={S.sectionTitle}><span>Personne à prévenir en cas d'urgence</span></div>
         <p style={{ ...S.hint, marginTop: -12, marginBottom: 14 }}>
           Un parent, un tuteur ou un proche que l'établissement pourra contacter — une seule personne suffit.
         </p>
@@ -966,7 +977,7 @@ export default function Inscriptions() {
       </div>
 
       {/* ─── Ce qui suit est facultatif : replié par défaut ─── */}
-      <div style={{ ...S.sectionTitle, marginTop: 26 }}>
+      <div className="insc-titre-section" style={{ ...S.sectionTitle, marginTop: 26 }}>
         <span>Compléments</span>
         <span style={S.badgeFacultatif}>Vous pourrez les ajouter plus tard</span>
       </div>
@@ -1009,7 +1020,7 @@ export default function Inscriptions() {
         rempliInitialement={!!(form.pereNom || form.mereNom || form.tuteurNom)}
       >
         <div style={S.section}>
-          <div style={S.sectionTitle}><span>Père</span></div>
+          <div className="insc-titre-section" style={S.sectionTitle}><span>Père</span></div>
           <div className="insc-grid2" style={S.grid2}>
             <F label="Nom complet" name="pereNom" value={form.pereNom} onChange={handleChange} />
             <F label="Profession" name="pereProfession" value={form.pereProfession} onChange={handleChange} />
@@ -1017,7 +1028,7 @@ export default function Inscriptions() {
           </div>
         </div>
         <div style={S.section}>
-          <div style={S.sectionTitle}><span>Mère</span></div>
+          <div className="insc-titre-section" style={S.sectionTitle}><span>Mère</span></div>
           <div className="insc-grid2" style={S.grid2}>
             <F label="Nom complet" name="mereNom" value={form.mereNom} onChange={handleChange} />
             <F label="Profession" name="mereProfession" value={form.mereProfession} onChange={handleChange} />
@@ -1025,7 +1036,7 @@ export default function Inscriptions() {
           </div>
         </div>
         <div style={S.section}>
-          <div style={S.sectionTitle}><span>Tuteur</span></div>
+          <div className="insc-titre-section" style={S.sectionTitle}><span>Tuteur</span></div>
           <div className="insc-grid2" style={S.grid2}>
             <F label="Nom complet" name="tuteurNom" value={form.tuteurNom} onChange={handleChange} />
             <F label="Lien de parenté" name="tuteurLien" value={form.tuteurLien} onChange={handleChange} />
@@ -1074,7 +1085,11 @@ export default function Inscriptions() {
         </Encart>
       )}
       {/* Année académique — toujours à choisir ici */}
-      <div style={S.section}>
+      {/* Année, établissement, filière et niveau forment UNE décision : les
+          présenter en quatre sections nues laissait quatre grilles flotter sans
+          délimitation. Une seule carte les rassemble. */}
+      <div style={S.bloc}>
+        <div className="insc-titre-section" style={S.sectionTitle}><span>Votre choix de formation</span></div>
         <div className="insc-grid2" style={S.grid2}>
           <Sel label="Année académique" name="anneeAcademiqueId" required disabled={prefilled && !!form.anneeAcademiqueId} value={form.anneeAcademiqueId} onChange={handleChange} error={fieldTouched.anneeAcademiqueId && erreurs.anneeAcademiqueId}>
             <option value="">-- Sélectionner --</option>
@@ -1082,7 +1097,6 @@ export default function Inscriptions() {
           </Sel>
           <div />
         </div>
-      </div>
 
       {academicPreset ? (
         /* Université / département / filière déjà choisis à l'étape précédente :
@@ -1113,31 +1127,29 @@ export default function Inscriptions() {
           </div>
         </div>
       ) : (
+        /* Les sélecteurs vivent maintenant DANS la carte : pas d'enveloppe
+           S.section supplémentaire, dont la marge de 22 px creusait des trous
+           entre des champs qui forment une cascade continue. */
         <>
-          <div style={S.section}>
-            <div className="insc-grid2" style={S.grid2}>
-              <Sel label="Université" name="universiteId" required value={form.universiteId} onChange={handleChange} error={fieldTouched.universiteId && erreurs.universiteId}>
-                <option value="">-- Sélectionner --</option>
-                {universites.map(u => <option key={u.id} value={u.id}>{u.nom}</option>)}
-              </Sel>
-              <Sel label="Département" name="departementId" required disabled={loadingDepts} value={form.departementId} onChange={handleChange} error={fieldTouched.departementId && erreurs.departementId}>
-                <option value="">-- {loadingDepts ? 'Chargement...' : 'Sélectionner'} --</option>
-                {departements.map(d => <option key={d.id} value={d.id}>{d.nom}</option>)}
-              </Sel>
-            </div>
+          <div className="insc-grid2" style={S.grid2}>
+            <Sel label="Université" name="universiteId" required value={form.universiteId} onChange={handleChange} error={fieldTouched.universiteId && erreurs.universiteId}>
+              <option value="">-- Sélectionner --</option>
+              {universites.map(u => <option key={u.id} value={u.id}>{u.nom}</option>)}
+            </Sel>
+            <Sel label="Département" name="departementId" required disabled={loadingDepts} value={form.departementId} onChange={handleChange} error={fieldTouched.departementId && erreurs.departementId}>
+              <option value="">-- {loadingDepts ? 'Chargement...' : 'Sélectionner'} --</option>
+              {departements.map(d => <option key={d.id} value={d.id}>{d.nom}</option>)}
+            </Sel>
           </div>
-          <div style={S.section}>
-            <div className="insc-grid2" style={S.grid2}>
-              <Sel label="Filière" name="filiereId" required disabled={loadingFilieres} value={form.filiereId} onChange={handleChange} error={fieldTouched.filiereId && erreurs.filiereId}>
-                <option value="">-- {loadingFilieres ? 'Chargement...' : 'Sélectionner'} --</option>
-                {filieres.map(f => <option key={f.id} value={f.id}>{f.nom}</option>)}
-              </Sel>
-              <div />
-            </div>
+          <div className="insc-grid2" style={S.grid2}>
+            <Sel label="Filière" name="filiereId" required disabled={loadingFilieres} value={form.filiereId} onChange={handleChange} error={fieldTouched.filiereId && erreurs.filiereId}>
+              <option value="">-- {loadingFilieres ? 'Chargement...' : 'Sélectionner'} --</option>
+              {filieres.map(f => <option key={f.id} value={f.id}>{f.nom}</option>)}
+            </Sel>
+            <div />
           </div>
         </>
       )}
-      <div style={S.section}>
         <div className="insc-grid2" style={S.grid2}>
           <Sel label="Niveau visé" name="niveau" required value={form.niveau} onChange={handleChange} error={fieldTouched.niveau && erreurs.niveau}>
             <option value="">-- Sélectionner --</option>
@@ -1149,13 +1161,13 @@ export default function Inscriptions() {
             <option value="TRANSFERT">Transfert</option>
           </Sel>
         </div>
-      </div>
+      </div>{/* fin de la carte « Votre choix de formation » */}
       {/* Vacation demandée UNIQUEMENT si l'établissement propose au moins deux
           vacations (choix Jour/Soir) ; une seule vacation est auto-sélectionnée,
           et sans vacation les frais viennent de l'université. */}
       {vacations.length >= 2 && (
-        <div style={S.section}>
-          <div style={S.sectionTitle}><span>🕐 Vacation</span></div>
+        <div style={{ ...S.bloc, paddingBottom: 20 }}>
+          <div className="insc-titre-section" style={S.sectionTitle}><span>🕐 Vacation</span></div>
           <p style={{ ...S.hint, marginBottom: 14 }}>
             Cette filière propose deux vacations. Choisissez la vôtre — les <strong>frais d'inscription</strong> peuvent en dépendre.
           </p>
@@ -1220,8 +1232,8 @@ export default function Inscriptions() {
           demandés d'emblée — l'année conditionne l'obligation du code EXETAT,
           elle ne peut donc pas être rangée hors de vue. Le reste (numéro du
           diplôme, moyenne, option) part en facultatif. */}
-      <div style={S.section}>
-        <div style={S.sectionTitle}><span>Votre diplôme du secondaire</span></div>
+      <div style={S.bloc}>
+        <div className="insc-titre-section" style={S.sectionTitle}><span>Votre diplôme du secondaire</span></div>
         <div className="insc-grid2" style={S.grid2}>
           <F label="École secondaire" name="ecoleSecondaire" value={form.ecoleSecondaire} onChange={handleChange} />
           <F label="Année d'obtention" name="anneeObtention" type="number" inputMode="numeric" placeholder="2025"
@@ -1273,7 +1285,7 @@ export default function Inscriptions() {
     };
     return (
       <div>
-        <div style={S.sectionTitle}><span>Documents à joindre</span></div>
+        <div className="insc-titre-section" style={S.sectionTitle}><span>Documents à joindre</span></div>
 
         {/* Bandeau d'information (formats + provenance de la liste) */}
         <Encart ton="info" icone="💡" titre="Comment joindre vos pièces">
