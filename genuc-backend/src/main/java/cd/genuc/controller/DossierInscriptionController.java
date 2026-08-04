@@ -100,16 +100,20 @@ public class DossierInscriptionController {
 
             DossierInscription dossier = inscriptionPubliqueService.soumettreDossierCompletAvecDocuments(request, fichiers);
             log.info("✅ Dossier (avec documents) soumis - Numéro : {}", dossier.getNumeroDossier());
-            return ResponseEntity.status(HttpStatus.CREATED).body(Map.of(
-                "message", "Dossier soumis avec succès",
-                "numeroDossier", dossier.getNumeroDossier(),
-                "id", dossier.getId(),
-                "statut", dossier.getStatut(),
-                "email", dossier.getEmail(),
-                "dateSoumission", dossier.getCreeLe(),
-                "paymentLink", "/paiement-tachpay?dossier=" + dossier.getNumeroDossier(),
-                "paymentExpiresAt", dossier.getCreeLe() != null ? dossier.getCreeLe().plusHours(72) : null
-            ));
+            Map<String, Object> corps = new LinkedHashMap<>();
+            corps.put("message", "Dossier soumis avec succès");
+            corps.put("numeroDossier", dossier.getNumeroDossier());
+            corps.put("id", dossier.getId());
+            corps.put("statut", dossier.getStatut());
+            corps.put("email", dossier.getEmail());
+            corps.put("dateSoumission", dossier.getCreeLe());
+            corps.put("paymentLink", "/paiement-tachpay?dossier=" + dossier.getNumeroDossier());
+            corps.put("paymentExpiresAt", dossier.getCreeLe() != null ? dossier.getCreeLe().plusHours(72) : null);
+            // Map.of refuse les valeurs nulles ; LinkedHashMap les accepte et
+            // conserve l'ordre. Ce drapeau dit à la page de confirmation si
+            // l'accusé de réception est réellement parti.
+            corps.put("accuseReceptionEnvoye", dossier.getAccuseReceptionEnvoye());
+            return ResponseEntity.status(HttpStatus.CREATED).body(corps);
         } catch (IllegalArgumentException e) {
             log.warn("⚠️ Données invalides : {}", e.getMessage());
             return ResponseEntity.badRequest().body(Map.of("erreur", "Données invalides", "details", e.getMessage()));

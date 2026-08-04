@@ -164,6 +164,14 @@ public class DossierInscription {
     @Transient
     private Boolean testAdmissionRequis;
 
+    // Champ calculé (non persisté) renseigné à la soumission : l'accusé de
+    // réception est-il réellement parti par e-mail ? L'envoi est non bloquant —
+    // le dossier est enregistré même si le serveur de messagerie est injoignable —
+    // mais le candidat doit être averti, car cet e-mail porte son numéro de
+    // dossier, indispensable pour payer et suivre son inscription.
+    @Transient
+    private Boolean accuseReceptionEnvoye;
+
     // ──────────────────────────────────────────────────────────
     // Statut du dossier
     // ──────────────────────────────────────────────────────────

@@ -880,6 +880,10 @@ export default function Inscriptions() {
         deviseFrais: res.data.deviseInscription || 'USD',
         paymentLink: res.data.paymentLink || `/paiement-tachpay?dossier=${encodeURIComponent(res.data.numeroDossier || res.data.id)}`,
         paymentExpiresAt: res.data.paymentExpiresAt || null,
+        // false = le serveur de messagerie était injoignable. Le dossier est
+        // bien enregistré, mais le candidat ne recevra rien : il doit noter son
+        // numéro lui-même, sinon il ne pourra ni payer ni suivre son dossier.
+        accuseEnvoye: res.data.accuseReceptionEnvoye !== false,
       });
       setMsgSuccess('✅ Dossier soumis avec succès !');
     } catch (err) {
@@ -1497,6 +1501,16 @@ export default function Inscriptions() {
           <p style={{ color: 'var(--text-muted)', marginBottom: '24px' }}>
             Votre inscription a été <strong>reçue</strong> mais n'est <strong>pas encore traitée</strong>.
           </p>
+          {!dossier.accuseEnvoye && (
+            <div style={{ textAlign: 'left' }}>
+              <Encart ton="attention" icone="⚠️" titre="L'e-mail de confirmation n'a pas pu être envoyé">
+                Votre dossier est bien enregistré, mais l'accusé de réception n'est pas parti vers
+                {' '}<strong>{dossier.email}</strong>. <strong>Notez votre numéro de dossier ci-dessous</strong> :
+                il vous sera demandé pour payer et pour suivre votre inscription. Vous pouvez aussi
+                le retrouver depuis la page « Suivi du dossier » avec votre adresse e-mail.
+              </Encart>
+            </div>
+          )}
           <div style={{ background: 'rgba(24,95,165,0.12)', borderRadius: '12px', padding: '24px', marginBottom: '20px', textAlign: 'left' }}>
             <div style={{ marginBottom: '8px' }}><strong>👤 Étudiant :</strong> {dossier.prenom} {dossier.nom}</div>
             <div style={{ marginBottom: '8px' }}><strong>🎓 Filière :</strong> {dossier.filiere || '—'}</div>

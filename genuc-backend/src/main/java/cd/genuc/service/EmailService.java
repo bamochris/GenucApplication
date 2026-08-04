@@ -138,7 +138,8 @@ public class EmailService {
     }
 
         @Async
-        public void envoyerAccuseReceptionDossier(DossierInscription dossier,
+        /** @return vrai si l'accusé est parti, faux si l'envoi a échoué (non bloquant). */
+        public boolean envoyerAccuseReceptionDossier(DossierInscription dossier,
                                                                                             Universite universite,
                                                                                             String lienPaiement,
                                                                                             LocalDateTime expirationPaiement) {
@@ -200,9 +201,16 @@ public class EmailService {
                         helper.setText(html, true);
                         mailSender.send(mimeMessage);
                         log.info("Accuse de reception envoye a {} pour le dossier {}", dossier.getEmail(), dossier.getNumeroDossier());
+                        return true;
                 } catch (Exception e) {
-                        log.warn("Accuse de reception non envoye a {} pour le dossier {} : {}",
+                        // Reste NON bloquant : le dossier est déjà enregistré, faire échouer la
+                        // requête ferait perdre au candidat une saisie complète et ses pièces.
+                        // Mais l'issue est désormais REMONTÉE, car l'accusé de réception porte le
+                        // numéro de dossier : sans e-mail et sans avertissement, le candidat repart
+                        // sans rien pour suivre ni payer son inscription.
+                        log.error("Accuse de reception non envoye a {} pour le dossier {} : {}",
                                 dossier.getEmail(), dossier.getNumeroDossier(), e.getMessage());
+                        return false;
                 }
         }
 
@@ -1198,7 +1206,13 @@ public class EmailService {
             envoyerHtml(email, sujet + " — " + nomUni, html);
             log.info("Message du secrétariat envoyé à {}", email);
         } catch (Exception e) {
-            log.warn("Message secrétariat non envoyé à {} (non bloquant) : {}", email, e.getMessage());
+            // Ce message est une ACTION DÉLIBÉRÉE de l'agent, pas une notification
+            // de fond : l'avaler faisait répondre « Message envoyé au candidat par
+            // email » alors que rien ne partait. Le secrétariat croyait avoir
+            // communiqué. On propage pour que l'appelant réponde un échec.
+            log.error("Message secrétariat non envoyé à {} : {}", email, e.getMessage());
+            throw new RuntimeException(
+                "L'email n'a pas pu être envoyé à " + email + " : " + e.getMessage(), e);
         }
     }
 

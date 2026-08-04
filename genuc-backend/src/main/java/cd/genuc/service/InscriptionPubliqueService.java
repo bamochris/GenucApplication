@@ -1143,12 +1143,15 @@ public class InscriptionPubliqueService {
         Universite universite = dossier.getUniversiteId() != null
             ? universiteRepo.findById(dossier.getUniversiteId()).orElse(null)
             : null;
-        emailService.envoyerAccuseReceptionDossier(
+        boolean envoye = emailService.envoyerAccuseReceptionDossier(
             dossier,
             universite,
             buildPaymentLink(dossier),
             getPaymentLinkExpiration(dossier)
         );
+        // Champ @Transient : sert uniquement à ce que la réponse HTTP dise au
+        // candidat si l'e-mail est réellement parti. Rien n'est stocké en base.
+        dossier.setAccuseReceptionEnvoye(envoye);
     }
 
     private String buildPaymentLink(DossierInscription dossier) {
