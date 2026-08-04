@@ -21,14 +21,49 @@ const NIVEAUX = [
   { id: 'MASTER', libelle: 'Master' },
 ];
 
+// Trois étapes seulement : le parcours en six écrans faisait abandonner des
+// candidats avant la fin. Chaque étape porte une question en clair — un candidat
+// qui s'inscrit pour la première fois doit comprendre ce qu'on lui demande sans
+// avoir à deviner ce que « Finalisation » recouvre.
 const ETAPES = [
-  { num: 1, label: 'Identité',      icon: '👤' },
-  { num: 2, label: 'Académique',    icon: '🎓' },
-  { num: 3, label: 'Parents',       icon: '👨‍👩‍👧' },
-  { num: 4, label: 'Documents',     icon: '📎' },
-  { num: 5, label: 'Révision',      icon: '🔍' },
-  { num: 6, label: 'Finalisation',  icon: '🚀' },
+  {
+    num: 1,
+    label: 'Vous',
+    icon: '👤',
+    titre: 'Qui êtes-vous ?',
+    aide: "Votre identité et vos coordonnées. C'est à cette adresse e-mail que nous enverrons votre accusé de réception.",
+  },
+  {
+    num: 2,
+    label: 'Votre formation',
+    icon: '🎓',
+    titre: 'Que voulez-vous étudier ?',
+    aide: "L'établissement, la filière et le niveau visés, puis votre diplôme du secondaire.",
+  },
+  {
+    num: 3,
+    label: 'Documents & envoi',
+    icon: '📎',
+    titre: 'Vos pièces justificatives',
+    aide: 'Téléversez les documents demandés, relisez votre dossier, puis envoyez-le.',
+  },
 ];
+
+// Libellés lisibles des champs, pour nommer les manques dans le bandeau d'erreur.
+// Un message « corrigez les champs en rouge » n'aide pas quand le champ fautif se
+// trouve dans une section repliée ou plus bas dans la page.
+const LIBELLES_CHAMPS = {
+  nom: 'Nom', prenom: 'Prénom', dateNaissance: 'Date de naissance',
+  lieuNaissance: 'Lieu de naissance', email: 'Adresse e-mail',
+  telephone1: 'Téléphone principal',
+  urgenceNom: "Personne à prévenir en cas d'urgence",
+  urgenceTelephone: "Téléphone de la personne à prévenir",
+  anneeAcademiqueId: 'Année académique', universiteId: 'Établissement',
+  departementId: 'Département', filiereId: 'Filière', niveau: 'Niveau visé',
+  vacationId: 'Vacation', codeExetat: 'Code EXETAT',
+  certifie: "Certification de l'exactitude des informations",
+  accepteReglement: 'Acceptation du règlement intérieur',
+};
 
 // Le code EXETAT est obligatoire pour un Diplôme d'État obtenu en 2022 ou après.
 function exetatObligatoire(anneeObtention) {
@@ -57,7 +92,10 @@ const S = {
     border: '1.5px solid #ef4444',
     boxSizing: 'border-box',
     backgroundColor: 'rgba(220,53,69,0.10)',
-    color: '#1f2937',
+    // Le gris ardoise en dur (#1f2937) rendait la valeur saisie illisible en
+    // thème sombre : texte presque noir sur carte sombre, précisément dans le
+    // champ que l'on demande à l'utilisateur de corriger.
+    color: 'var(--text-primary)',
   },
   label: { display: 'block', marginBottom: '4px', fontWeight: 600, fontSize: '13px', color: 'var(--text-secondary)' },
   grid2: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '10px' },
@@ -66,7 +104,7 @@ const S = {
   sectionTitle: {
     fontSize: '14px',
     fontWeight: 700,
-    color: '#185FA5',
+    color: 'var(--title-brand)',
     textTransform: 'uppercase',
     letterSpacing: '0.5px',
     borderBottom: '2px solid var(--border-color)',
@@ -84,7 +122,7 @@ const S = {
     fontSize: '11px',
     fontWeight: 600,
     background: 'rgba(24,95,165,0.12)',
-    color: '#185FA5',
+    color: 'var(--title-brand)',
   },
   fileBox: {
     border: '2px dashed #cbd5e1',
@@ -103,14 +141,18 @@ const S = {
     background: 'rgba(29,158,117,0.12)',
     textAlign: 'center',
     fontSize: '13px',
-    color: '#1D9E75',
+    color: 'var(--color-success-text)',
   },
   revSection: {
     background: 'var(--bg-secondary)',
-    borderRadius: '12px',
+    borderRadius: '10px',
     padding: '20px',
-    marginBottom: '20px',
+    marginBottom: '16px',
     border: '1px solid var(--border-color)',
+    // Même liseré latéral que les encarts, en gris : le récapitulatif est un
+    // contenu neutre et se distingue ainsi des blocs bleus et ambrés voisins.
+    boxShadow: 'inset 4px 0 0 0 var(--text-muted)',
+    paddingLeft: '24px',
   },
   revHeader: {
     display: 'flex',
@@ -118,11 +160,13 @@ const S = {
     alignItems: 'center',
     marginBottom: '14px',
   },
-  revTitle: { fontWeight: 700, color: '#185FA5', fontSize: '15px' },
+  revTitle: { fontWeight: 700, color: 'var(--title-brand)', fontSize: '15px' },
   revEdit: {
     background: 'none',
-    border: '1px solid #185FA5',
-    color: '#185FA5',
+    // `currentColor` : la bordure suit --title-brand, sinon elle resterait bleu
+    // sombre autour d'un libellé blanc en thème sombre.
+    border: '1px solid currentColor',
+    color: 'var(--title-brand)',
     borderRadius: '6px',
     padding: '6px 14px',
     cursor: 'pointer',
@@ -136,6 +180,15 @@ const S = {
   revKey: { fontWeight: 600, color: 'var(--text-muted)', display: 'block', fontSize: '12px' },
   revVal: { color: 'var(--text-primary)', fontWeight: 500 },
   errorText: { color: '#ef4444', fontSize: '12px', marginTop: '4px', fontWeight: 500 },
+  // En-tête d'étape : la question posée, puis une phrase qui dit à quoi sert l'étape.
+  etapeTitre: { margin: '0 0 4px', color: 'var(--text-primary)', fontSize: '19px', fontWeight: 700 },
+  etapeAide: { margin: '0 0 20px', color: 'var(--text-muted)', fontSize: '13.5px', lineHeight: 1.6 },
+  // Pastille « Facultatif » : lever le doute est le meilleur allègement possible.
+  badgeFacultatif: {
+    fontSize: '10.5px', fontWeight: 700, letterSpacing: '0.3px',
+    background: 'var(--bg-secondary, #eef2f7)', color: 'var(--text-muted)',
+    borderRadius: '999px', padding: '2px 9px', textTransform: 'none',
+  },
 };
 
 // ─── Composants champs améliorés ──────────────────────────────
@@ -190,7 +243,11 @@ function Sel({ label, name, required, disabled, value, onChange, error, children
         disabled={disabled}
         style={{
           ...(error ? S.inputErr : S.input),
-          background: disabled ? 'var(--bg-secondary)' : 'var(--bg-card)',
+          // `backgroundColor` et non `background` : S.input/S.inputErr posent déjà
+          // `backgroundColor`, et mélanger la propriété raccourcie avec la propriété
+          // détaillée fait diverger React au re-rendu (avertissement en console, et
+          // à terme un fond qui ne suit plus l'état d'erreur).
+          backgroundColor: disabled ? 'var(--bg-secondary)' : 'var(--bg-card)',
           cursor: disabled ? 'not-allowed' : 'pointer',
         }}
         aria-invalid={!!error}
@@ -198,6 +255,108 @@ function Sel({ label, name, required, disabled, value, onChange, error, children
         {children}
       </select>
       {error && <div style={S.errorText}>{error}</div>}
+    </div>
+  );
+}
+
+/**
+ * Encarts d'information, distingués par un code couleur constant.
+ *
+ * Les blocs s'enchaînaient tous dans le même bleu pâle : conseils, exigences
+ * d'admission, suite du parcours et confirmation se fondaient en un seul pavé
+ * où l'on ne repérait plus ce qui était une consigne, un avertissement ou une
+ * bonne nouvelle. Chaque nature d'information porte désormais sa teinte et un
+ * liseré latéral qui marque la séparation.
+ *
+ *   info      (bleu)  — explication, mode d'emploi
+ *   attention (ambre) — ce qui exige une action ou une vigilance
+ *   erreur    (rouge) — ce qui bloque tant que ce n'est pas corrigé
+ *   succes    (vert)  — état conforme, étape franchie
+ *   neutre    (gris)  — récapitulatif, contenu sans jugement
+ */
+const TONS_ENCART = {
+  info:      { accent: 'var(--title-brand)',        fond: 'rgba(24,95,165,0.08)',  texte: 'var(--title-brand)' },
+  attention: { accent: '#C07A2B',                   fond: 'rgba(192,122,43,0.12)', texte: 'var(--color-warning-text)' },
+  erreur:    { accent: '#ef4444',                   fond: 'rgba(220,53,69,0.10)',  texte: 'var(--color-danger-text)' },
+  succes:    { accent: 'var(--color-success-text)', fond: 'rgba(29,158,117,0.10)', texte: 'var(--color-success-text)' },
+  neutre:    { accent: 'var(--border-color)',       fond: 'var(--bg-secondary)',   texte: 'var(--text-secondary)' },
+};
+
+function Encart({ ton = 'info', icone, titre, children, style }) {
+  const t = TONS_ENCART[ton] || TONS_ENCART.info;
+  return (
+    <div style={{
+      background: t.fond,
+      border: '1px solid var(--border-color)',
+      // Liseré d'accent en ombre interne plutôt qu'en `borderLeft` : `ton` change
+      // en cours de vie (encart d'envoi), et faire varier une propriété détaillée
+      // alors que la raccourcie `border` est posée fait diverger React au re-rendu.
+      boxShadow: `inset 4px 0 0 0 ${t.accent}`,
+      borderRadius: 10, padding: '13px 16px 13px 20px', marginBottom: 16,
+      ...style,
+    }}>
+      {titre && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 700, fontSize: 13, color: t.texte, marginBottom: 6 }}>
+          {icone && <span aria-hidden="true">{icone}</span>}
+          <span>{titre}</span>
+        </div>
+      )}
+      <div style={{ fontSize: 13, color: t.texte, lineHeight: 1.6 }}>{children}</div>
+    </div>
+  );
+}
+
+// En-tête d'étape : la question en clair + ce que l'étape attend.
+function EnteteEtape({ etape }) {
+  return (
+    <div>
+      <h3 style={S.etapeTitre}>{etape.icon} {etape.titre}</h3>
+      <p style={S.etapeAide}>{etape.aide}</p>
+    </div>
+  );
+}
+
+/**
+ * Bloc de champs FACULTATIFS, replié par défaut.
+ *
+ * L'étape « identité » empilait six sections dépliées (dont l'adresse, les deux
+ * parents, le tuteur et les informations sanitaires) : un mur de trente champs
+ * dont cinq seulement sont obligatoires. Replier l'accessoire ramène l'étape à
+ * l'essentiel tout en laissant l'information saisissable en un clic.
+ *
+ * Le bloc s'ouvre d'office quand il contient déjà une valeur — retour sur un
+ * brouillon : rien de ce que le candidat a saisi ne doit rester caché. Aucun
+ * champ obligatoire n'y est placé : un champ en erreur ne peut donc jamais se
+ * retrouver hors de vue.
+ */
+function BlocFacultatif({ titre, resume, rempliInitialement, children }) {
+  const [ouvert, setOuvert] = useState(!!rempliInitialement);
+
+  return (
+    <div style={{ border: '1px solid var(--border-color)', borderRadius: 12, marginBottom: 14, overflow: 'hidden', background: 'var(--bg-card)' }}>
+      <button
+        type="button"
+        onClick={() => setOuvert(o => !o)}
+        aria-expanded={ouvert}
+        style={{
+          width: '100%', display: 'flex', alignItems: 'center', gap: 10,
+          background: 'none', border: 'none', cursor: 'pointer',
+          padding: '13px 16px', textAlign: 'left', color: 'var(--text-primary)',
+        }}
+      >
+        <span style={{ fontSize: 13, color: 'var(--text-muted)', transform: ouvert ? 'rotate(90deg)' : 'none', transition: 'transform 0.2s' }}>▶</span>
+        <span style={{ flex: 1, minWidth: 0 }}>
+          <span style={{ fontWeight: 700, fontSize: 13.5 }}>{titre}</span>
+          <span style={{ ...S.badgeFacultatif, marginLeft: 8 }}>Facultatif</span>
+          {!ouvert && resume && (
+            <span style={{ display: 'block', fontSize: 12, color: 'var(--text-muted)', marginTop: 3 }}>{resume}</span>
+          )}
+        </span>
+        <span style={{ fontSize: 12, color: 'var(--title-brand)', fontWeight: 600, whiteSpace: 'nowrap' }}>
+          {ouvert ? 'Masquer' : 'Renseigner'}
+        </span>
+      </button>
+      {ouvert && <div style={{ padding: '4px 16px 8px', borderTop: '1px solid var(--border-color)' }}>{children}</div>}
     </div>
   );
 }
@@ -228,6 +387,11 @@ export default function Inscriptions() {
   const [fieldTouched, setFieldTouched] = useState({});
   const [showConfirmSubmit, setShowConfirmSubmit] = useState(false);
   const [showConfirmReset, setShowConfirmReset] = useState(false);
+  // Dossier déjà déposé avec cette adresse e-mail. Le backend refuse le doublon
+  // (« Un dossier existe déjà avec cet email »), mais il ne le disait qu'à
+  // l'envoi — après avoir rempli les trois étapes et téléversé les pièces. On
+  // pose la question dès la saisie de l'adresse.
+  const [dossierExistant, setDossierExistant] = useState(null);
   const topRef = useRef(null);
   // Premières exécutions des cascades : ne pas réinitialiser les champs restaurés du brouillon.
   const uniFirst = useRef(true);
@@ -296,6 +460,15 @@ export default function Inscriptions() {
       if (anneeId) setForm(p => ({ ...p, anneeAcademiqueId: anneeId }));
     }
   }, [searchParams]);
+
+  // Brouillon restauré : l'adresse est déjà dans le champ, aucun blur ne
+  // surviendra. Sans ce contrôle au montage, un candidat qui reprend un
+  // brouillon portant une adresse déjà déposée refait tout le parcours pour
+  // se faire refuser à l'envoi.
+  useEffect(() => {
+    if (form.email) verifierEmailDisponible(form.email);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- contrôle unique au montage
+  }, []);
 
   // ─── Chargement initial ──────────────────────────────────────
   useEffect(() => {
@@ -379,6 +552,8 @@ export default function Inscriptions() {
     const { name, value, type, checked, files } = e.target;
     setErreurs(p => ({ ...p, [name]: '' }));
     setFieldTouched(p => ({ ...p, [name]: true }));
+    // L'adresse change : le verdict précédent ne vaut plus (il sera réévalué au blur).
+    if (name === 'email') setDossierExistant(null);
     if (type === 'file') {
       const file = files[0];
       setForm(p => ({ ...p, [name]: file }));
@@ -391,8 +566,26 @@ export default function Inscriptions() {
   };
 
   const handleBlur = (e) => {
-    const { name } = e.target;
+    const { name, value } = e.target;
     setFieldTouched(p => ({ ...p, [name]: true }));
+    if (name === 'email') verifierEmailDisponible(value);
+  };
+
+  // Interroge le suivi public : 200 = un dossier existe pour cette adresse,
+  // 404 = elle est libre. Ne bloque rien en cas de panne réseau — le contrôle
+  // d'unicité côté serveur reste l'autorité, celui-ci n'est qu'un raccourci.
+  const verifierEmailDisponible = async (valeurEmail) => {
+    const adresse = (valeurEmail || '').trim().toLowerCase();
+    if (!adresse || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(adresse)) {
+      setDossierExistant(null);
+      return;
+    }
+    try {
+      const r = await api.get(`/api/dossiers/statut/email/${encodeURIComponent(adresse)}`);
+      setDossierExistant({ ...r.data, email: adresse });
+    } catch {
+      setDossierExistant(null);
+    }
   };
 
   // ─── Filière sélectionnée → exigences + documents prédéfinis ─
@@ -416,31 +609,41 @@ export default function Inscriptions() {
       if (!form.lieuNaissance.trim())    e.lieuNaissance = 'Le lieu de naissance est obligatoire.';
       if (!form.email.trim())            e.email = 'L\'email est obligatoire.';
       else if (!emailRegex.test(form.email)) e.email = 'Email invalide.';
+      // Le serveur refusera le doublon : autant l'annoncer ici plutôt qu'après
+      // le téléversement des pièces.
+      else if (dossierExistant && dossierExistant.email === form.email.trim().toLowerCase()) {
+        e.email = `Un dossier a déjà été déposé avec cette adresse (${dossierExistant.numeroDossier}). Utilisez une autre adresse, ou suivez le dossier existant.`;
+      }
       if (!form.telephone1.trim())       e.telephone1 = 'Le téléphone est obligatoire.';
       else if (!phoneRegex.test(form.telephone1)) e.telephone1 = 'Numéro de téléphone invalide.';
+      // Une seule personne à prévenir est exigée — souvent un parent, mais pas
+      // toujours : un candidat orphelin ou venu d'une autre province ne pouvait
+      // pas passer l'étape tant que « père ou mère » était imposé. Les parents
+      // restent saisissables, en facultatif.
+      if (!form.urgenceNom.trim()) {
+        e.urgenceNom = 'Indiquez une personne à prévenir en cas d\'urgence.';
+      }
+      if (!form.urgenceTelephone.trim()) {
+        e.urgenceTelephone = 'Le téléphone de cette personne est obligatoire.';
+      } else if (!phoneRegex.test(form.urgenceTelephone)) {
+        e.urgenceTelephone = 'Numéro de téléphone invalide.';
+      }
     }
     if (n === 2) {
-      // Ces IDs sont requis côté serveur : on les valide toujours (même en mode "prefilled",
-      // où un lien partiel pourrait laisser un champ vide → 400 à la soumission).
       if (!form.anneeAcademiqueId)  e.anneeAcademiqueId = 'Sélectionnez une année académique.';
       if (!form.universiteId)       e.universiteId = 'Sélectionnez une université.';
       if (!form.departementId)      e.departementId = 'Sélectionnez un département.';
       if (!form.filiereId)          e.filiereId = 'Sélectionnez une filière.';
       if (!form.niveau)             e.niveau = 'Sélectionnez un niveau.';
-      // Choix de vacation demandé seulement si l'établissement en propose au moins deux.
       if (vacations.length >= 2 && !form.vacationId) {
         e.vacationId = 'Cette filière propose deux vacations (Jour/Soir) : choisissez-en une.';
       }
-      // Code EXETAT obligatoire pour un Diplôme d'État obtenu en 2022 ou après.
       if (exetatObligatoire(form.anneeObtention) && !form.codeExetat.trim()) {
         e.codeExetat = 'Le code EXETAT est obligatoire pour un diplôme obtenu en 2022 ou après.';
       }
     }
-    if (n === 4) {
-      // Documents obligatoires définis par la filière (ou liste par défaut)
+    if (n === 3) {
       docsRequisActifs.filter(d => d.obligatoire).forEach(doc => {
-        // RDC : le diplôme d'État peut être remplacé par l'attestation de réussite
-        // tant que le ministère ne l'a pas encore délivré.
         if (doc.key === 'diplomeEtat') {
           if (!form.diplomeEtat && !form.attestationReussite) {
             e.diplomeEtat = "Fournissez le diplôme d'État, ou l'attestation de réussite si le diplôme n'est pas encore délivré.";
@@ -449,22 +652,36 @@ export default function Inscriptions() {
         }
         if (!form[doc.key]) e[doc.key] = `${libelleDocument(doc.key)} est obligatoire.`;
       });
-    }
-    if (n === 6) {
       if (!form.certifie) e.certifie = "Vous devez certifier l'exactitude des informations.";
       if (!form.accepteReglement) e.accepteReglement = 'Vous devez accepter le règlement intérieur.';
     }
     return e;
   };
 
+  // Nomme les champs manquants au lieu de renvoyer à « les champs en rouge » :
+  // le champ fautif peut se trouver dans un bloc facultatif replié ou hors écran.
+  const resumerManques = (e) => {
+    const noms = Object.keys(e).map(k => LIBELLES_CHAMPS[k] || libelleDocument(k));
+    if (noms.length === 1) return `⚠️ Il manque une information : ${noms[0]}.`;
+    return `⚠️ ${noms.length} informations à compléter : ${noms.join(', ')}.`;
+  };
+
   const valider = () => {
     const e = getErreursEtape(etape);
     setErreurs(e);
     if (Object.keys(e).length) {
-      setMsgGlobal('⚠️ Veuillez corriger les champs en rouge.');
-      // Faire défiler jusqu'au premier champ en erreur
-      const firstError = document.querySelector('[aria-invalid="true"]');
-      if (firstError) firstError.focus();
+      // Sans cela, un candidat qui clique « Suivant » sans rien remplir voyait le
+      // bandeau d'erreur mais AUCUN champ en rouge : les messages sont masqués
+      // tant que le champ n'a pas été touché. On les considère touchés dès qu'une
+      // validation les signale.
+      setFieldTouched(p => ({ ...p, ...Object.fromEntries(Object.keys(e).map(k => [k, true])) }));
+      setMsgGlobal(resumerManques(e));
+      // Mise au point sur le premier champ fautif (le rendu du rouge intervient
+      // au tour suivant : on attend la peinture pour que le sélecteur le trouve).
+      requestAnimationFrame(() => {
+        const premier = document.querySelector('[aria-invalid="true"]');
+        if (premier) premier.focus({ preventScroll: false });
+      });
       return false;
     }
     setMsgGlobal('');
@@ -475,7 +692,7 @@ export default function Inscriptions() {
   // au cas où des données saisies plus tôt auraient été modifiées entre-temps
   // sans repasser par la validation de leur étape d'origine).
   const validerTout = () => {
-    const etapesAValider = [1, 2, 4, 6];
+    const etapesAValider = [1, 2, 3];
     let toutesErreurs = {};
     let premiereEtapeEnErreur = null;
     etapesAValider.forEach(n => {
@@ -487,7 +704,9 @@ export default function Inscriptions() {
     });
     if (Object.keys(toutesErreurs).length) {
       setErreurs(toutesErreurs);
-      setMsgGlobal(`⚠️ Certaines informations sont invalides ou incomplètes (étape ${premiereEtapeEnErreur}). Veuillez vérifier votre dossier.`);
+      setFieldTouched(p => ({ ...p, ...Object.fromEntries(Object.keys(toutesErreurs).map(k => [k, true])) }));
+      const etapeFautive = ETAPES.find(x => x.num === premiereEtapeEnErreur);
+      setMsgGlobal(`${resumerManques(toutesErreurs)} (étape « ${etapeFautive?.label || premiereEtapeEnErreur} »)`);
       if (premiereEtapeEnErreur !== null) setEtape(premiereEtapeEnErreur);
       window.scrollTo({ top: 0, behavior: 'smooth' });
       return false;
@@ -510,18 +729,31 @@ export default function Inscriptions() {
   };
 
   const allerEtape = n => {
+    if (n === etape) return;
     if (n < etape) {
       setEtape(n);
       setMsgGlobal('');
       window.scrollTo({ top: 0, behavior: 'smooth' });
-    } else if (n > etape) {
-      // On ne peut avancer que si l'étape est validée
-      if (valider()) {
-        setEtape(n);
-        setMsgGlobal('');
+      return;
+    }
+    // En avant : valider TOUTES les étapes franchies, pas seulement l'étape
+    // courante. Cliquer la pastille 3 depuis l'étape 1 sautait la validation de
+    // l'étape 2 ; le manque n'apparaissait qu'à l'envoi.
+    for (let i = etape; i < n; i += 1) {
+      const e = getErreursEtape(i);
+      if (Object.keys(e).length) {
+        setErreurs(e);
+        setFieldTouched(p => ({ ...p, ...Object.fromEntries(Object.keys(e).map(k => [k, true])) }));
+        setMsgGlobal(resumerManques(e));
+        setEtape(i);
         window.scrollTo({ top: 0, behavior: 'smooth' });
+        return;
       }
     }
+    setErreurs({});
+    setMsgGlobal('');
+    setEtape(n);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const reinitialiserFormulaire = () => {
@@ -547,7 +779,7 @@ export default function Inscriptions() {
     if (!form.filiereId) idsManquants.push('filière');
     if (!form.anneeAcademiqueId) idsManquants.push('année académique');
     if (idsManquants.length) {
-      setMsgGlobal('❌ Champs obligatoires manquants : ' + idsManquants.join(', ') + '. Vérifiez l\'étape « Parcours académique ».');
+      setMsgGlobal('❌ Champs obligatoires manquants : ' + idsManquants.join(', ') + '. Vérifiez l\'étape « Votre formation ».');
       setEtape(2);
       return;
     }
@@ -641,9 +873,25 @@ export default function Inscriptions() {
       setMsgSuccess('✅ Dossier soumis avec succès !');
     } catch (err) {
       const data = err.response?.data;
-      console.error('❌ Soumission échouée:', data || err.message || err);
       const msg = data?.details || data?.message || data?.erreur || err.message || 'Erreur lors de la soumission.';
-      setMsgGlobal('❌ ' + msg);
+      // Le message brut en clair, et non l'objet : « ❌ Soumission échouée: Object »
+      // n'apprend rien tant qu'on ne déplie pas la console.
+      console.error('❌ Soumission échouée (HTTP %s) : %s', err.response?.status ?? '?', msg);
+
+      // Les refus les plus fréquents sont des règles d'unicité. Le message du
+      // serveur constate le problème sans dire quoi faire : on ajoute l'issue.
+      let conseil = '';
+      if (/existe déjà avec cet email|étudiant est déjà inscrit avec cet email/i.test(msg)) {
+        conseil = " Une seule candidature par adresse e-mail est acceptée : suivez le dossier existant depuis « Suivi du dossier », ou reprenez avec une autre adresse.";
+        setEtape(1);
+      } else if (/existe déjà avec ce numéro de téléphone/i.test(msg)) {
+        conseil = ' Ce numéro est déjà rattaché à un dossier dans cet établissement. Indiquez un autre numéro joignable.';
+        setEtape(1);
+      } else if (/vacation choisie n'est pas ouverte/i.test(msg)) {
+        conseil = " Les inscriptions de cette vacation viennent de fermer. Revenez à l'étape « Votre formation » pour en choisir une autre.";
+        setEtape(2);
+      }
+      setMsgGlobal('❌ ' + msg + conseil);
       // Remonter en haut du formulaire pour que la bannière d'erreur soit visible
       // (au moment de la soumission on est en bas, sur le bouton — sinon l'échec paraît muet).
       window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -655,13 +903,16 @@ export default function Inscriptions() {
 
   // ─── Fonctions de rendu des étapes ──────────────────────────
 
-  // ÉTAPE 1 : Identité (inchangée mais avec validation améliorée)
+  // ÉTAPE 1 : identité et contact.
+  // Ordre voulu : d'abord les six champs réellement obligatoires, ensuite tout
+  // l'accessoire (adresse, parents, tuteur, santé) rangé dans des blocs repliés.
   const renderEtape1 = () => (
     <div>
-      <h3 style={{ marginBottom: '12px', color: 'var(--text-primary)', fontSize: '17px' }}>👤 Informations personnelles</h3>
+      <EnteteEtape etape={ETAPES[0]} />
+
       <div style={S.section}>
-        <div style={S.sectionTitle}><span>État civil</span></div>
-        <div style={S.grid2}>
+        <div style={S.sectionTitle}><span>Votre identité</span></div>
+        <div className="insc-grid2" style={S.grid2}>
           <F label="Nom" name="nom" required value={form.nom} onChange={handleChange} onBlur={handleBlur} error={fieldTouched.nom && erreurs.nom} />
           <F label="Post-nom" name="postnom" value={form.postnom} onChange={handleChange} onBlur={handleBlur} />
           <F label="Prénom" name="prenom" required value={form.prenom} onChange={handleChange} onBlur={handleBlur} error={fieldTouched.prenom && erreurs.prenom} />
@@ -670,12 +921,62 @@ export default function Inscriptions() {
             <option value="F">Féminin</option>
           </Sel>
           <F label="Date de naissance" name="dateNaissance" type="date" required value={form.dateNaissance} onChange={handleChange} onBlur={handleBlur} error={fieldTouched.dateNaissance && erreurs.dateNaissance} />
-          <F label="Lieu de naissance" name="lieuNaissance" required value={form.lieuNaissance} onChange={handleChange} onBlur={handleBlur} error={fieldTouched.lieuNaissance && erreurs.lieuNaissance} />
+          <F label="Lieu de naissance" name="lieuNaissance" required value={form.lieuNaissance} onChange={handleChange} onBlur={handleBlur} error={fieldTouched.lieuNaissance && erreurs.lieuNaissance} hint="Ville ou territoire (ex. Kinshasa)" />
         </div>
       </div>
+
       <div style={S.section}>
-        <div style={S.sectionTitle}><span>Nationalité & État civil</span></div>
-        <div style={S.grid2}>
+        <div style={S.sectionTitle}><span>Comment vous joindre</span></div>
+        {dossierExistant && (
+          <Encart ton="attention" icone="⚠️" titre="Un dossier existe déjà pour cette adresse">
+            Dossier <strong>{dossierExistant.numeroDossier}</strong>
+            {dossierExistant.statut ? ` — statut : ${dossierExistant.statut}` : ''}.
+            {' '}Une seule candidature par adresse e-mail est acceptée.{' '}
+            <Link to="/suivi-dossier" style={{ color: 'inherit', fontWeight: 700 }}>Suivre ce dossier</Link>
+            {' '}ou saisissez une autre adresse.
+          </Encart>
+        )}
+        <div className="insc-grid2" style={S.grid2}>
+          <F label="Adresse e-mail" name="email" type="email" required
+             value={form.email} onChange={handleChange} onBlur={handleBlur}
+             error={fieldTouched.email && erreurs.email}
+             inputMode="email"
+             hint="Votre accusé de réception et le lien de paiement y seront envoyés." />
+          <F label="Téléphone principal" name="telephone1" type="tel" required
+             value={form.telephone1} onChange={handleChange} onBlur={handleBlur}
+             error={fieldTouched.telephone1 && erreurs.telephone1}
+             inputMode="tel" placeholder="+243 8XX XXX XXX" />
+        </div>
+      </div>
+
+      <div style={S.section}>
+        <div style={S.sectionTitle}><span>Personne à prévenir en cas d'urgence</span></div>
+        <p style={{ ...S.hint, marginTop: -12, marginBottom: 14 }}>
+          Un parent, un tuteur ou un proche que l'établissement pourra contacter — une seule personne suffit.
+        </p>
+        <div className="insc-grid2" style={S.grid2}>
+          <F label="Nom complet" name="urgenceNom" required
+             value={form.urgenceNom} onChange={handleChange} onBlur={handleBlur}
+             error={fieldTouched.urgenceNom && erreurs.urgenceNom} />
+          <F label="Téléphone" name="urgenceTelephone" type="tel" required
+             value={form.urgenceTelephone} onChange={handleChange} onBlur={handleBlur}
+             error={fieldTouched.urgenceTelephone && erreurs.urgenceTelephone}
+             inputMode="tel" placeholder="+243 8XX XXX XXX" />
+        </div>
+      </div>
+
+      {/* ─── Ce qui suit est facultatif : replié par défaut ─── */}
+      <div style={{ ...S.sectionTitle, marginTop: 26 }}>
+        <span>Compléments</span>
+        <span style={S.badgeFacultatif}>Vous pourrez les ajouter plus tard</span>
+      </div>
+
+      <BlocFacultatif
+        titre="Nationalité, état civil et téléphone secondaire"
+        resume="Congolaise · Célibataire par défaut"
+        rempliInitialement={!!form.telephone2}
+      >
+        <div className="insc-grid2" style={S.grid2}>
           <F label="Nationalité" name="nationalite" value={form.nationalite} onChange={handleChange} />
           <Sel label="État civil" name="etatCivil" value={form.etatCivil} onChange={handleChange}>
             <option value="Célibataire">Célibataire</option>
@@ -683,19 +984,16 @@ export default function Inscriptions() {
             <option value="Divorcé(e)">Divorcé(e)</option>
             <option value="Veuf/Veuve">Veuf/Veuve</option>
           </Sel>
+          <F label="Téléphone secondaire" name="telephone2" type="tel" inputMode="tel" value={form.telephone2} onChange={handleChange} />
         </div>
-      </div>
-      <div style={S.section}>
-        <div style={S.sectionTitle}><span>Coordonnées</span></div>
-        <div style={S.grid2}>
-          <F label="Email" name="email" type="email" required value={form.email} onChange={handleChange} onBlur={handleBlur} error={fieldTouched.email && erreurs.email} />
-          <F label="Téléphone principal" name="telephone1" required value={form.telephone1} onChange={handleChange} onBlur={handleBlur} error={fieldTouched.telephone1 && erreurs.telephone1} />
-          <F label="Téléphone secondaire" name="telephone2" value={form.telephone2} onChange={handleChange} />
-        </div>
-      </div>
-      <div style={S.section}>
-        <div style={S.sectionTitle}><span>Adresse de résidence</span></div>
-        <div style={S.grid2}>
+      </BlocFacultatif>
+
+      <BlocFacultatif
+        titre="Adresse de résidence"
+        resume="Province, ville, commune, quartier, avenue"
+        rempliInitialement={!!(form.province || form.ville || form.commune || form.quartier || form.avenue || form.numeroResidence)}
+      >
+        <div className="insc-grid2" style={S.grid2}>
           <F label="Province" name="province" value={form.province} onChange={handleChange} />
           <F label="Ville" name="ville" value={form.ville} onChange={handleChange} />
           <F label="Commune" name="commune" value={form.commune} onChange={handleChange} />
@@ -703,7 +1001,50 @@ export default function Inscriptions() {
           <F label="Avenue" name="avenue" value={form.avenue} onChange={handleChange} />
           <F label="N° de résidence" name="numeroResidence" value={form.numeroResidence} onChange={handleChange} />
         </div>
-      </div>
+      </BlocFacultatif>
+
+      <BlocFacultatif
+        titre="Parents et tuteur"
+        resume="Père, mère, tuteur légal"
+        rempliInitialement={!!(form.pereNom || form.mereNom || form.tuteurNom)}
+      >
+        <div style={S.section}>
+          <div style={S.sectionTitle}><span>Père</span></div>
+          <div className="insc-grid2" style={S.grid2}>
+            <F label="Nom complet" name="pereNom" value={form.pereNom} onChange={handleChange} />
+            <F label="Profession" name="pereProfession" value={form.pereProfession} onChange={handleChange} />
+            <F label="Téléphone" name="pereTelephone" type="tel" inputMode="tel" value={form.pereTelephone} onChange={handleChange} />
+          </div>
+        </div>
+        <div style={S.section}>
+          <div style={S.sectionTitle}><span>Mère</span></div>
+          <div className="insc-grid2" style={S.grid2}>
+            <F label="Nom complet" name="mereNom" value={form.mereNom} onChange={handleChange} />
+            <F label="Profession" name="mereProfession" value={form.mereProfession} onChange={handleChange} />
+            <F label="Téléphone" name="mereTelephone" type="tel" inputMode="tel" value={form.mereTelephone} onChange={handleChange} />
+          </div>
+        </div>
+        <div style={S.section}>
+          <div style={S.sectionTitle}><span>Tuteur</span></div>
+          <div className="insc-grid2" style={S.grid2}>
+            <F label="Nom complet" name="tuteurNom" value={form.tuteurNom} onChange={handleChange} />
+            <F label="Lien de parenté" name="tuteurLien" value={form.tuteurLien} onChange={handleChange} />
+            <F label="Téléphone" name="tuteurTelephone" type="tel" inputMode="tel" value={form.tuteurTelephone} onChange={handleChange} />
+            <F label="Adresse" name="tuteurAdresse" value={form.tuteurAdresse} onChange={handleChange} span2 />
+          </div>
+        </div>
+      </BlocFacultatif>
+
+      <BlocFacultatif
+        titre="Informations de santé"
+        resume="Allergies, handicap — utiles au service médical de l'établissement"
+        rempliInitialement={!!(form.allergies || form.handicap)}
+      >
+        <div className="insc-grid2" style={S.grid2}>
+          <F label="Allergies" name="allergies" value={form.allergies} onChange={handleChange} />
+          <F label="Handicap" name="handicap" value={form.handicap} onChange={handleChange} />
+        </div>
+      </BlocFacultatif>
     </div>
   );
 
@@ -716,33 +1057,25 @@ export default function Inscriptions() {
     const academicPreset = prefilled && form.universiteId && form.departementId && form.filiereId;
     return (
     <div>
-      <h3 style={{ marginBottom: '12px', color: 'var(--text-primary)', fontSize: '17px' }}>🎓 Informations académiques</h3>
-      {msgInfo && <div style={{ background: 'rgba(192,122,43,0.15)', color: '#856404', padding: '12px', borderRadius: '8px', marginBottom: '16px', border: '1px solid #ffc107' }}>ℹ️ {msgInfo}</div>}
+      <EnteteEtape etape={ETAPES[1]} />
+      {msgInfo && <Encart ton="attention" icone="ℹ️">{msgInfo}</Encart>}
       {filiereSelectionnee?.conditionsAdmission && (
-        <div style={{ background: 'rgba(24,95,165,0.12)', border: '1px solid #bfdbfe', borderRadius: '10px', padding: '14px 18px', marginBottom: '16px' }}>
-          <div style={{ fontWeight: 700, color: '#185FA5', fontSize: '13px', marginBottom: '6px' }}>
-            📌 Exigences d'admission — {filiereSelectionnee.nom}
-          </div>
-          <ul style={{ margin: 0, paddingLeft: '18px', fontSize: '13px', color: '#185FA5', lineHeight: 1.7 }}>
+        <Encart ton="info" icone="📌" titre={`Exigences d'admission — ${filiereSelectionnee.nom}`}>
+          <ul style={{ margin: 0, paddingLeft: '18px', lineHeight: 1.7 }}>
             {filiereSelectionnee.conditionsAdmission.split('\n').filter(l => l.trim()).map((ligne, i) => (
               <li key={i}>{ligne.trim()}</li>
             ))}
           </ul>
-        </div>
+        </Encart>
       )}
       {filiereSelectionnee?.testAdmissionRequis && (
-        <div style={{ background: 'rgba(192,122,43,0.12)', border: '1px solid #fcd34d', borderRadius: '10px', padding: '14px 18px', marginBottom: '16px' }}>
-          <div style={{ fontWeight: 700, color: '#92600a', fontSize: '13px', marginBottom: '4px' }}>
-            📝 Test d'admission requis
-          </div>
-          <p style={{ margin: 0, fontSize: '13px', color: '#92600a', lineHeight: 1.6 }}>
-            L'admission à cette filière est soumise à la réussite d'un <strong>test d'admission</strong>. Après le dépôt de votre dossier, vous serez convoqué(e) au test par le secrétariat.
-          </p>
-        </div>
+        <Encart ton="attention" icone="📝" titre="Test d'admission requis">
+          L'admission à cette filière est soumise à la réussite d'un <strong>test d'admission</strong>. Après le dépôt de votre dossier, vous serez convoqué(e) au test par le secrétariat.
+        </Encart>
       )}
       {/* Année académique — toujours à choisir ici */}
       <div style={S.section}>
-        <div style={S.grid2}>
+        <div className="insc-grid2" style={S.grid2}>
           <Sel label="Année académique" name="anneeAcademiqueId" required disabled={prefilled && !!form.anneeAcademiqueId} value={form.anneeAcademiqueId} onChange={handleChange} error={fieldTouched.anneeAcademiqueId && erreurs.anneeAcademiqueId}>
             <option value="">-- Sélectionner --</option>
             {annees.map(a => <option key={a.id} value={a.id}>{a.libelle} {a.active ? '(Active)' : ''}</option>)}
@@ -757,11 +1090,11 @@ export default function Inscriptions() {
         <div style={S.section}>
           <div style={{ border: '1.5px solid rgba(24,95,165,0.35)', borderRadius: 12, background: 'rgba(24,95,165,0.06)', padding: '16px 18px' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 12, flexWrap: 'wrap' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#185FA5', fontWeight: 700, fontSize: 13 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--title-brand)', fontWeight: 700, fontSize: 13 }}>
                 <span>✅</span> Votre choix de formation
               </div>
               <button type="button" onClick={() => setPrefilled(false)}
-                style={{ background: 'none', border: '1px solid #185FA5', color: '#185FA5', borderRadius: 8, padding: '5px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                style={{ background: 'none', border: '1px solid currentColor', color: 'var(--title-brand)', borderRadius: 8, padding: '5px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
                 ✏️ Modifier
               </button>
             </div>
@@ -782,7 +1115,7 @@ export default function Inscriptions() {
       ) : (
         <>
           <div style={S.section}>
-            <div style={S.grid2}>
+            <div className="insc-grid2" style={S.grid2}>
               <Sel label="Université" name="universiteId" required value={form.universiteId} onChange={handleChange} error={fieldTouched.universiteId && erreurs.universiteId}>
                 <option value="">-- Sélectionner --</option>
                 {universites.map(u => <option key={u.id} value={u.id}>{u.nom}</option>)}
@@ -794,7 +1127,7 @@ export default function Inscriptions() {
             </div>
           </div>
           <div style={S.section}>
-            <div style={S.grid2}>
+            <div className="insc-grid2" style={S.grid2}>
               <Sel label="Filière" name="filiereId" required disabled={loadingFilieres} value={form.filiereId} onChange={handleChange} error={fieldTouched.filiereId && erreurs.filiereId}>
                 <option value="">-- {loadingFilieres ? 'Chargement...' : 'Sélectionner'} --</option>
                 {filieres.map(f => <option key={f.id} value={f.id}>{f.nom}</option>)}
@@ -805,7 +1138,7 @@ export default function Inscriptions() {
         </>
       )}
       <div style={S.section}>
-        <div style={S.grid2}>
+        <div className="insc-grid2" style={S.grid2}>
           <Sel label="Niveau visé" name="niveau" required value={form.niveau} onChange={handleChange} error={fieldTouched.niveau && erreurs.niveau}>
             <option value="">-- Sélectionner --</option>
             {NIVEAUX.map(n => <option key={n.id} value={n.id}>{n.libelle}</option>)}
@@ -867,7 +1200,7 @@ export default function Inscriptions() {
                   {v.fraisInscription != null && (
                     <div style={{
                       display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 2,
-                      background: 'rgba(24,95,165,0.10)', color: '#185FA5',
+                      background: 'rgba(24,95,165,0.10)', color: 'var(--title-brand)',
                       borderRadius: 20, padding: '5px 12px', fontSize: 12.5, fontWeight: 700,
                     }}>
                       💳 {v.fraisInscription} {v.deviseFrais || 'USD'}
@@ -883,77 +1216,47 @@ export default function Inscriptions() {
       )}
       {loadingVacations && <p style={S.hint}>Chargement des vacations disponibles...</p>}
 
+      {/* Diplôme du secondaire : seuls l'école, l'année et le code EXETAT sont
+          demandés d'emblée — l'année conditionne l'obligation du code EXETAT,
+          elle ne peut donc pas être rangée hors de vue. Le reste (numéro du
+          diplôme, moyenne, option) part en facultatif. */}
       <div style={S.section}>
-        <div style={S.sectionTitle}><span>Formation antérieure</span></div>
-        <div style={S.grid2}>
+        <div style={S.sectionTitle}><span>Votre diplôme du secondaire</span></div>
+        <div className="insc-grid2" style={S.grid2}>
           <F label="École secondaire" name="ecoleSecondaire" value={form.ecoleSecondaire} onChange={handleChange} />
-          <F label="Province école" name="provinceEcole" value={form.provinceEcole} onChange={handleChange} />
-          <F label="Année d'obtention du diplôme" name="anneeObtention" type="number" value={form.anneeObtention} onChange={handleChange} />
-          <F label="Numéro du diplôme" name="numeroDiplome" value={form.numeroDiplome} onChange={handleChange} />
-          <F label="Pourcentage/Moyenne" name="pourcentage" type="number" step="0.01" value={form.pourcentage} onChange={handleChange} />
-          <F label="Option/Orientation" name="option" value={form.option} onChange={handleChange} />
+          <F label="Année d'obtention" name="anneeObtention" type="number" inputMode="numeric" placeholder="2025"
+             value={form.anneeObtention} onChange={handleChange} />
           <F label="Code EXETAT" name="codeExetat"
              required={exetatObligatoire(form.anneeObtention)}
              value={form.codeExetat} onChange={handleChange} onBlur={handleBlur}
              error={fieldTouched.codeExetat && erreurs.codeExetat}
+             span2
              hint={exetatObligatoire(form.anneeObtention)
                ? 'Obligatoire pour un diplôme obtenu en 2022 ou après (vérifié sur la plateforme officielle).'
-               : 'À renseigner si disponible.'} />
+               : 'À renseigner si vous en disposez.'} />
         </div>
       </div>
+
+      <BlocFacultatif
+        titre="Détails du diplôme"
+        resume="Province de l'école, numéro du diplôme, moyenne, option"
+        rempliInitialement={!!(form.provinceEcole || form.numeroDiplome || form.pourcentage || form.option)}
+      >
+        <div className="insc-grid2" style={S.grid2}>
+          <F label="Province de l'école" name="provinceEcole" value={form.provinceEcole} onChange={handleChange} />
+          <F label="Numéro du diplôme" name="numeroDiplome" value={form.numeroDiplome} onChange={handleChange} />
+          <F label="Pourcentage / Moyenne" name="pourcentage" type="number" step="0.01" inputMode="decimal" value={form.pourcentage} onChange={handleChange} />
+          <F label="Option / Orientation" name="option" value={form.option} onChange={handleChange} />
+        </div>
+      </BlocFacultatif>
     </div>
     );
   };
 
-  // ÉTAPE 3 : Parents (inchangée)
-  const renderEtape3 = () => (
-    <div>
-      <h3 style={{ marginBottom: '12px', color: 'var(--text-primary)', fontSize: '17px' }}>👨‍👩‍👧 Contacts d'urgence</h3>
-      <div style={S.section}>
-        <div style={S.sectionTitle}><span>Père</span></div>
-        <div style={S.grid2}>
-          <F label="Nom complet" name="pereNom" value={form.pereNom} onChange={handleChange} />
-          <F label="Profession" name="pereProfession" value={form.pereProfession} onChange={handleChange} />
-          <F label="Téléphone" name="pereTelephone" value={form.pereTelephone} onChange={handleChange} />
-        </div>
-      </div>
-      <div style={S.section}>
-        <div style={S.sectionTitle}><span>Mère</span></div>
-        <div style={S.grid2}>
-          <F label="Nom complet" name="mereNom" value={form.mereNom} onChange={handleChange} />
-          <F label="Profession" name="mereProfession" value={form.mereProfession} onChange={handleChange} />
-          <F label="Téléphone" name="mereTelephone" value={form.mereTelephone} onChange={handleChange} />
-        </div>
-      </div>
-      <div style={S.section}>
-        <div style={S.sectionTitle}><span>Tuteur (optionnel)</span></div>
-        <div style={S.grid2}>
-          <F label="Nom complet" name="tuteurNom" value={form.tuteurNom} onChange={handleChange} />
-          <F label="Lien de parenté" name="tuteurLien" value={form.tuteurLien} onChange={handleChange} />
-          <F label="Téléphone" name="tuteurTelephone" value={form.tuteurTelephone} onChange={handleChange} />
-          <F label="Adresse" name="tuteurAdresse" value={form.tuteurAdresse} onChange={handleChange} span2 />
-        </div>
-      </div>
-      <div style={S.section}>
-        <div style={S.sectionTitle}><span>Personne à contacter en cas d'urgence</span></div>
-        <div style={S.grid2}>
-          <F label="Nom complet" name="urgenceNom" value={form.urgenceNom} onChange={handleChange} />
-          <F label="Téléphone" name="urgenceTelephone" value={form.urgenceTelephone} onChange={handleChange} />
-        </div>
-      </div>
-      <div style={S.section}>
-        <div style={S.sectionTitle}><span>Informations sanitaires</span></div>
-        <div style={S.grid2}>
-          <F label="Allergies" name="allergies" value={form.allergies} onChange={handleChange} />
-          <F label="Handicap" name="handicap" value={form.handicap} onChange={handleChange} />
-        </div>
-      </div>
-    </div>
-  );
-
-  // ÉTAPE 4 : Documents — liste pilotée par la filière (documentsRequis
-  // prédéfinis par l'admin), regroupée par catégorie du catalogue.
-  const renderEtape4 = () => {
+  // ─── Bloc « documents » de l'étape 3 ────────────────────────
+  // Liste pilotée par la filière (documentsRequis prédéfinis par l'admin),
+  // regroupée par catégorie du catalogue.
+  const renderDocuments = () => {
     const erreursDocs = docsRequisActifs.filter(d => erreurs[d.key]);
     const groupes = [...new Set(
       docsRequisActifs
@@ -970,25 +1273,22 @@ export default function Inscriptions() {
     };
     return (
       <div>
-        <h3 style={{ marginBottom: '12px', color: 'var(--text-primary)', fontSize: '17px' }}>📎 Documents requis</h3>
+        <div style={S.sectionTitle}><span>Documents à joindre</span></div>
 
         {/* Bandeau d'information (formats + provenance de la liste) */}
-        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, background: 'rgba(24,95,165,0.07)', border: '1px solid rgba(24,95,165,0.20)', borderRadius: 10, padding: '12px 14px', marginBottom: 16 }}>
-          <span style={{ fontSize: 18, lineHeight: 1 }}>💡</span>
-          <div style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.55 }}>
-            Téléversez les copies scannées ou photos de vos documents. Formats acceptés : <strong>PDF, JPG, PNG</strong> (max 5 Mo).
-            {filiereSelectionnee?.documentsRequis && (
-              <> Liste définie par <strong>{filiereSelectionnee.nom}</strong> ; les documents marqués <span style={{ color: '#ef4444', fontWeight: 700 }}>*</span> sont obligatoires.</>
-            )}
-          </div>
-        </div>
+        <Encart ton="info" icone="💡" titre="Comment joindre vos pièces">
+          Téléversez les copies scannées ou photos de vos documents. Formats acceptés : <strong>PDF, JPG, PNG</strong> (max 5 Mo).
+          {filiereSelectionnee?.documentsRequis && (
+            <> Liste définie par <strong>{filiereSelectionnee.nom}</strong> ; les documents marqués <span style={{ color: '#ef4444', fontWeight: 700 }}>*</span> sont obligatoires.</>
+          )}
+        </Encart>
 
         {/* Progression des documents obligatoires */}
         {obligatoires.length > 0 && (
           <div style={{ marginBottom: 18 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12.5, color: 'var(--text-muted)', marginBottom: 6 }}>
               <span>Documents obligatoires fournis</span>
-              <strong style={{ color: pct === 100 ? '#1D9E75' : '#185FA5' }}>{fournisObl} / {obligatoires.length}</strong>
+              <strong style={{ color: pct === 100 ? 'var(--color-success-text)' : 'var(--title-brand)' }}>{fournisObl} / {obligatoires.length}</strong>
             </div>
             <div style={{ height: 8, borderRadius: 20, background: 'var(--bg-secondary, #eef2f7)', overflow: 'hidden' }}>
               <div style={{ height: '100%', width: `${pct}%`, borderRadius: 20, background: pct === 100 ? 'linear-gradient(90deg,#1D9E75,#0F6E56)' : 'linear-gradient(90deg,#185FA5,#0B1F4A)', transition: 'width 0.4s ease' }} />
@@ -997,12 +1297,11 @@ export default function Inscriptions() {
         )}
 
         {erreursDocs.length > 0 && (
-          <div style={{ background: 'rgba(220,53,69,0.10)', border: '1px solid #fca5a5', color: '#dc2626', padding: '12px 16px', borderRadius: '8px', marginBottom: '16px', fontSize: '13px' }}>
-            ⚠️ Documents obligatoires manquants :
-            <ul style={{ margin: '6px 0 0', paddingLeft: '20px' }}>
+          <Encart ton="erreur" icone="⚠️" titre="Documents obligatoires manquants">
+            <ul style={{ margin: 0, paddingLeft: '20px' }}>
               {erreursDocs.map(d => <li key={d.key}>{erreurs[d.key]}</li>)}
             </ul>
-          </div>
+          </Encart>
         )}
 
         {/* Groupes de documents — cartes avec en-tête à icône et compteur */}
@@ -1021,7 +1320,7 @@ export default function Inscriptions() {
                 </div>
               </div>
               <div style={{ padding: 16 }}>
-                <div style={S.grid2}>
+                <div className="insc-grid2" style={S.grid2}>
                   {docs.map(d => (
                     <FileUploadPreview
                       key={d.key}
@@ -1041,145 +1340,140 @@ export default function Inscriptions() {
     );
   };
 
-  // ÉTAPE 5 : Révision
-  const renderEtape5 = () => (
-    <div>
-      <h3 style={{ marginBottom: '12px', color: 'var(--text-primary)', fontSize: '17px' }}>🔍 Révision de votre dossier</h3>
-      <p style={{ color: 'var(--text-muted)', fontSize: '14px', marginBottom: '20px' }}>
-        Vérifiez toutes les informations avant de soumettre. Une fois soumis, votre dossier ne peut être modifié.
-      </p>
+  // Relecture condensée : le dossier tenait sur un écran entier de « révision »
+  // que personne ne lisait après avoir déjà rempli deux étapes. On en garde
+  // l'essentiel — ce qui identifie le candidat et son inscription — juste
+  // au-dessus des engagements, avec un lien de correction par étape.
+  const renderRecapitulatif = () => {
+    const trouver = (liste, id) => liste.find(x => String(x.id) === String(id))?.nom;
+    const vacationChoisie = vacations.find(v => String(v.id) === String(form.vacationId));
+    const lignes = [
+      {
+        titre: 'Vous', etape: 1, items: [
+          ['Nom complet', [form.nom, form.postnom, form.prenom].filter(Boolean).join(' ')],
+          ['Né(e) le', form.dateNaissance ? `${form.dateNaissance}${form.lieuNaissance ? ` à ${form.lieuNaissance}` : ''}` : null],
+          ['E-mail', form.email],
+          ['Téléphone', form.telephone1],
+          ['En cas d\'urgence', form.urgenceNom ? `${form.urgenceNom}${form.urgenceTelephone ? ` — ${form.urgenceTelephone}` : ''}` : null],
+        ],
+      },
+      {
+        titre: 'Votre formation', etape: 2, items: [
+          ['Établissement', trouver(universites, form.universiteId)],
+          ['Département', trouver(departements, form.departementId)],
+          ['Filière', trouver(filieres, form.filiereId)],
+          ['Niveau', NIVEAUX.find(n => n.id === form.niveau)?.libelle || form.niveau],
+          ['Vacation', vacationChoisie ? `${vacationChoisie.type === 'JOUR' ? '☀️ Jour' : '🌙 Soir'} — ${vacationChoisie.nom}` : null],
+          ['Code EXETAT', form.codeExetat],
+        ],
+      },
+    ];
 
+    return (
       <div style={S.revSection}>
         <div style={S.revHeader}>
-          <div style={S.revTitle}>👤 Identité</div>
-          <button style={S.revEdit} onClick={() => allerEtape(1)}>Modifier</button>
+          <div style={S.revTitle}>🔍 Vérifiez avant d'envoyer</div>
         </div>
-        <div style={S.revGrid}>
-          <div style={S.revItem}><span style={S.revKey}>Nom</span> <span style={S.revVal}>{form.nom}</span></div>
-          <div style={S.revItem}><span style={S.revKey}>Prénom</span> <span style={S.revVal}>{form.prenom}</span></div>
-          <div style={S.revItem}><span style={S.revKey}>Date naissance</span> <span style={S.revVal}>{form.dateNaissance}</span></div>
-          <div style={S.revItem}><span style={S.revKey}>Email</span> <span style={S.revVal}>{form.email}</span></div>
-          <div style={S.revItem}><span style={S.revKey}>Téléphone</span> <span style={S.revVal}>{form.telephone1}</span></div>
-        </div>
-      </div>
-
-      <div style={S.revSection}>
-        <div style={S.revHeader}>
-          <div style={S.revTitle}>🎓 Académique</div>
-          <button style={S.revEdit} onClick={() => allerEtape(2)}>Modifier</button>
-        </div>
-        <div style={S.revGrid}>
-          <div style={S.revItem}><span style={S.revKey}>Université</span> <span style={S.revVal}>{universites.find(u => u.id === form.universiteId)?.nom || 'N/A'}</span></div>
-          <div style={S.revItem}><span style={S.revKey}>Département</span> <span style={S.revVal}>{departements.find(d => d.id === form.departementId)?.nom || 'N/A'}</span></div>
-          <div style={S.revItem}><span style={S.revKey}>Filière</span> <span style={S.revVal}>{filieres.find(f => f.id === form.filiereId)?.nom || 'N/A'}</span></div>
-          <div style={S.revItem}><span style={S.revKey}>Niveau</span> <span style={S.revVal}>{NIVEAUX.find(n => n.id === form.niveau)?.libelle || form.niveau}</span></div>
-          {form.codeExetat && (
-            <div style={S.revItem}><span style={S.revKey}>Code EXETAT</span> <span style={S.revVal}>{form.codeExetat}</span></div>
-          )}
-          {vacations.length >= 2 && form.vacationId && (
-            <div style={S.revItem}>
-              <span style={S.revKey}>Vacation</span>
-              <span style={S.revVal}>
-                {(() => {
-                  const v = vacations.find(vv => String(vv.id) === form.vacationId);
-                  return v ? (v.type === 'JOUR' ? '☀️ Jour' : '🌙 Soir') + ` — ${v.nom}` : 'N/A';
-                })()}
-              </span>
-            </div>
-          )}
-        </div>
-      </div>
-
-      <div style={S.revSection}>
-        <div style={S.revHeader}>
-          <div style={S.revTitle}>👨‍👩‍👧 Parents / Tuteur</div>
-          <button style={S.revEdit} onClick={() => allerEtape(3)}>Modifier</button>
-        </div>
-        <div style={S.revGrid}>
-          <div style={S.revItem}><span style={S.revKey}>Père</span> <span style={S.revVal}>{form.pereNom || 'Non renseigné'}</span></div>
-          <div style={S.revItem}><span style={S.revKey}>Mère</span> <span style={S.revVal}>{form.mereNom || 'Non renseigné'}</span></div>
-          <div style={S.revItem}><span style={S.revKey}>Tuteur</span> <span style={S.revVal}>{form.tuteurNom || 'Non renseigné'}</span></div>
-          <div style={S.revItem}><span style={S.revKey}>Contact d'urgence</span> <span style={S.revVal}>{form.urgenceNom || 'Non renseigné'}{form.urgenceTelephone ? ` (${form.urgenceTelephone})` : ''}</span></div>
-        </div>
-      </div>
-
-      <div style={S.revSection}>
-        <div style={S.revHeader}>
-          <div style={S.revTitle}>📎 Documents</div>
-          <button style={S.revEdit} onClick={() => allerEtape(4)}>Modifier</button>
-        </div>
-        <div style={S.revGrid}>
-          {docsRequisActifs.map(doc => (
-            <div key={doc.key} style={S.revItem}>
-              <span style={S.revKey}>{libelleDocument(doc.key)}{doc.obligatoire ? ' *' : ''}</span>
-              <span style={{ ...S.revVal, color: form[doc.key] ? '#16a34a' : (doc.obligatoire ? '#dc2626' : 'var(--text-muted)') }}>
-                {form[doc.key] ? `✓ ${form[doc.key].name || 'Fichier joint'}` : (doc.obligatoire ? '✗ Manquant' : '— Non fourni (facultatif)')}
-              </span>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <div style={{ background: 'rgba(24,95,165,0.12)', borderRadius: '12px', padding: '16px 20px', marginBottom: '20px', border: '1px solid #bfdbfe', fontSize: '13px', color: '#185FA5' }}>
-        ℹ️ Après validation de votre dossier, un email sera envoyé à <strong>{form.email}</strong> pour vous inviter à créer votre mot de passe d'accès au portail étudiant.
-      </div>
-
-
-      <div style={{ marginTop: '24px' }}>
-        <label style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', cursor: 'pointer', marginBottom: '12px' }}>
-          <input type="checkbox" name="certifie" checked={form.certifie} onChange={handleChange} style={{ marginTop: '4px', width: '18px', height: '18px', accentColor: '#185FA5' }} />
-          <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
-            Je certifie que toutes les informations fournies sont exactes et complètes.
-          </span>
-        </label>
-        {erreurs.certifie && <div style={S.errorText}>{erreurs.certifie}</div>}
-        <label style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', cursor: 'pointer' }}>
-          <input type="checkbox" name="accepteReglement" checked={form.accepteReglement} onChange={handleChange} style={{ marginTop: '4px', width: '18px', height: '18px', accentColor: '#185FA5' }} />
-          <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
-            J'accepte le règlement intérieur de l'établissement.
-          </span>
-        </label>
-        {erreurs.accepteReglement && <div style={S.errorText}>{erreurs.accepteReglement}</div>}
-      </div>
-    </div>
-  );
-
-  // ÉTAPE 6 : Finalisation (le paiement se fait APRÈS, via le lien TachPay de l'accusé de réception)
-  const renderEtape6 = () => (
-    <div>
-      <h3 style={{ marginBottom: '12px', color: 'var(--text-primary)', fontSize: '17px' }}>🚀 Finalisation</h3>
-      <div style={S.section}>
-        <div style={{ background: 'rgba(24,95,165,0.12)', borderRadius: '12px', padding: '18px', marginBottom: '24px', border: '1px solid #bfdbfe' }}>
-          <div style={{ fontSize: '13px', color: '#185FA5', marginBottom: '8px', fontWeight: 600 }}>📌 Ce qui se passe après soumission</div>
-          <ul style={{ margin: 0, paddingLeft: '20px', fontSize: '13px', color: '#185FA5', listStyle: 'disc', lineHeight: 1.7 }}>
-            <li>Vous recevrez un <strong>accusé de réception</strong> avec votre numéro de dossier</li>
-            <li>Un <strong>lien de paiement TachPay</strong> vous permettra de régler les frais d'inscription</li>
-            <li>Votre dossier sera <strong>traité une fois le paiement effectué</strong></li>
-            <li>Après validation, un email vous sera envoyé pour créer votre mot de passe et accéder à votre portail étudiant</li>
-          </ul>
-        </div>
-      </div>
-      <div style={{ marginTop: '8px', background: 'rgba(29,158,117,0.12)', borderRadius: '12px', padding: '20px', border: '2px solid #22c55e' }}>
-        <div style={{ fontSize: '16px', fontWeight: 700, color: '#1D9E75', marginBottom: '8px' }}>✓ Prêt à soumettre</div>
-        <p style={{ fontSize: '13px', color: '#1D9E75', margin: '0 0 16px 0' }}>
-          Votre dossier est complet. Cliquez ci-dessous pour soumettre votre candidature ; le paiement des frais se fera juste après.
+        <p style={{ ...S.hint, marginTop: -8, marginBottom: 16 }}>
+          Une fois envoyé, votre dossier ne peut plus être modifié.
         </p>
-        <button
-          className="btn-primary"
-          onClick={() => { if (validerTout()) setShowConfirmSubmit(true); }}
-          disabled={chargement || !form.certifie || !form.accepteReglement || isSubmitting}
-          style={{
-            opacity: (!form.certifie || !form.accepteReglement || isSubmitting) ? 0.6 : 1,
-            cursor: (!form.certifie || !form.accepteReglement || isSubmitting) ? 'not-allowed' : 'pointer',
-            padding: '14px 32px',
-            fontSize: '16px',
-          }}
-        >
-          {chargement ? '⏳ Soumission...' : '🚀 Soumettre le dossier'}
-        </button>
+        {lignes.map(bloc => (
+          <div key={bloc.titre} style={{ marginBottom: 18 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+              <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--text-primary)' }}>{bloc.titre}</div>
+              <button type="button" style={S.revEdit} onClick={() => allerEtape(bloc.etape)}>Modifier</button>
+            </div>
+            <div className="insc-grid2" style={S.revGrid}>
+              {bloc.items.filter(([, v]) => v).map(([cle, valeur]) => (
+                <div key={cle} style={S.revItem}>
+                  <span style={S.revKey}>{cle}</span>
+                  <span style={S.revVal}>{valeur}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
       </div>
-    </div>
-  );
+    );
+  };
+
+  // ÉTAPE 3 : documents, relecture et envoi.
+  // Le paiement se fait APRÈS, via le lien TachPay de l'accusé de réception.
+  const renderEtape3 = () => {
+    const obligatoires = docsRequisActifs.filter(d => d.obligatoire);
+    const docsManquants = obligatoires.filter(d => (
+      d.key === 'diplomeEtat' ? !form.diplomeEtat && !form.attestationReussite : !form[d.key]
+    ));
+    const pret = docsManquants.length === 0 && form.certifie && form.accepteReglement;
+
+    return (
+      <div>
+        <EnteteEtape etape={ETAPES[2]} />
+
+        {renderDocuments()}
+
+        {renderRecapitulatif()}
+
+        <Encart ton="info" icone="📌" titre="Ce qui se passe ensuite">
+          <ol style={{ margin: 0, paddingLeft: '20px', lineHeight: 1.8 }}>
+            <li>Vous recevez immédiatement votre <strong>numéro de dossier</strong>.</li>
+            <li>Vous réglez les <strong>frais d'inscription</strong> via TachPay (mobile money ou carte).</li>
+            <li>Le secrétariat traite votre dossier <strong>une fois le paiement reçu</strong>.</li>
+            <li>Après validation, un e-mail part vers <strong>{form.email || 'votre adresse'}</strong> pour créer votre mot de passe et accéder à votre portail étudiant.</li>
+          </ol>
+        </Encart>
+
+        {/* Engagements — obligatoires, donc hors de tout bloc repliable. */}
+        <div style={{ marginBottom: '20px' }}>
+          <label style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', cursor: 'pointer', marginBottom: '12px' }}>
+            <input type="checkbox" name="certifie" checked={form.certifie} onChange={handleChange} style={{ marginTop: '3px', width: '18px', height: '18px', accentColor: '#185FA5', flexShrink: 0 }} />
+            <span style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.55 }}>
+              Je certifie que toutes les informations fournies sont exactes et complètes.
+            </span>
+          </label>
+          {erreurs.certifie && <div style={S.errorText}>{erreurs.certifie}</div>}
+          <label style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', cursor: 'pointer' }}>
+            <input type="checkbox" name="accepteReglement" checked={form.accepteReglement} onChange={handleChange} style={{ marginTop: '3px', width: '18px', height: '18px', accentColor: '#185FA5', flexShrink: 0 }} />
+            <span style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.55 }}>
+              J'accepte le règlement intérieur de l'établissement.
+            </span>
+          </label>
+          {erreurs.accepteReglement && <div style={S.errorText}>{erreurs.accepteReglement}</div>}
+        </div>
+
+        {/* Le bouton reste TOUJOURS cliquable : le désactiver laissait le candidat
+            devant un bouton gris sans lui dire ce qui bloque. La validation, elle,
+            nomme le manque et ramène à l'étape fautive. */}
+        <Encart
+          ton={pret ? 'succes' : 'attention'}
+          icone={pret ? '✓' : '⏳'}
+          titre={pret ? 'Votre dossier est complet' : 'Encore quelques éléments'}
+          style={{ marginBottom: 0, padding: '18px 20px' }}
+        >
+          <p style={{ margin: '0 0 16px 0', lineHeight: 1.6 }}>
+            {pret
+              ? "Envoyez votre candidature : le paiement des frais se fera juste après, à l'écran suivant."
+              : docsManquants.length > 0
+                ? `Documents obligatoires à joindre : ${docsManquants.map(d => libelleDocument(d.key)).join(', ')}.`
+                : 'Cochez les deux engagements ci-dessus pour pouvoir envoyer votre dossier.'}
+          </p>
+          <button
+            className="btn-primary"
+            onClick={() => { if (validerTout()) setShowConfirmSubmit(true); }}
+            disabled={chargement || isSubmitting}
+            style={{
+              opacity: isSubmitting ? 0.6 : 1,
+              cursor: isSubmitting ? 'not-allowed' : 'pointer',
+              padding: '14px 32px',
+              fontSize: '16px',
+            }}
+          >
+            {chargement ? '⏳ Envoi en cours...' : '🚀 Envoyer mon dossier'}
+          </button>
+        </Encart>
+      </div>
+    );
+  };
 
   // ─── Page succès ─────────────────────────────────────────────
   if (dossier) {
@@ -1187,7 +1481,7 @@ export default function Inscriptions() {
       <div className="page">
         <div className="card" style={{ textAlign: 'center', padding: '40px', maxWidth: '560px', margin: '40px auto', borderRadius: '16px', boxShadow: '0 10px 40px rgba(0,0,0,0.08)' }}>
           <div style={{ fontSize: '64px', marginBottom: '16px' }}>📨</div>
-          <h2 style={{ color: '#185FA5', marginBottom: '8px' }}>Dossier bien reçu !</h2>
+          <h2 style={{ color: 'var(--title-brand)', marginBottom: '8px' }}>Dossier bien reçu !</h2>
           <p style={{ color: 'var(--text-muted)', marginBottom: '24px' }}>
             Votre inscription a été <strong>reçue</strong> mais n'est <strong>pas encore traitée</strong>.
           </p>
@@ -1197,14 +1491,14 @@ export default function Inscriptions() {
             <div style={{ marginBottom: '8px' }}><strong>🏛️ Institution :</strong> {dossier.universite}</div>
             <div style={{ padding: '12px 0', borderTop: '1px solid #bfdbfe', marginTop: '8px' }}>
               <strong>📋 N° de dossier : </strong>
-              <span style={{ color: '#185FA5', fontWeight: 700, fontSize: '18px' }}>{dossier.numeroDossier}</span>
+              <span style={{ color: 'var(--title-brand)', fontWeight: 700, fontSize: '18px' }}>{dossier.numeroDossier}</span>
             </div>
           </div>
           <div style={{ background: 'rgba(192,122,43,0.12)', border: '1px solid #fcd34d', borderRadius: '12px', padding: '16px 20px', marginBottom: '18px', textAlign: 'left' }}>
-            <div style={{ fontWeight: 700, color: '#92600a', marginBottom: '6px', fontSize: '14px' }}>
+            <div style={{ fontWeight: 700, color: 'var(--color-warning-text)', marginBottom: '6px', fontSize: '14px' }}>
               💳 Frais d'inscription{dossier.fraisInscription != null ? ` : ${dossier.fraisInscription} ${dossier.deviseFrais}` : ''}
             </div>
-            <p style={{ fontSize: '13px', color: '#92600a', margin: 0 }}>
+            <p style={{ fontSize: '13px', color: 'var(--color-warning-text)', margin: 0 }}>
               Votre dossier ne sera <strong>traité qu'après le paiement</strong> des frais d'inscription{dossier.fraisInscription != null ? ` de ${dossier.fraisInscription} ${dossier.deviseFrais}` : ''} exigés par le programme. Réglez-les via TachPay ci-dessous.
             </p>
           </div>
@@ -1216,16 +1510,16 @@ export default function Inscriptions() {
             💳 Payer les frais d'inscription
           </Link>
           {dossier.paymentExpiresAt && (
-            <p style={{ fontSize: '12px', color: '#92600a', margin: '-6px 0 16px' }}>
+            <p style={{ fontSize: '12px', color: 'var(--color-warning-text)', margin: '-6px 0 16px' }}>
               Ce lien de paiement expire le <strong>{new Date(dossier.paymentExpiresAt).toLocaleString('fr-FR')}</strong>.
             </p>
           )}
           <div style={{ background: 'rgba(29,158,117,0.12)', border: '1px solid #86efac', borderRadius: '12px', padding: '14px 18px', margin: '4px 0 18px', textAlign: 'left' }}>
-            <div style={{ fontWeight: 700, color: '#1D9E75', marginBottom: '6px', fontSize: '13px' }}>✉️ Ensuite</div>
-            <ul style={{ margin: 0, paddingLeft: '18px', fontSize: '12.5px', color: '#1D9E75', lineHeight: 1.7 }}>
+            <div style={{ fontWeight: 700, color: 'var(--color-success-text)', marginBottom: '6px', fontSize: '13px' }}>✉️ Ensuite</div>
+            <ul style={{ margin: 0, paddingLeft: '18px', fontSize: '12.5px', color: 'var(--color-success-text)', lineHeight: 1.7 }}>
               <li>Après paiement, le secrétariat traite votre dossier</li>
               <li>Une fois <strong>validé</strong>, un email est envoyé à <strong>{dossier.email}</strong> pour créer votre mot de passe et accéder à votre portail</li>
-              <li>Suivez l'état à tout moment via la page <Link to="/suivi-dossier" style={{ color: '#1D9E75', fontWeight: 600 }}>Suivi du dossier</Link></li>
+              <li>Suivez l'état à tout moment via la page <Link to="/suivi-dossier" style={{ color: 'var(--color-success-text)', fontWeight: 600 }}>Suivi du dossier</Link></li>
             </ul>
           </div>
           <p style={{ fontSize: '12px', color: '#9ca3af', marginBottom: '18px' }}>
@@ -1259,7 +1553,7 @@ export default function Inscriptions() {
         <div>
           <h1 style={{ margin: 0, fontSize: '21px', fontWeight: 700 }}>📝 Portail des Inscriptions</h1>
           <p style={{ margin: '4px 0 0', opacity: 0.85, fontSize: '13px' }}>
-            Soumettez votre candidature en ligne — Aucun compte requis
+            {ETAPES.length} étapes · environ 10 minutes · aucun compte requis
           </p>
           {inscriptionStorage.hasDraft() && (
             <div style={{ marginTop: '8px', fontSize: '12px', background: 'rgba(255,255,255,0.2)', padding: '4px 14px', borderRadius: '20px', display: 'inline-block' }}>
@@ -1319,7 +1613,7 @@ export default function Inscriptions() {
               >
                 {etape > e.num ? '✓' : e.num}
               </div>
-              <span style={{ fontSize: '12px', color: etape === e.num ? '#185FA5' : 'var(--text-muted)', fontWeight: etape === e.num ? 600 : 400, whiteSpace: 'nowrap' }}>
+              <span style={{ fontSize: '12px', color: etape === e.num ? 'var(--title-brand)' : 'var(--text-muted)', fontWeight: etape === e.num ? 600 : 400, whiteSpace: 'nowrap' }}>
                 {e.label}
               </span>
               {e.num < ETAPES.length && (
@@ -1328,21 +1622,23 @@ export default function Inscriptions() {
             </div>
           ))}
         </div>
-        <div style={{ fontSize: '13px', fontWeight: 500, color: '#185FA5', whiteSpace: 'nowrap' }}>
+        <div style={{ fontSize: '13px', fontWeight: 500, color: 'var(--title-brand)', whiteSpace: 'nowrap' }}>
           Étape {etape} / {ETAPES.length}
         </div>
       </div>
 
       {msgGlobal && (
-        <div style={{ background: 'rgba(220,53,69,0.10)', border: '1px solid #fca5a5', color: '#dc2626', padding: '12px 20px', fontSize: '14px', cursor: 'pointer', borderRadius: '8px', marginBottom: '16px' }}
-          onClick={() => setMsgGlobal('')}>
-          {msgGlobal} &nbsp;<span style={{ opacity: 0.5 }}>×</span>
+        <div onClick={() => setMsgGlobal('')} style={{ cursor: 'pointer', margin: '0 24px' }}>
+          <Encart ton="erreur" style={{ marginTop: 16, marginBottom: 0 }}>
+            {msgGlobal} &nbsp;<span style={{ opacity: 0.5 }}>×</span>
+          </Encart>
         </div>
       )}
       {msgSuccess && (
-        <div style={{ background: 'rgba(29,158,117,0.12)', border: '1px solid #86efac', color: '#1D9E75', padding: '12px 20px', fontSize: '14px', borderRadius: '8px', marginBottom: '16px' }}
-          onClick={() => setMsgSuccess('')}>
-          {msgSuccess}
+        <div onClick={() => setMsgSuccess('')} style={{ cursor: 'pointer', margin: '0 24px' }}>
+          <Encart ton="succes" style={{ marginTop: 16, marginBottom: 0 }}>
+            {msgSuccess}
+          </Encart>
         </div>
       )}
 
@@ -1350,11 +1646,8 @@ export default function Inscriptions() {
         {etape === 1 && renderEtape1()}
         {etape === 2 && renderEtape2()}
         {etape === 3 && renderEtape3()}
-        {etape === 4 && renderEtape4()}
-        {etape === 5 && renderEtape5()}
-        {etape === 6 && renderEtape6()}
 
-        {etape < 6 && (
+        {etape < ETAPES.length && (
           <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '24px', borderTop: '1px solid var(--border-color)', paddingTop: '18px', flexWrap: 'wrap', gap: 10 }}>
             <div style={{ display: 'flex', gap: 10 }}>
               {etape > 1 && (
@@ -1367,14 +1660,16 @@ export default function Inscriptions() {
               </button>
             </div>
             <button className="btn-primary" onClick={suivant} style={{ padding: '9px 28px', fontSize: '14px' }}>
-              {etape === 5 ? 'Aller à la finalisation →' : 'Suivant →'}
+              {etape === ETAPES.length - 1 ? 'Passer aux documents →' : 'Suivant →'}
             </button>
           </div>
         )}
-        {etape === 6 && (
-          <div style={{ marginTop: '20px', display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
+        {/* Dernière étape : le bouton d'envoi vit dans l'étape elle-même, sous les
+            engagements. Ne reste ici que la sortie de secours. */}
+        {etape === ETAPES.length && (
+          <div style={{ marginTop: '20px', display: 'flex', justifyContent: 'space-between', borderTop: '1px solid var(--border-color)', paddingTop: '18px', flexWrap: 'wrap', gap: 10 }}>
             <button className="btn-outline" onClick={precedent} style={{ padding: '9px 22px', fontSize: '14px' }}>
-              ← Retour à la révision
+              ← Précédent
             </button>
             <button className="btn-outline" onClick={() => setShowConfirmQuit(true)} style={{ padding: '9px 22px', fontSize: '14px' }}>
               Annuler

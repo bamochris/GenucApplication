@@ -16,6 +16,11 @@
   --bg-input: #ffffff;
   --text-primary: #0B1F4A;
   --title-accent: #ffffff;
+  /* Texte de titre à la couleur de marque : bleu GENUC en clair, blanc en
+     sombre. À utiliser partout où #185FA5 servait de couleur de TEXTE — en
+     sombre, ce bleu tombe à un contraste d'environ 2,5:1 sur #1e293b, sous le
+     minimum lisible. Les fonds, bordures et aplats gardent le bleu de marque. */
+  --title-brand: #185FA5;
   --text-secondary: #333333;
   --text-muted: #6b7280;
   --border-color: #e0e0e0;
@@ -24,6 +29,8 @@
      à utiliser à la place de #cc0000/#1D9E75 en dur pour rester lisible en dark. */
   --color-danger-text: #cc0000;
   --color-success-text: #1D9E75;
+  /* Texte d'avertissement (encarts ambrés) — pendant de --color-danger-text. */
+  --color-warning-text: #92600a;
 }
 
 [data-theme="dark"] {
@@ -34,12 +41,14 @@
   --bg-input: #0f172a;
   --text-primary: #f1f5f9;
   --title-accent: #ffffff;
+  --title-brand: #ffffff;
   --text-secondary: #94a3b8;
   --text-muted: #94a3b8;
   --border-color: #334155;
   --shadow-color: rgba(0, 0, 0, 0.3);
   --color-danger-text: #fca5a5;
   --color-success-text: #6ee7b7;
+  --color-warning-text: #fcd34d;
 }
 
 /* ─── Fond de marque adaptatif (clair/sombre × portrait/paysage) ───

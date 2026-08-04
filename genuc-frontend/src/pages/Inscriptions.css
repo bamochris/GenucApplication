@@ -78,6 +78,14 @@
     font-size: 16px !important;
     min-height: 44px;
   }
+
+  /* Les paires de champs passent en colonne unique. Sur 360 px, deux colonnes
+     laissaient ~140 px par champ : le libellé « Date de naissance » y tenait sur
+     trois lignes et la valeur saisie était tronquée. Le style en ligne
+     (gridTemplateColumns: '1fr 1fr') impose le !important. */
+  .insc-grid2 {
+    grid-template-columns: 1fr !important;
+  }
 }
 
 /* ── Petits écrans (360 px et moins : TECNO/itel d'entrée de gamme) ── */

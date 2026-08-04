@@ -52,36 +52,8 @@ function LogoGenuc({ taille, rayon }) {
   );
 }
 
-/* ── Logos des universités ────────────────────────────────────── */
-const UNI_LOGOS = {
-  UNIKIN:    '/assets/UNIKIN.png',
-  UPN:       '/assets/UPN.png',
-  'HEC-KIN': '/assets/HEC-KIN.png',
-  HEC:       '/assets/HEC-KIN.png',
-  ISIPA:     '/assets/ISIPA.png',
-  ISP:       '/assets/ISP.jpg',
-  REV_KIM:   '/assets/REV_KIM.jpg',
-  UCC:       '/assets/UCC.jpg',
-  UNILU:     '/assets/UNILU.jpg',
-  UNISIC:    '/assets/UNISIC.png',
-  UPC:       '/assets/UPC.png',
-};
 
-/* ── Couleurs par université ──────────────────────────────────── */
-const UNI_COLORS = {
-  UNIKIN:    { bg: '#185FA5', light: '#E6F1FB' },
-  UPN:       { bg: '#1D9E75', light: '#E1F5EE' },
-  UNILU:     { bg: '#B91C1C', light: '#FEE2E2' },
-  HEC:       { bg: '#C07A2B', light: '#FEF3C7' },
-  'HEC-KIN': { bg: '#C07A2B', light: '#FEF3C7' },
-  ISP:       { bg: '#6B21A8', light: '#F3E8FF' },
-  ISIPA:     { bg: '#0E7490', light: '#CFFAFE' },
-  UCC:       { bg: '#065F46', light: '#D1FAE5' },
-  UPC:       { bg: '#92400E', light: '#FDE68A' },
-  REV_KIM:   { bg: '#1D9E75', light: '#E1F5EE' },
-  UNISIC:    { bg: '#7C3AED', light: '#EDE9FE' },
-  DEFAULT:   { bg: C.navy,    light: '#E8EDF5' },
-};
+
 
 /* ── Débouchés par filière ────────────────────────────────────── */
 const DEBOUCHES_MAP = [
@@ -155,12 +127,18 @@ function getDebouches(filiereNom = '') {
   );
 }
 
-function getUniColor(code = '') {
-  if (UNI_COLORS[code]) return UNI_COLORS[code];
-  const key = Object.keys(UNI_COLORS).find(
-    k => k !== 'DEFAULT' && code.toUpperCase().startsWith(k.toUpperCase())
-  );
-  return UNI_COLORS[key] || UNI_COLORS.DEFAULT;
+/* Couleur d'un établissement : celle qu'il a déclarée (Universite.couleurPrincipale),
+   sinon le bleu nuit de la marque. Renvoie un couple { bg, light } car les cartes
+   composent des teintes dérivées (`${uc.bg}30` pour une ombre, uc.light pour un
+   aplat) : `bg` DOIT donc rester un hexadécimal à 6 chiffres, sans quoi les
+   concaténations d'alpha produisent une couleur invalide et la carte perd son
+   liseré. Les valeurs saisies en base ne sont pas contrôlées : on les valide ici. */
+const HEX6 = /^#[0-9a-fA-F]{6}$/;
+
+function getUniColor(uni) {
+  const brut = (uni?.couleurPrincipale || '').trim();
+  const bg = HEX6.test(brut) ? brut : C.navy;
+  return { bg, light: `${bg}18` };
 }
 
 /* ════════════════════════════════════════════════════════════════ */
@@ -306,9 +284,9 @@ export default function InscriptionsUniversites() {
           <div style={{ display: 'flex', justifyContent: 'center', gap: 36, marginTop: 36, flexWrap: 'wrap' }}>
             {[
               { val: universites.length || '—', label: 'Universités ouvertes' },
-              { val: '120+',          label: 'Facultés' },
-              { val: '480+',          label: 'Filières' },
-              { val: '100% en ligne', label: 'Inscription' },
+              { val: universites.reduce((acc, u) => acc + (u.nbFacultes || 0), 0) || '—', label: 'Facultés' },
+              { val: universites.reduce((acc, u) => acc + (u.nbDepartements || 0), 0) || '—', label: 'Départements' },
+              { val: universites.reduce((acc, u) => acc + (u.nbEtudiants || 0), 0) || '—', label: 'Étudiants' },
             ].map(s => (
               <div key={s.label} style={{ textAlign: 'center' }}>
                 <div style={{ fontSize: 24, fontWeight: 900, color: '#9FE1CB' }}>{s.val}</div>
@@ -415,7 +393,7 @@ export default function InscriptionsUniversites() {
             {/* ─ Facultés / Départements ─ */}
             <div style={{ background: 'var(--bg-card)', borderRadius: 20, padding: 28, boxShadow: '0 4px 20px rgba(0,0,0,0.06)' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
-                <div style={{ width: 36, height: 36, borderRadius: 10, background: `${getUniColor(selectedUni.code).bg}18`, color: getUniColor(selectedUni.code).bg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>
+                <div style={{ width: 36, height: 36, borderRadius: 10, background: getUniColor(selectedUni).light, color: getUniColor(selectedUni).bg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>
                   <FaBook />
                 </div>
                 <div>
@@ -436,7 +414,7 @@ export default function InscriptionsUniversites() {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                   {departements.map(dept => {
                     const isActive = selectedDept?.id === dept.id;
-                    const color = getUniColor(selectedUni.code).bg;
+                    const color = getUniColor(selectedUni).bg;
                     return (
                       <button
                         key={dept.id}
@@ -575,9 +553,9 @@ export default function InscriptionsUniversites() {
 
 function UniCard({ uni, selected, onClick }) {
   const [imgError, setImgError] = useState(false);
-  const uc = getUniColor(uni.code);
+  const uc = getUniColor(uni);
   const initiales = (uni.code || uni.nom || 'U').substring(0, 3).toUpperCase();
-  const logoSrc = resolveFileUrl(uni.logo) || UNI_LOGOS[uni.code] || null;
+  const logoSrc = resolveFileUrl(uni.logo) || null;
 
   return (
     <div
